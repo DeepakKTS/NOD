@@ -19,6 +19,7 @@ stream-relative clock, both injected, so it holds no socket and reads no audio
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -71,6 +72,17 @@ dimensionless (0.95 - 0.20 = 0.75) and a silence knob's is milliseconds; scaling
 a millisecond tolerance by the former yields 0.3 ms, which no real measurement
 can satisfy, and a working knob is reported `STATIC_ONLY`.
 """
+
+
+class ExplainedUpstreamError(Exception):
+    """Base for adapter errors that already carry the server's own explanation.
+
+    Declared here so `probe` can prefer such an error over a bare transport
+    close without `nod_core` importing a concrete adapter (ARCHITECTURE.md §2).
+    """
+
+    error_code: int | None
+
 
 NO_BOUNDARY: Final = math.inf
 """No turn boundary fired inside the test gap.
@@ -143,6 +155,11 @@ def _iqr(values: Sequence[float]) -> float:
     ordered = sorted(values)
     half = len(ordered) // 2
     return _median(ordered[-half:]) - _median(ordered[:half])
+
+
+def _no_boundaries(values: Sequence[float]) -> bool:
+    """Whether an arm never ended a turn inside the gap. `O(n)`."""
+    return bool(values) and all(math.isinf(v) for v in values)
 
 
 def _separated(
@@ -261,7 +278,9 @@ def verdict_for(
         direction: `+1` if a lower arm value should yield an earlier boundary.
 
     Returns:
-        The verdict. Anything short of proof is `UNPROVEN`, never `LIVE`.
+        The verdict. Anything short of proof is `UNPROVEN`, never `LIVE`, and an
+        arm pair that produced no boundary at all is `UNPROVEN` rather than
+        `INERT`.
     """
     if any(o.error_code is not None for o in observations):
         return KnobVerdict.REJECTED
@@ -274,11 +293,19 @@ def verdict_for(
     if not (connect_low and connect_high):
         return KnobVerdict.UNPROVEN
 
+    if _no_boundaries(connect_low) and _no_boundaries(connect_high):
+        # Neither arm ended a turn anywhere in the gap, so nothing was measured.
+        # That is absence of data, not evidence of absence of effect: the
+        # stimulus may simply never have given the knob an opportunity to act.
+        # Calling it INERT would report a property of the model on the strength
+        # of an experiment that did not run.
+        return KnobVerdict.UNPROVEN
+
     connect_moved = _separated(
         connect_low, connect_high, expected_shift_ms
     ) and _directed(connect_low, connect_high, direction)
     if not connect_moved:
-        # The parameter does nothing on this model, so mid-stream is moot.
+        # Boundaries did occur and did not move with the knob.
         return KnobVerdict.INERT
 
     mid_moved = (
@@ -455,9 +482,24 @@ async def probe(
     try:
         await _control()
         await feeder
+        return await observed
+    except Exception as exc:
+        # The server sends `Error` and closes, so whichever coroutine touches the
+        # socket first raises. The control task typically sees a bare transport
+        # close while the event stream holds the message that says why. Prefer
+        # the latter: "too many concurrent sessions" is actionable and
+        # "connection closed" is not.
+        if observed.done() and not observed.cancelled():
+            better = observed.exception()
+            if better is not None and not isinstance(exc, ExplainedUpstreamError):
+                raise better from exc
+        raise
     finally:
         await session.aclose()
-    return await observed
+        for task in (feeder, observed):
+            task.cancel()
+            with contextlib.suppress(BaseException):
+                await task
 
 
 def degrade(caps: Capabilities) -> frozenset[str]:

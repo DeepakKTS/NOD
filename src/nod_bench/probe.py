@@ -27,18 +27,22 @@ import asyncio
 import math
 import sys
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Protocol, TextIO
 
 from pydantic import ValidationError
+from websockets.exceptions import ConnectionClosed
 
 from nod_adapters.assemblyai.session import AssemblyAISession, UpstreamError
 from nod_bench.feeder import PacedFeeder, frames_of
 from nod_bench.probe_clip import (
+    LEAD_MS,
+    PREAMBLE_MS,
     SAMPLE_RATE,
     TONE_LOW,
+    TRAIL_MS,
     UPDATE_AT_MS,
     ZEROS,
     ClipLayout,
@@ -46,6 +50,14 @@ from nod_bench.probe_clip import (
     build_clip,
     clip_sha256,
     load_seed,
+)
+from nod_bench.seed import (
+    MANIFEST_SUFFIX,
+    RATE_WPM,
+    SayUnavailableError,
+    SynthesisError,
+    manifest_for,
+    synthesize_seed,
 )
 from nod_core.capabilities import (
     NO_BOUNDARY,
@@ -157,14 +169,35 @@ class KnobStimulus:
     low: float
     high: float
     direction: int
+    pin_rationale: str
+    """Why the pinned values are what they are, recorded in the trace meta.
+
+    The first live run pinned `max_turn_silence` at 8000 ms for two knobs on the
+    reasoning that it "could not be the binding constraint". On this model it is
+    the *only* mechanism that ends a turn, so nothing fired in any cell and the
+    arms measured nothing at all.
+    """
+
+    lead_segment: int
+    """Which seed segment sits immediately before the test gap.
+
+    `1` is a complete sentence, which lets the semantic gate fire; `3` is a
+    fragment, which keeps it waiting so the acoustic fallback is the only thing
+    that can end the turn. The knob under test dictates which regime is needed.
+    """
+
     expected_shift_ms: int
     """How far the boundary should move between the arms, in milliseconds.
 
     Stated per stimulus rather than derived from `high - low`, because for the
     two threshold knobs the arm values are dimensionless and carry no
-    millisecond meaning at all. For a categorical stimulus — one arm ends the
-    turn inside the gap, the other never does — the largest observable shift is
-    the gap itself.
+    millisecond meaning at all.
+
+    The bound is the mechanism's own scale, not the gap length. `vad_threshold`
+    shifts only *when silence starts accumulating*, so its scale is the
+    accumulation window (`max_turn_silence`), not the gap it sits in; scaling by
+    the gap demanded a 900 ms shift from a knob that can only move the boundary
+    by a few hundred.
     """
 
     note: str
@@ -184,30 +217,58 @@ STIMULI: Final = (
         low=600,
         high=3000,
         direction=1,
+        lead_segment=3,
+        pin_rationale=(
+            "lead segment is a FRAGMENT, so the semantic gate keeps waiting and "
+            "the acoustic fallback is the only thing that can end the turn. With "
+            "a complete sentence the gate fires at min_turn_silence and max is "
+            "never reached, which reads as inert; "
+            "the low arm (600) ends the turn inside the 1500 ms gap and the high "
+            "arm (3000) outlasts it, making the split categorical"
+        ),
         expected_shift_ms=2400,
         note="low ends the turn inside the gap; high never should",
     ),
     KnobStimulus(
         field="min_turn_silence",
-        pinned={"end_of_turn_confidence_threshold": 0.20, "max_turn_silence": 8000},
-        gap_ms=2500,
+        pinned={"end_of_turn_confidence_threshold": 0.20, "max_turn_silence": 3000},
+        gap_ms=4000,
         gap_fill=ZEROS,
         low=100,
         high=2000,
         direction=1,
+        lead_segment=1,
+        pin_rationale=(
+            "max pinned at 3000 ms, above the 2000 ms high arm so it cannot bind "
+            "before the knob acts, but inside the 4000 ms gap so the turn still "
+            "terminates; pinning it beyond the gap removes the only mechanism "
+            "that ends a turn on this model and every cell measures nothing"
+        ),
         expected_shift_ms=1900,
         note="confidence pinned low so the minimum silence is the binding constraint",
     ),
     KnobStimulus(
         field="end_of_turn_confidence_threshold",
-        pinned={"min_turn_silence": 100, "max_turn_silence": 8000},
-        gap_ms=1500,
+        pinned={"min_turn_silence": 200, "max_turn_silence": 3000},
+        gap_ms=4000,
         gap_fill=ZEROS,
-        low=0.20,
-        high=0.95,
+        low=0.0,
+        high=1.0,
         direction=1,
-        expected_shift_ms=1500,
-        note="silence pinned wide so only the confidence gate can end the turn",
+        lead_segment=1,
+        pin_rationale=(
+            "arms at the documented endpoints rather than mid-range: threshold 0 "
+            "is specified to force end-of-turn as soon as silence is detected, "
+            "per min_turn_silence; threshold 1 is specified to fall back to "
+            "acoustic-only detection on max_turn_silence. min=200 and max=3000 "
+            "are both reachable inside the 4000 ms gap and 2800 ms apart, so the "
+            "two documented behaviours must land in visibly different places. "
+            "Mid-range arms (0.20 vs 0.95) cannot distinguish an inert knob from "
+            "one whose gate the stimulus happens to satisfy either way"
+        ),
+        expected_shift_ms=2800,
+        note="0.0 should end at min_turn_silence, 1.0 at max_turn_silence; "
+        "identical boundaries mean the knob is inert beyond argument",
     ),
     KnobStimulus(
         field="vad_threshold",
@@ -221,7 +282,14 @@ STIMULI: Final = (
         low=0.05,
         high=0.90,
         direction=-1,
-        expected_shift_ms=1500,
+        lead_segment=3,
+        pin_rationale=(
+            "lead segment is a FRAGMENT so max_turn_silence is the binding gate; "
+            "max pinned at 800 ms so a gap classified as silence terminates well "
+            "inside the 1500 ms gap; the fill is -35 dBFS room tone so the "
+            "threshold decides whether that silence accumulates at all"
+        ),
+        expected_shift_ms=800,
         note="gap is -35 dBFS room tone; a low threshold calls it speech, so the "
         "boundary moves later, not sooner",
     ),
@@ -239,7 +307,15 @@ FORCE_PINNED: Final = {
     "min_turn_silence": 400,
     "max_turn_silence": 8000,
 }
-"""Nothing can end a turn inside the gap unless `ForceEndpoint` does."""
+"""Nothing can end a turn inside the gap unless `ForceEndpoint` does.
+
+Paired with `FORCE_LEAD_SEGMENT`: with a complete sentence the semantic gate
+fires at `min_turn_silence` and the control arm ends on its own at ~590 ms,
+which makes a forced boundary indistinguishable from an ordinary one.
+"""
+
+FORCE_LEAD_SEGMENT: Final = 3
+"""A fragment, so the control arm has no way to end the turn by itself."""
 
 FORCE_GAP_MS: Final = 2500
 FORCE_AT_OFFSET_MS: Final = 400
@@ -259,6 +335,9 @@ class SessionSpec:
     layout: ClipLayout
     plan: CellPlan
     repeat: int
+    segments: tuple[tuple[int, int], ...] = ()
+    lead_segment: int = 1
+    pin_rationale: str = ""
 
     @property
     def session_id(self) -> str:
@@ -280,6 +359,45 @@ class RunResult:
     force: list[CellObservation] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     audio_ms: int = 0
+    seed_caveat: str = ""
+    """Non-empty when the seed was not a human recording (INV-9 adjacent)."""
+
+
+CONCURRENCY_MARKER: Final = "concurrent"
+"""Substring of the upstream's own words for the account session-concurrency cap."""
+
+SESSION_SETTLE_S: Final = 2.0
+"""Pause between sessions. Seconds.
+
+The sessions are sequential, but closing a socket does not release the account's
+concurrency slot instantly, and the upstream counts the overlap rather than the
+intent.
+"""
+
+CONCURRENCY_BACKOFF_S: Final = (5.0, 15.0, 30.0)
+"""Waits before each retry after a concurrency refusal. Seconds."""
+
+
+class ConcurrencyLimitError(RuntimeError):
+    """The account's concurrent-session cap refused this session.
+
+    Distinct from a knob rejection: it says nothing about the field under test,
+    so it must be retried rather than recorded as a verdict.
+    """
+
+
+def _failed(spec: SessionSpec, error_code: int | None) -> CellObservation:
+    """Build the observation for a session that produced no measurement. `O(1)`."""
+    return CellObservation(
+        cell=spec.cell,
+        field=spec.field,
+        arm_value=spec.arm_value,
+        boundary_ms=NO_BOUNDARY,
+        last_word_end_ms=None,
+        error_code=error_code,
+        confidence_samples=(),
+        confidence_on_partials=False,
+    )
 
 
 def _cell_plan(
@@ -315,20 +433,37 @@ def _neutral_for(stimulus: KnobStimulus) -> dict[str, float]:
     return dict(stimulus.pinned)
 
 
-def plan_sessions(*, quick: bool) -> list[SessionSpec]:
+def plan_sessions(
+    *, quick: bool, segment_ms: tuple[int, ...] | None = None
+) -> list[SessionSpec]:
     """Build the full session matrix. Pure. `O(knobs * cells * repeats)`.
 
     Args:
         quick: Primary model only, one repeat per cell.
+        segment_ms: Actual speaking length of the three seed segments. The gap
+            position is derived from these, so a plan built without them and a
+            clip built with them would disagree about where the gap starts.
 
     Returns:
         Every session the run will open, in execution order.
     """
     repeats = 1 if quick else FULL_REPEATS
+    spans = segment_ms or (PREAMBLE_MS, LEAD_MS, TRAIL_MS)
+
+    def _layout(gap_ms: int, gap_fill: str, lead_segment: int = 1) -> ClipLayout:
+        lead_ms = spans[lead_segment] if lead_segment < len(spans) else spans[1]
+        return ClipLayout(
+            gap_ms=gap_ms,
+            gap_fill=gap_fill,
+            preamble_ms=spans[0],
+            lead_ms=lead_ms,
+            trail_ms=spans[2],
+        )
+
     specs: list[SessionSpec] = []
 
     for stimulus in STIMULI:
-        layout = ClipLayout(gap_ms=stimulus.gap_ms, gap_fill=stimulus.gap_fill)
+        layout = _layout(stimulus.gap_ms, stimulus.gap_fill, stimulus.lead_segment)
         for cell in (*CONNECT_CELLS, *MID_CELLS):
             plan = _cell_plan(stimulus, cell, layout)
             connect = (
@@ -342,6 +477,8 @@ def plan_sessions(*, quick: bool) -> list[SessionSpec]:
                     label=stimulus.field,
                     cell=cell,
                     field=stimulus.field,
+                    lead_segment=stimulus.lead_segment,
+                    pin_rationale=stimulus.pin_rationale,
                     arm_value=plan.arm_value,
                     connect=connect,
                     layout=layout,
@@ -352,7 +489,7 @@ def plan_sessions(*, quick: bool) -> list[SessionSpec]:
             )
 
     # Control: no knob under test, just enough speech to read the confidence field.
-    control_layout = ClipLayout(gap_ms=1500, gap_fill=TONE_LOW)
+    control_layout = _layout(1500, TONE_LOW)
     control_plan = CellPlan(
         cell="control",
         field="",
@@ -381,7 +518,7 @@ def plan_sessions(*, quick: bool) -> list[SessionSpec]:
     )
 
     # ForceEndpoint: a test arm and a control arm, same clip.
-    force_layout = ClipLayout(gap_ms=FORCE_GAP_MS, gap_fill=ZEROS)
+    force_layout = _layout(FORCE_GAP_MS, ZEROS, FORCE_LEAD_SEGMENT)
     for cell, force_at in (
         ("force_test", force_layout.gap_start_ms + FORCE_AT_OFFSET_MS),
         ("force_control", None),
@@ -420,7 +557,7 @@ def plan_sessions(*, quick: bool) -> list[SessionSpec]:
     # Secondary model: connect-time only, for the knobs the documentation
     # disagrees about plus the confidence gate.
     for stimulus in STIMULI[:3]:
-        layout = ClipLayout(gap_ms=stimulus.gap_ms, gap_fill=stimulus.gap_fill)
+        layout = _layout(stimulus.gap_ms, stimulus.gap_fill, stimulus.lead_segment)
         for cell in CONNECT_CELLS:
             plan = _cell_plan(stimulus, cell, layout)
             specs.extend(
@@ -429,6 +566,8 @@ def plan_sessions(*, quick: bool) -> list[SessionSpec]:
                     label=f"{stimulus.field}@{SECONDARY_MODEL}",
                     cell=cell,
                     field=stimulus.field,
+                    lead_segment=stimulus.lead_segment,
+                    pin_rationale=stimulus.pin_rationale,
                     arm_value=plan.arm_value,
                     connect={**stimulus.pinned, stimulus.field: plan.arm_value},
                     layout=layout,
@@ -477,7 +616,7 @@ async def run_session(
     Returns:
         The measurement, carrying `error_code` if the field was rejected.
     """
-    pcm = build_clip(seed_pcm, layout=spec.layout)
+    pcm = build_clip(seed_pcm, layout=spec.layout, segments=spec.segments or None)
     frames = frames_of(pcm, sample_rate=SAMPLE_RATE)
     sink = TraceSink(spec.session_id, directory=trace_dir, raw=raw)
     feeder = PacedFeeder(
@@ -524,6 +663,9 @@ async def run_session(
             "gap_start_ms": spec.layout.gap_start_ms,
             "gap_end_ms": spec.layout.gap_end_ms,
             "gap_fill": spec.layout.gap_fill,
+            "pin_rationale": spec.pin_rationale,
+            "lead_segment": spec.lead_segment,
+            "segment_spans_ms": [list(x) for x in spec.segments],
             "frame_ms": 50,
             "trace_raw": raw,
         },
@@ -532,6 +674,10 @@ async def run_session(
     )
 
     drain = asyncio.ensure_future(sink.drain())
+    # Bound before the try: the `finally` below records the measurement, and an
+    # exception on a path that never assigned it would surface as an
+    # UnboundLocalError that masks the real failure.
+    observation = _failed(spec, None)
     try:
         async with session:
 
@@ -559,16 +705,15 @@ async def run_session(
                 wait_until=feeder.wait_until_ms,
             )
     except UpstreamError as exc:
-        observation = CellObservation(
-            cell=spec.cell,
-            field=spec.field,
-            arm_value=spec.arm_value,
-            boundary_ms=NO_BOUNDARY,
-            last_word_end_ms=None,
-            error_code=exc.error_code,
-            confidence_samples=(),
-            confidence_on_partials=False,
-        )
+        if CONCURRENCY_MARKER in exc.message.lower():
+            raise ConcurrencyLimitError(exc.message) from exc
+        observation = _failed(spec, exc.error_code)
+    except (ConnectionClosed, OSError) as exc:
+        # A bare transport close with no Error frame: the server hung up without
+        # saying why, which is not attributable to the field under test.
+        observation = _failed(spec, None)
+        if CONCURRENCY_MARKER in str(exc).lower():
+            raise ConcurrencyLimitError(str(exc)) from exc
     finally:
         sink.emit(
             "verdict",
@@ -666,12 +811,25 @@ def format_report(caps: Capabilities, result: RunResult, *, provisional: bool) -
         "-" * 52,
     ]
 
-    conf_live = caps.verdict("end_of_turn_confidence_threshold") is KnobVerdict.LIVE
-    if caps.confidence_field is ConfidenceField.VARYING and conf_live:
+    conf_knob = caps.verdict("end_of_turn_confidence_threshold")
+    conf_arm_valid = conf_knob in (KnobVerdict.LIVE, KnobVerdict.INERT)
+
+    if not conf_arm_valid:
+        lines += [
+            f"Model class: NOT DETERMINED (confidence arm returned {conf_knob.value}).",
+            "",
+            "The arm did not measure anything, so it says nothing about whether",
+            "this model is confidence-based. Reporting a class from a null arm",
+            "would state a property of the model on the strength of an",
+            "experiment that did not run.",
+        ]
+    elif caps.confidence_field is ConfidenceField.VARYING and (
+        conf_knob is KnobVerdict.LIVE
+    ):
         lines.append("Model class: confidence-based. The confidence axis is live.")
     else:
         lines += [
-            "Model class: punctuation-based, or the confidence axis is unusable.",
+            "Model class: the confidence axis is not usable on this model.",
             "",
             "confidence_axis: dead. CONTROL_SPEC §7 row 1 calls this 'jitter",
             "disabled, conf frozen at base', which understates it. §4's conf line",
@@ -731,6 +889,59 @@ def format_report(caps: Capabilities, result: RunResult, *, provisional: bool) -
     return "\n".join(lines)
 
 
+async def _run_session_with_retry(
+    spec: SessionSpec,
+    *,
+    api_key: str,
+    seed_pcm: bytes,
+    trace_dir: Path,
+    raw: bool,
+    session_factory: SessionFactory,
+    out: TextIO,
+) -> CellObservation:
+    """Run one session, retrying only a concurrency refusal.
+
+    A concurrency refusal says nothing about the field under test, so recording
+    it as a verdict would be a measurement of the account rather than the model.
+    Every other failure is returned as-is.
+
+    Args:
+        spec: The cell to run.
+        api_key: Server-side credential.
+        seed_pcm: Seed speech.
+        trace_dir: Where traces land.
+        raw: Disable redaction.
+        session_factory: Builds the upstream.
+        out: Where to report a retry.
+
+    Returns:
+        The measurement.
+
+    Raises:
+        ConcurrencyLimitError: Still refused after every backoff.
+    """
+    for attempt, wait_s in enumerate((*CONCURRENCY_BACKOFF_S, None)):
+        try:
+            return await run_session(
+                spec,
+                api_key=api_key,
+                seed_pcm=seed_pcm,
+                trace_dir=trace_dir,
+                raw=raw,
+                session_factory=session_factory,
+            )
+        except ConcurrencyLimitError:
+            if wait_s is None:
+                raise
+            out.write(
+                f"      concurrency cap hit; waiting {wait_s:.0f}s "
+                f"(attempt {attempt + 2})\n"
+            )
+            out.flush()
+            await asyncio.sleep(wait_s)
+    raise AssertionError  # pragma: no cover - the loop always returns or raises
+
+
 async def run(
     specs: Sequence[SessionSpec],
     *,
@@ -740,6 +951,7 @@ async def run(
     raw: bool,
     out: TextIO,
     session_factory: SessionFactory = AssemblyAISession,
+    settle_s: float = SESSION_SETTLE_S,
 ) -> RunResult:
     """Run every session sequentially and collect the measurements.
 
@@ -750,14 +962,17 @@ async def run(
     for index, spec in enumerate(specs, start=1):
         out.write(f"[{index}/{len(specs)}] {spec.label} {spec.cell} r{spec.repeat}\n")
         out.flush()
+        if index > 1 and settle_s > 0:
+            await asyncio.sleep(settle_s)
         try:
-            observation = await run_session(
+            observation = await _run_session_with_retry(
                 spec,
                 api_key=api_key,
                 seed_pcm=seed_pcm,
                 trace_dir=trace_dir,
                 raw=raw,
                 session_factory=session_factory,
+                out=out,
             )
         except (OSError, RuntimeError) as exc:
             result.errors.append(f"{spec.label}/{spec.cell}: {exc}")
@@ -773,6 +988,36 @@ async def run(
         else:
             result.secondary.setdefault(spec.field, []).append(observation)
     return result
+
+
+def _make_seed(path: Path, out: TextIO, *, rate_wpm: int) -> int:
+    """Synthesize a seed recording and report exactly what it is.
+
+    Args:
+        path: Where to write the wav.
+        out: Where to report.
+        rate_wpm: Speaking rate.
+
+    Returns:
+        Process exit code.
+    """
+    try:
+        manifest = synthesize_seed(path, rate_wpm=rate_wpm)
+    except (SayUnavailableError, SynthesisError) as exc:
+        out.write(f"{exc}\n")
+        return 2
+
+    out.write(
+        f"Wrote {path}\n"
+        f"  {manifest.duration_ms} ms, {manifest.channels} channel, "
+        f"{manifest.sample_rate} Hz, 16-bit PCM\n"
+        f"  engine={manifest.engine} voice={manifest.voice} "
+        f"rate={manifest.rate_wpm}wpm\n"
+        f"  sha256={manifest.sha256}\n"
+        f"  manifest: {path.name}{MANIFEST_SUFFIX}\n"
+        f"\n!! {manifest.caveat}\n"
+    )
+    return 0
 
 
 def _resolve_api_key(out: TextIO) -> str:
@@ -830,6 +1075,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=Path("data/traces"))
     parser.add_argument("--raw", action="store_true", help="disable redaction (INV-6)")
     parser.add_argument(
+        "--make-seed",
+        type=Path,
+        metavar="PATH",
+        help="synthesize a seed recording with macOS `say`, then exit",
+    )
+    parser.add_argument(
+        "--seed-rate",
+        type=int,
+        default=RATE_WPM,
+        help=f"words per minute for --make-seed (default {RATE_WPM})",
+    )
+    parser.add_argument(
+        "--only",
+        metavar="FIELD",
+        help="run only this knob's cells, for an isolated re-test",
+    )
+    parser.add_argument(
         "--fake",
         action="store_true",
         help="run against the in-memory upstream; no key, no credits (INV-7)",
@@ -842,7 +1104,68 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     out = sys.stdout
 
-    specs = plan_sessions(quick=args.quick)
+    if args.make_seed is not None:
+        return _make_seed(args.make_seed, out, rate_wpm=args.seed_rate)
+
+    # Preconditions first, and identically for --dry-run. A pre-flight check that
+    # skips the checks the real run makes is not a pre-flight check: it reports
+    # ready and the run then refuses on something the dry run could have caught.
+    factory: SessionFactory = AssemblyAISession
+    api_key = ""
+    if args.fake:
+        from nod_bench.fake_session import FakeProbeSession
+
+        factory = FakeProbeSession
+    else:
+        api_key = _resolve_api_key(out)
+        if not api_key:
+            return 2
+
+    seed_caveat = ""
+    spans: tuple[tuple[int, int], ...] = ()
+    segment_ms: tuple[int, ...] | None = None
+    if args.seed_wav is None:
+        if not args.fake:
+            out.write(
+                "--seed-wav is required: the probe needs real speech to splice.\n"
+                "Generate one with --make-seed data/seed.wav, or record your own.\n"
+            )
+            return 2
+        from nod_bench.probe_clip import room_tone
+
+        seed_pcm = room_tone(20_000, dbfs=-12.0, seed=11)
+        seed_note = "generated tone, --fake only"
+    else:
+        try:
+            seed_pcm, seed_note = load_seed(args.seed_wav)
+        except SeedError as exc:
+            out.write(f"{exc}\n")
+            return 2
+        manifest = manifest_for(args.seed_wav)
+        if manifest is not None:
+            if manifest.segments:
+                spans = tuple((x.start_ms, x.end_ms) for x in manifest.segments)
+                segment_ms = tuple(x.duration_ms for x in manifest.segments)
+            if manifest.synthesized:
+                seed_caveat = manifest.caveat
+                seed_note = (
+                    f"{seed_note}; {manifest.engine} voice={manifest.voice} "
+                    f"rate={manifest.rate_wpm}wpm sha256={manifest.sha256[:12]}"
+                )
+
+    specs = plan_sessions(
+        quick=args.quick,
+        segment_ms=segment_ms,
+    )
+    if spans:
+        specs = [replace(spec, segments=spans) for spec in specs]
+    if args.only:
+        specs = [spec for spec in specs if spec.field == args.only]
+        if not specs:
+            known = sorted({k.field for k in STIMULI})
+            out.write(f"--only {args.only!r} matched no cells; known: {known}\n")
+            return 2
+
     sessions, minutes, usd = estimate(specs)
     out.write(
         f"{sessions} sessions, ~{minutes:.1f} min of streamed audio, "
@@ -850,43 +1173,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"Sequential, so expect roughly "
         f"{minutes + sessions * 0.04:.0f} min wall clock.\n"
     )
+    if args.fake:
+        out.write("Fake upstream: no credential used, no credits spent.\n")
+    out.write(f"Seed: {args.seed_wav or '(generated)'} ({seed_note}).\n")
+    if seed_caveat:
+        out.write(f"\n!! {seed_caveat}\n\n")
+
     if args.dry_run:
         for spec in specs:
             out.write(
                 f"  {spec.model:<28} {spec.label:<36} {spec.cell} r{spec.repeat}\n"
             )
+        out.write("\nAll preconditions satisfied. No session was opened.\n")
         return 0
-
-    factory: SessionFactory = AssemblyAISession
-    api_key = ""
-    if args.fake:
-        from nod_bench.fake_session import FakeProbeSession
-
-        factory = FakeProbeSession
-        out.write("Fake upstream: no credential used, no credits spent.\n")
-    else:
-        api_key = _resolve_api_key(out)
-        if not api_key:
-            return 2
-
-    if args.seed_wav is None:
-        if not args.fake:
-            out.write(
-                "--seed-wav is required: the probe needs real speech to splice.\n"
-            )
-            return 2
-        # The fake endpoints on level alone, so synthetic speech is enough to
-        # exercise every path. A live run still requires the real recording.
-        from nod_bench.probe_clip import room_tone
-
-        seed_pcm = room_tone(20_000, dbfs=-12.0, seed=11)
-    else:
-        try:
-            seed_pcm, note = load_seed(args.seed_wav)
-        except SeedError as exc:
-            out.write(f"{exc}\n")
-            return 2
-        out.write(f"Seed: {args.seed_wav} ({note}).\n")
 
     result = asyncio.run(
         run(
@@ -899,6 +1198,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             session_factory=factory,
         )
     )
+    result.seed_caveat = seed_caveat
     caps = summarise(result)
     out.write(format_report(caps, result, provisional=args.quick))
     return 1 if result.errors else 0

@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import functools
 import io
+from collections.abc import Mapping
 from pathlib import Path
+from typing import override
 
 import pytest
 
@@ -24,6 +26,7 @@ from nod_bench.probe import (
     SessionSpec,
     format_report,
     run,
+    run_session,
     summarise,
 )
 from nod_bench.probe_clip import ZEROS, ClipLayout, room_tone
@@ -136,3 +139,88 @@ async def test_the_report_renders_from_a_real_run(tmp_path: Path) -> None:
     assert "ADR-001" in text
     assert "PROVISIONAL" in text
     assert FIELD in text
+
+
+class _ExplodingSession(FakeProbeSession):
+    """A session that fails the way the live API did, for the regression below."""
+
+    def __init__(self, *, failure: Exception, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._failure = failure
+
+    @override
+    async def update_configuration(self, patch: Mapping[str, float]) -> None:
+        raise self._failure
+
+
+@pytest.mark.asyncio
+async def test_a_failure_before_the_measurement_is_not_an_unbound_local(
+    tmp_path: Path,
+) -> None:
+    """Regression: `run_session`'s finally read `observation` before it was bound.
+
+    Only `UpstreamError` assigned it, so any other failure — a bare transport
+    close, which is exactly what the live run hit — raised UnboundLocalError from
+    the finally and masked the real error.
+    """
+    from websockets.exceptions import ConnectionClosed
+    from websockets.frames import Close
+
+    closed = ConnectionClosed(Close(1008, "policy violation"), None, None)
+    result = await run(
+        [_spec("mid_low")],
+        api_key="",
+        seed_pcm=SEED,
+        trace_dir=tmp_path,
+        raw=False,
+        out=io.StringIO(),
+        session_factory=functools.partial(_ExplodingSession, failure=closed),
+        settle_s=0.0,
+    )
+    # The run survives and records a non-measurement rather than crashing.
+    assert not result.errors
+    assert result.observations[FIELD][0].boundary_ms == float("inf")
+
+
+@pytest.mark.asyncio
+async def test_a_concurrency_refusal_is_retried_not_recorded_as_a_verdict(
+    tmp_path: Path,
+) -> None:
+    """It measures the account, not the model, so it must never become a verdict."""
+    from nod_adapters.assemblyai.session import UpstreamError
+    from nod_bench.probe import CONCURRENCY_BACKOFF_S, ConcurrencyLimitError
+
+    refusal = UpstreamError(
+        1008, "Unauthorized Connection: Too many concurrent sessions"
+    )
+    with pytest.raises(ConcurrencyLimitError):
+        await run_session(
+            _spec("mid_low"),
+            api_key="",
+            seed_pcm=SEED,
+            trace_dir=tmp_path,
+            raw=False,
+            session_factory=functools.partial(_ExplodingSession, failure=refusal),
+        )
+    assert len(CONCURRENCY_BACKOFF_S) >= 3
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_rejection_is_still_recorded_as_rejected(
+    tmp_path: Path,
+) -> None:
+    """A real knob rejection must not be swallowed by the concurrency path."""
+    from nod_adapters.assemblyai.session import UpstreamError
+
+    rejection = UpstreamError(4003, "invalid parameter: vad_threshold")
+    result = await run(
+        [_spec("mid_low")],
+        api_key="",
+        seed_pcm=SEED,
+        trace_dir=tmp_path,
+        raw=False,
+        out=io.StringIO(),
+        session_factory=functools.partial(_ExplodingSession, failure=rejection),
+        settle_s=0.0,
+    )
+    assert result.observations[FIELD][0].error_code == 4003

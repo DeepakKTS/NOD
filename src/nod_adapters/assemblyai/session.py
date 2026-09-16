@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 
 import websockets
 
+from nod_core.capabilities import ExplainedUpstreamError
 from nod_core.types import JsonValue, SessionBegin, Termination, Turn, Word
 
 STREAMING_URL: Final = "wss://streaming.assemblyai.com/v3/ws"
@@ -27,7 +28,7 @@ STREAMING_URL: Final = "wss://streaming.assemblyai.com/v3/ws"
 MS_PER_SECOND: Final = 1000
 
 
-class UpstreamError(RuntimeError):
+class UpstreamError(ExplainedUpstreamError):
     """The server sent an `Error` frame and closed the socket.
 
     Carries `error_code` verbatim so a rejection can be attributed to the one

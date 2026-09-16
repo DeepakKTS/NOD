@@ -22,6 +22,7 @@ import struct
 import sys
 import wave
 from array import array
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -432,6 +433,7 @@ def build_clip(
     layout: ClipLayout,
     sample_rate: int = SAMPLE_RATE,
     seed: int = 7,
+    segments: Sequence[tuple[int, int]] | None = None,
 ) -> bytes:
     """Assemble one probe clip. `O(n)`.
 
@@ -443,6 +445,11 @@ def build_clip(
         layout: Timing and gap fill.
         sample_rate: Samples per second.
         seed: PRNG seed for the generated fills.
+        segments: Exact `(start_ms, end_ms)` spans for the three speech
+            segments, from the seed manifest. When given, these are used
+            verbatim; slicing at fixed offsets instead cuts mid-sentence, and a
+            segment that ends on a fragment tells a semantic endpointer to keep
+            waiting, which reads as a dead confidence axis.
 
     Returns:
         The clip as PCM16 bytes.
@@ -450,6 +457,30 @@ def build_clip(
     Raises:
         ValueError: The seed recording is too short for the layout.
     """
+    if segments is not None:
+        preamble, lead, trail = (
+            seed_pcm[
+                _samples(a, sample_rate) * BYTES_PER_SAMPLE : _samples(b, sample_rate)
+                * BYTES_PER_SAMPLE
+            ]
+            for a, b in segments[:3]
+        )
+        return b"".join(
+            (
+                preamble,
+                fill(TONE_LOW, layout.warm_gap_ms, sample_rate=sample_rate, seed=seed),
+                lead,
+                fill(
+                    layout.gap_fill,
+                    layout.gap_ms,
+                    sample_rate=sample_rate,
+                    seed=seed + 1,
+                ),
+                trail,
+                fill(TONE_LOW, layout.tail_ms, sample_rate=sample_rate, seed=seed + 2),
+            )
+        )
+
     needed_ms = layout.preamble_ms + layout.lead_ms + layout.trail_ms
     have_ms = len(seed_pcm) // BYTES_PER_SAMPLE * 1000 // sample_rate
     if have_ms < needed_ms:

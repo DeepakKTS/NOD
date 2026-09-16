@@ -8,6 +8,7 @@ allowed to claim, so they are tested offline and in full. The live run itself is
 from __future__ import annotations
 
 import io
+from pathlib import Path
 
 import pytest
 
@@ -188,30 +189,75 @@ def test_summarise_of_an_empty_run_is_all_unproven() -> None:
     assert caps.updatable_fields == frozenset()
 
 
-def test_dry_run_opens_no_socket_and_prints_the_matrix(
-    capsys: pytest.CaptureFixture[str],
+def _isolated_seed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A valid seed plus a credential, in a directory with no real `.env`.
+
+    Tests must not depend on whether the developer has a `.env` in the repo
+    root: once one exists, `Settings` finds the live credential and a test
+    asserting its absence silently changes meaning.
+    """
+    import wave
+
+    from nod_core.config import Settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ASSEMBLYAI_API_KEY", "sk-test")
+
+    seed = tmp_path / "seed.wav"
+    with wave.open(str(seed), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(b"\x00" * 16000 * 2 * 8)
+    return seed
+
+
+def test_dry_run_opens_no_socket_and_prints_the_full_matrix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main(["--dry-run"]) == 0
+    seed = _isolated_seed(tmp_path, monkeypatch)
+    assert main(["--dry-run", "--seed-wav", str(seed)]) == 0
     printed = capsys.readouterr().out
     assert "69 sessions" in printed
     assert PRIMARY_MODEL in printed
+    assert "No session was opened" in printed
 
 
 def test_live_run_refuses_without_a_credential(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """INV-7 and INV-5: no key, no session."""
-    monkeypatch.delenv("ASSEMBLYAI_API_KEY", raising=False)
+    """INV-7 and INV-5: no key, no session.
+
+    Isolated from the repo root on purpose: a developer's real `.env` would
+    otherwise satisfy the credential and turn this into a test of the seed
+    check instead, without the name changing.
+    """
+    from nod_core.config import Settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.chdir(tmp_path)
+
     assert main([]) == 2
     assert "ASSEMBLYAI_API_KEY" in capsys.readouterr().out
 
 
 def test_live_run_refuses_without_a_seed_recording(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    from nod_core.config import Settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ASSEMBLYAI_API_KEY", "not-a-real-key")
+
     assert main([]) == 2
-    assert "--seed-wav is required" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "--seed-wav is required" in printed
+    assert "--make-seed" in printed
 
 
 def test_report_is_writable_to_a_stream() -> None:
@@ -219,3 +265,47 @@ def test_report_is_writable_to_a_stream() -> None:
     buffer = io.StringIO()
     buffer.write(format_report(caps, RunResult(), provisional=False))
     assert "ADR-001" in buffer.getvalue()
+
+
+def test_dry_run_validates_every_precondition_the_real_run_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression: --dry-run printed the matrix without checking the seed, then
+    the real run refused on exactly that. A pre-flight check that skips the
+    checks the flight makes is not a pre-flight check."""
+    from nod_core.config import Settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ASSEMBLYAI_API_KEY", "sk-test")
+
+    assert main(["--quick", "--dry-run", "--seed-wav", str(tmp_path / "gone.wav")]) == 2
+    printed = capsys.readouterr().out
+    assert "No seed recording at" in printed
+    # And crucially, it did not print the matrix as if everything were ready.
+    assert "connect_low" not in printed
+
+
+def test_dry_run_without_a_credential_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from nod_core.config import Settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert main(["--quick", "--dry-run"]) == 2
+    assert "connect_low" not in capsys.readouterr().out
+
+
+def test_dry_run_with_everything_present_prints_the_matrix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seed = _isolated_seed(tmp_path, monkeypatch)
+    assert main(["--quick", "--dry-run", "--seed-wav", str(seed)]) == 0
+    printed = capsys.readouterr().out
+    assert "19 sessions" in printed
+    assert "connect_low" in printed
+    assert "All preconditions satisfied" in printed
+    assert "No session was opened" in printed

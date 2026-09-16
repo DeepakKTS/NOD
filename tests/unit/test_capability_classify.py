@@ -153,13 +153,6 @@ def test_an_arm_that_fires_inconsistently_is_not_proof() -> None:
     )
 
 
-def test_neither_arm_ever_ending_a_turn_is_inert() -> None:
-    obs = four_cells(NEVER, NEVER, NEVER, NEVER)
-    assert (
-        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1) is KnobVerdict.INERT
-    )
-
-
 @pytest.mark.parametrize(
     ("confidences", "on_partials", "expected"),
     [
@@ -363,3 +356,33 @@ def test_a_midstream_arm_cannot_agree_with_the_opposite_connect_arm() -> None:
     assert AGREEMENT_FRACTION < 0.5
     # connect_low at 100 ms, connect_high at 1600 ms: expected shift 1500 ms.
     assert _agrees([1600.0], [100.0], 1500.0) is False
+
+
+def test_neither_arm_producing_a_boundary_is_unproven_not_inert() -> None:
+    """Absence of data is not evidence of absence of effect.
+
+    This is the shape the first live run produced for `min_turn_silence` and
+    `end_of_turn_confidence_threshold`: `max_turn_silence` was pinned beyond the
+    gap, which removed the only mechanism that ends a turn on that model, so no
+    cell ever fired. Reporting INERT would have stated a property of the model
+    on the strength of an experiment that never ran.
+    """
+    obs = four_cells(NEVER, NEVER, NEVER, NEVER)
+    assert (
+        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1)
+        is KnobVerdict.UNPROVEN
+    )
+
+
+def test_inert_still_requires_boundaries_that_failed_to_move() -> None:
+    """INERT remains available, but only when there is data behind it."""
+    obs = four_cells(EARLY, EARLY, EARLY, EARLY)
+    assert (
+        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1) is KnobVerdict.INERT
+    )
+
+
+def test_one_arm_silent_and_one_firing_is_still_a_real_separation() -> None:
+    """The categorical case must survive the new guard."""
+    obs = four_cells(EARLY, NEVER, EARLY, NEVER)
+    assert verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1) is KnobVerdict.LIVE
