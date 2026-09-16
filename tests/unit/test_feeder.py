@@ -83,19 +83,63 @@ async def test_schedule_absorbs_a_stall_instead_of_carrying_it_forward() -> None
 
 
 @pytest.mark.asyncio
-async def test_drift_beyond_the_threshold_voids_the_run() -> None:
-    feeder = PacedFeeder(max_lag_ms=25.0)
+async def test_sustained_lag_voids_the_run() -> None:
+    """EC-37, as amended by ADR-012: four consecutive over-threshold frames."""
+    feeder = PacedFeeder(max_lag_ms=25.0, sustain_frames=4)
 
-    async def stall(frame: bytes) -> None:
-        if feeder.frames_sent == 1:
-            await asyncio.sleep(0.15)
+    async def keep_falling_behind(frame: bytes) -> None:
+        # Every frame overruns its own 50 ms budget, so lag compounds and stays
+        # over threshold — a feeder that has genuinely fallen behind.
+        await asyncio.sleep(0.09)
 
     with pytest.raises(FeederDriftError) as caught:
-        await feeder.feed(_frames(6), stall)
+        await feeder.feed(_frames(12), keep_falling_behind)
 
-    assert caught.value.frame == 1
+    assert caught.value.sustained >= 4
     assert caught.value.lag_ms > 25.0
     assert "EC-37" in str(caught.value)
+    assert "consecutive" in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_one_isolated_stall_does_not_void_the_run() -> None:
+    """The reason ADR-012 exists.
+
+    A 5-minute soak measured p99 lag of 1.5 ms and a single 16 ms scheduler
+    outlier. Under a single-frame max guard, a long P3 clip would eventually
+    sample far enough into that tail to void a run on a stall that displaced one
+    50 ms frame out of tens of thousands.
+    """
+    feeder = PacedFeeder(max_lag_ms=25.0, sustain_frames=4)
+
+    async def stall_once(frame: bytes) -> None:
+        if feeder.frames_sent == 3:
+            await asyncio.sleep(0.15)
+
+    report = await feeder.feed(_frames(12), stall_once)
+
+    # The stall is recorded, and the run survives it.
+    assert report.max_lag_ms > 25.0
+    assert report.frames == 12
+
+
+@pytest.mark.asyncio
+async def test_the_counter_resets_between_separated_stalls() -> None:
+    """Two isolated stalls must not accumulate into an abort.
+
+    Each 150 ms stall puts roughly three frames over threshold while the
+    schedule drains it. Without a reset the two would total six and void the
+    run, which would make the guard fire on two unrelated scheduler events.
+    """
+    feeder = PacedFeeder(max_lag_ms=25.0, sustain_frames=4)
+
+    async def two_stalls(frame: bytes) -> None:
+        if feeder.frames_sent in {3, 10}:
+            await asyncio.sleep(0.15)
+
+    report = await feeder.feed(_frames(16), two_stalls)
+    assert report.frames == 16
+    assert report.max_lag_ms > 25.0
 
 
 @pytest.mark.asyncio

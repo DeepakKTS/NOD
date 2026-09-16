@@ -37,7 +37,10 @@ DURATION_OUTLIER_MULT: Final = 2.5
 """A word longer than this times its median-for-length is a duration outlier."""
 
 JITTER_SCALE: Final = 0.04
-"""Normalising constant for confidence jitter (CONTROL_SPEC.md §2.4)."""
+"""Normalising constant for confidence jitter (CONTROL_SPEC.md §2.4).
+
+The feature is computed and logged but carries weight 0 in the law (ADR-011).
+"""
 
 JITTER_ALPHA: Final = 0.25
 """EWMA weight for jitter across turns (CONTROL_SPEC.md §2.4)."""
@@ -48,8 +51,10 @@ RESUME_MS: Final = 1200
 AGENT_GRACE_MS: Final = 300
 """Cut condition 3: agent audio below this does not disqualify a cut. Milliseconds."""
 
-CUT_CONF_MAX: Final = 0.85
-"""Cut condition 5: the ended turn's confidence was below this."""
+# Cut condition 5 was dropped (CONTROL_SPEC.md §2.5, ADR-011). It admitted a
+# candidate cut when the ended turn's confidence was below 0.85; P1 measured 67 of
+# 75 real boundaries (89 %) below that, median 0.352, so it admitted nine turns in
+# ten and discriminated nothing. Conditions 1 to 4 carry the label.
 
 CUT_WINDOW: Final = 5
 """Cuts are counted over this many recent turns (CONTROL_SPEC.md §2.5)."""

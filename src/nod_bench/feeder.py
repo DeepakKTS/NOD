@@ -24,8 +24,25 @@ FRAME_MS: Final = 50
 FRAME_S: Final = FRAME_MS / 1000.0
 """Feeder frame size. Seconds."""
 
+DRIFT_SUSTAIN_FRAMES: Final = 4
+"""Consecutive over-threshold frames required to void a run (EC-37, ADR-012).
+
+Four frames is 200 ms of stream time: long enough that a single OS scheduler
+preemption cannot reach it, short enough to catch a feeder that has genuinely
+fallen behind within a fifth of a second. A 5-minute soak measured p99 lag of
+1.5 ms with one 16 ms outlier, so max-lag alone would eventually void a long run
+on a stall that displaced one frame out of tens of thousands.
+
+Note the effective semantics. An absolute schedule drains a stall at one frame
+period per frame, so the frames *recovering* from a stall are themselves over
+threshold. With `MAX_LAG_MS = 25` and 50 ms frames, four consecutive means a
+stall of roughly 150 ms or more voids the run, and anything shorter does not.
+That is the intended bar: 150 ms is six times the worst outlier measured over
+6000 frames, and well below anything that would shift a turn boundary.
+"""
+
 MAX_LAG_MS: Final = 25.0
-"""Abort above this lag; a drifted run is void, not reported (EC-37). Milliseconds.
+"""Per-frame lag threshold; `DRIFT_SUSTAIN_FRAMES` in a row voids the run (EC-37).
 
 BENCH_SPEC.md §4 and EC-37 both say "cumulative drift". Read literally, as the sum
 of per-frame drifts, the quantity is near zero by construction under the absolute
@@ -47,20 +64,25 @@ class FeederDriftError(RuntimeError):
     a different number measuring something else.
     """
 
-    def __init__(self, frame: int, deadline_ms: float, actual_ms: float) -> None:
+    def __init__(
+        self, frame: int, deadline_ms: float, actual_ms: float, sustained: int
+    ) -> None:
         """Record where the schedule broke.
 
         Args:
-            frame: Index of the frame that was late.
+            frame: Index of the last late frame.
             deadline_ms: When it should have been sent, relative to `t0`.
             actual_ms: When it was actually sent, relative to `t0`.
+            sustained: How many consecutive frames were over threshold.
         """
         self.frame = frame
         self.deadline_ms = deadline_ms
         self.actual_ms = actual_ms
         self.lag_ms = actual_ms - deadline_ms
+        self.sustained = sustained
         super().__init__(
             f"feeder drifted {self.lag_ms:.2f} ms at frame {frame} "
+            f"for {sustained} consecutive frames "
             f"(deadline {deadline_ms:.2f} ms, sent {actual_ms:.2f} ms); "
             f"run is void per EC-37"
         )
@@ -136,19 +158,22 @@ class PacedFeeder:
         *,
         frame_ms: int = FRAME_MS,
         max_lag_ms: float = MAX_LAG_MS,
+        sustain_frames: int = DRIFT_SUSTAIN_FRAMES,
         on_frame: Callable[[FrameRecord], None] | None = None,
     ) -> None:
         """Prepare a feeder.
 
         Args:
             frame_ms: Frame size in milliseconds.
-            max_lag_ms: Abort threshold (EC-37).
+            max_lag_ms: Per-frame lag threshold (EC-37).
+            sustain_frames: Consecutive over-threshold frames that void the run.
             on_frame: Called synchronously per frame, for the trace. Must not
                 block: it runs inside the frame's own deadline budget.
         """
         self._frame_ms = frame_ms
         self._frame_s = frame_ms / 1000.0
         self._max_lag_ms = max_lag_ms
+        self._sustain_frames = sustain_frames
         self._on_frame = on_frame
         self._t0: float | None = None
         self._started = asyncio.Event()
@@ -217,9 +242,12 @@ class PacedFeeder:
             The run's schedule report.
 
         Raises:
-            FeederDriftError: The feeder fell more than `max_lag_ms` behind.
+            FeederDriftError: `sustain_frames` consecutive frames each lagged more
+                than `max_lag_ms`. One isolated stall does not void a run: it
+                displaces a single 50 ms frame, not the timeline (ADR-012).
         """
         lags: list[float] = []
+        over_threshold = 0
         self._t0 = time.monotonic()
         self._started.set()
         try:
@@ -251,7 +279,13 @@ class PacedFeeder:
                     )
 
                 if lag_ms > self._max_lag_ms:
-                    raise FeederDriftError(n, deadline_ms, actual_ms)
+                    over_threshold += 1
+                    if over_threshold >= self._sustain_frames:
+                        raise FeederDriftError(
+                            n, deadline_ms, actual_ms, over_threshold
+                        )
+                else:
+                    over_threshold = 0
         finally:
             self._finished.set()
 

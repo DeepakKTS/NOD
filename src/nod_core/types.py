@@ -160,11 +160,15 @@ class WindowHint:
 
     Applies for exactly one turn, then is released. A hint never persists into
     the speaker profile.
+
+    There is no `conf_delta`: the confidence axis produces no output (ADR-011).
+    The context axis lands on `min_mult`, which governs responsiveness after a
+    complete utterance; wide-answer classes also widen `max_mult`, because a
+    caller reading an id pauses mid-utterance.
     """
 
     min_mult: float
     max_mult: float
-    conf_delta: float
 
 
 @dataclass(frozen=True, slots=True)

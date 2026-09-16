@@ -26,7 +26,6 @@ class WindowHintModel(BaseModel):  # type: ignore[explicit-any]  # pydantic's ow
 
     min_mult: float
     max_mult: float
-    conf_delta: float
 
 
 class PolicyFile(BaseModel):  # type: ignore[explicit-any]  # pydantic's own Any

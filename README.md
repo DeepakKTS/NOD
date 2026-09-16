@@ -21,21 +21,27 @@ caller speech ──► AssemblyAI stream ──► agent replies
 ## Two facts the design rests on
 
 1. **Configuration can change mid-session.** `UpdateConfiguration` applies without
-   reconnecting, covering `end_of_turn_confidence_threshold`, `min_turn_silence`,
-   `max_turn_silence` and `vad_threshold`.
-2. **Silence beats confidence.** Silence-based detection can override model-based
-   detection even at a high confidence threshold, and endpointing does not fire until the
-   last word is finalised. Raising the confidence threshold alone does not stop an agent
-   interrupting a long pause. Both axes have to move together.
+   reconnecting. Measured at P1 on `universal-streaming-english`: `min_turn_silence` and
+   `max_turn_silence` take effect mid-stream, each landing where the same value set at
+   connect time landed. `end_of_turn_confidence_threshold` is accepted and ignored.
+2. **Which silence knob matters depends on the utterance.** After a *complete* sentence
+   the model's own gate fires and `min_turn_silence` decides when. After an *incomplete*
+   one it keeps waiting, and `max_turn_silence` is the only thing that ends the turn. A
+   caller pausing mid-sentence has produced an incomplete utterance, so
+   `max_turn_silence` is the knob that decides whether they get cut off.
 
-Most tuning advice gets the second one wrong.
+Most tuning advice gets the second one wrong, and so did we: an earlier reading had the
+controller moving a confidence threshold that this model does not honour. The probe in
+`nod_bench/probe.py` is what caught it, and the numbers are in `docs/DECISIONS.md`
+ADR-001 and ADR-011.
 
 ## How it decides
 
 Two axes, combined per turn.
 
 - **Speaker axis**, learned online from data the stream already sends: inter-word pause
-  quantiles, speech rate, disfluency density, end-of-turn confidence jitter, and observed
+  quantiles, speech rate, disfluency density, end-of-turn confidence jitter (logged only,
+  weight 0), and observed
   cut events (the caller resumed within 1.2 s, so the turn had not really ended).
 - **Context axis**, declared by the agent's dialogue state: when the expected answer is an
   ID, a date of birth, an address or a spelling, the listening window widens for that one

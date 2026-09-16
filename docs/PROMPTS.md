@@ -48,10 +48,10 @@ Build src/nod_core/probe.py plus a CLI `python -m nod_core.probe`:
    deadline schedule (never sleep(0.05) in a loop).
 3. Log EVERY frame received, partials included, to data/traces/{session}.jsonl with a
    versioned line schema.
-4. Probe capabilities: attempt a mid-stream UpdateConfiguration for each of
-   end_of_turn_confidence_threshold, min_turn_silence, max_turn_silence, vad_threshold,
-   one at a time, and record which are accepted. Record whether end_of_turn_confidence
-   is present on Turn events and whether ForceEndpoint is accepted.
+4. Probe capabilities behaviourally. The server answers a successful UpdateConfiguration
+   with silence, so acceptance proves nothing: drive each knob in four cells (connect-time
+   low and high, mid-stream low and high) and require the turn boundary to move. Each
+   silence knob binds in one regime only, so the stimulus must supply it (EC-50).
 5. Print a capability report.
 
 Constraints: no controller logic, no config decisions. This tool only observes and
@@ -115,8 +115,11 @@ Build src/nod_core/profiler.py:
   implementation behind NOD_EXACT_QUANTILES for validation
 - gaps clamped to [0, 6000] before ingestion (EC-14)
 - speech rate EWMA, disfluency density with the five-bucket duration table, Welford
-  jitter over the partial confidence sequence
-- cut detection with ALL FIVE conditions from §2.5, no shortcuts
+  jitter over the partial confidence sequence (weight 0 in the law, computed for the
+  bench only — ADR-011)
+- cut detection with the FOUR conditions from §2.5, no shortcuts. Condition 5 was
+  dropped deliberately (ADR-011): P1 measured 89 % of real boundaries below the old
+  CUT_CONF_MAX, so it discriminated nothing
 - COLD until n_gaps >= 8
 - skip unfinalised trailing words (EC-21), ignore empty turns (EC-16), ignore
   out-of-order turn_order (EC-07)
@@ -135,10 +138,12 @@ Phase 2, part two. Read docs/CONTROL_SPEC.md §3 to §6 in full.
 Build src/nod_core/policy.py and src/nod_core/arbiter.py.
 
 policy.py: parse the YAML with yaml.safe_load into a closed pydantic model, compile to a
-dict once, cache by content hash. Hints apply for exactly one turn.
+dict once, cache by content hash. Hints apply for exactly one turn. There is no
+`conf_delta`: the context axis lands on `min_mult` and `max_mult` only (ADR-011).
 
-arbiter.py: implement the control law verbatim including clamps, invariant repair,
-ceiling, and every guard in §5 — hysteresis, rate cap, asymmetric decay, boolean floor,
+arbiter.py: implement the control law verbatim including clamps, invariant repair, the
+ceiling (which subtracts `ENDPOINT_OVERHEAD_MS`, a measured constant from `make bench`,
+never hand-written — EC-49, INV-9), and every guard in §5 — hysteresis, rate cap, asymmetric decay, boolean floor,
 freeze on instability, host override, capability gate. Implement the four-state machine
 in §6 and the degradation matrix in §7.
 
@@ -149,8 +154,17 @@ new and rule id (INV-4).
 Write all eight property tests from §9 with hypothesis, plus the budget test asserting
 decide() p99 under 5 ms over 100 000 synthetic states.
 
-Critical: include a test that fails if only the confidence axis moves when a long pause
-needs tolerating. Silence overrides confidence; that is the whole reason both axes move.
+Critical: read CONTROL_SPEC §0 fact 2 before writing a line. The confidence axis does not
+exist in the law — P1 measured `end_of_turn_confidence_threshold` inert on
+`universal-streaming-english` (ADR-001, ADR-011), and the field is never sent. Do not
+reintroduce it from an older reading of §4.
+
+Include §9 test 9: given a warm profile whose `g_p90` implies a pause longer than
+`base_max`, `decide()` must widen `max_turn_silence`. That knob governs the
+incomplete-utterance regime, which is the mid-sentence pause Nod exists for, and the test
+fails if a change quietly stops moving it. Include §9 test 10 as well: two states
+differing only in `jitter` must produce an equal patch, so restoring that weight is a
+deliberate change with a failing test rather than a silent one.
 ```
 
 ## P6 — Session proxy

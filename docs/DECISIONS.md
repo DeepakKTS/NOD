@@ -122,3 +122,41 @@ stimulus is designed to produce, stated per knob rather than derived from the ar
 for a categorical stimulus that is the gap length.
 Consequence: tolerances are always in the unit of the observable; `AGREEMENT_FRACTION`
 stays below 0.5 so a mid-stream arm can never agree with the opposite connect-time arm.
+
+## ADR-011 — The control law moves to the silence axis
+2026-09-16 · Status: **provisional**, confirmed on the full matrix at N=3
+Context: the P1 probe showed `end_of_turn_confidence_threshold` inert on
+`universal-streaming-english` — arms at the documented endpoints 0.0 and 1.0 gave
+boundaries 13 ms apart against an expected 2800 ms, boundaries fired at confidence 0.308
+against a 0.95 threshold in 15 of 17 sessions, and the field never exceeded 0.940 in 929
+samples. The two silence knobs each bind in one regime only: after a complete utterance
+the semantic gate fires and `min_turn_silence` decides; after a fragment it keeps waiting
+and `max_turn_silence` is the only thing that ends the turn.
+Decision: `max_turn_silence` is the primary control surface and carries `disfluency` and
+`recent_cuts`, because the incomplete-utterance regime is the mid-sentence pause Nod
+exists for; `min_turn_silence` carries post-complete responsiveness and receives the
+context axis; `end_of_turn_confidence_threshold` is never sent, though the capability gate
+stays so a model that honours it can be enabled by a future ADR; `jitter` is retained as a
+logged feature at weight 0 until the bench shows it helps.
+Consequence: the confidence axis contributes nothing to any output, so §4's `conf` line,
+`WindowHint.conf_delta` and `base_conf` are removed rather than frozen; `jitter` keeps its
+`O(1)` update cost for no current benefit, which is accepted so the bench can evaluate it;
+and the law is now single-axis per regime, so a stimulus that tests a knob in the wrong
+regime reads as inert.
+
+## ADR-012 — Feeder drift aborts on sustained lag, not a single frame
+2026-09-16 · Status: accepted
+Context: ADR-008 read EC-37's "cumulative drift" as max lag behind schedule. A 5-minute
+offline soak showed no growth with elapsed time (slope +0.0012 ms per 1000 frames, first
+decile 1.130 ms against last decile 1.119 ms) but a heavy tail: p99 1.488 ms and a single
+16.055 ms OS scheduling stall in 6000 frames. Max lag scales with sample count, so a
+30-minute P3 clip would eventually trip the 25 ms abort on one stall unrelated to the
+measurement.
+Decision: abort when `DRIFT_SUSTAIN_FRAMES` (4) consecutive frames each exceed
+`MAX_LAG_MS`. Four frames is 200 ms of stream time — long enough that a single scheduler
+preemption cannot reach it, short enough to catch a feeder that has genuinely fallen
+behind within a fifth of a second.
+Consequence: a one-frame stall displaces one 50 ms frame out of tens of thousands and no
+longer voids a run; sustained lag displaces the whole timeline and still does. The guard is
+weaker per-frame, so the mutation test must still go red under the accumulating-schedule
+bug, which it does because that bug produces lag on every subsequent frame rather than one.

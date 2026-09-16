@@ -43,8 +43,8 @@ offline, on a clean clone. The tradeoff curve is visible. There is still no cont
 
 ## Phase 2 — The controller (Sep 19–22)
 
-- `profiler.py`: P² quantiles, speech rate, disfluency density, Welford jitter, cut
-  detection with all five conditions.
+- `profiler.py`: P² quantiles, speech rate, disfluency density, Welford jitter (weight 0,
+  ADR-011), cut detection with the four surviving conditions.
 - `policy.py`: YAML policy compile, the eight `expected_answer` classes.
 - `arbiter.py`: the control law, all guards, the four-state machine.
 - `proxy.py`: dual-socket proxy, fan-out, `UpdateConfiguration` injection, host-override

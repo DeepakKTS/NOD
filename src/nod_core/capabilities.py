@@ -515,16 +515,17 @@ def degrade(caps: Capabilities) -> frozenset[str]:
     disabled: set[str] = set()
 
     if not caps.has_end_of_turn_confidence:
-        disabled |= {"jitter", "conf_axis"}
-    if "end_of_turn_confidence_threshold" not in caps.updatable_fields:
-        disabled |= {"jitter", "conf_axis"}
+        # No effect on any output: jitter is weight 0 in the law (ADR-011). Named
+        # so the console can still show the feature is unavailable.
+        disabled.add("jitter")
+    if "max_turn_silence" not in caps.updatable_fields:
+        # The primary control surface. Without it the incomplete-utterance regime
+        # — the mid-sentence pause Nod exists for — cannot be controlled at all.
+        disabled |= {"max_axis", "observe_only"}
+    if "min_turn_silence" not in caps.updatable_fields:
+        disabled.add("context_axis")
     if not caps.has_word_timings:
         disabled |= {"profiler", "speaker_axis"}
     if not caps.supports_force_endpoint:
         disabled.add("early_endpoint")
-    if not {"min_turn_silence", "max_turn_silence"} & caps.updatable_fields:
-        # CONTROL_SPEC.md §0 fact 2: silence is the axis that actually endpoints.
-        # With neither knob live there is nothing left to control.
-        disabled |= {"silence_axis", "observe_only"}
-
     return frozenset(disabled)

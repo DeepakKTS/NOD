@@ -58,12 +58,14 @@ names (`test_ec_014_upstream_expiry`).
 | EC-34 | Model lacks confidence-based turn detection | Confidence axis disabled by the capability probe; silence axis carries the load; `capability_degraded` emitted once. |
 | EC-35 | Patch budget exhausted (24) | Stop patching, keep profiling, mark the session `budget_exhausted`. This is a signal the constants are wrong, surfaced in the bench. |
 | EC-36 | Profiler cold for the whole call (very short call) | Base + context only. Never adapt on fewer than 8 gaps. |
+| EC-49 | Endpointing overhead on top of the configured gate | The boundary lands `ENDPOINT_OVERHEAD_MS` after whichever silence gate binds (P1 measured 155-290 ms). The ceiling subtracts it, so `ceiling_ms` is a promise about the boundary and not about the knob. The constant is derived by `make bench`, never hand-written (INV-9). |
+| EC-50 | A knob measured in the wrong regime | Each silence knob binds in one regime only: `min_turn_silence` after a complete utterance, `max_turn_silence` after an incomplete one. A probe or bench arm that offers only one regime reads the other knob as inert. Stimuli name the regime they need and the trace records it. |
 
 ## 5. Bench
 
 | Id | Case | Required behaviour |
 |---|---|---|
-| EC-37 | Feeder drift | Abort the run above 25 ms cumulative drift; a drifted run is void, not reported. |
+| EC-37 | Feeder drift | Abort when 4 consecutive frames each lag more than 25 ms behind the absolute schedule; a drifted run is void, not reported. A single-frame stall is an OS scheduling artefact — a 5-minute soak saw p99 of 1.5 ms and one 16 ms outlier — and displaces one 50 ms frame, not the timeline (ADR-012). |
 | EC-38 | Run-to-run variance exceeds arm difference | Report "inconclusive" in those words. Never present a difference smaller than the noise. |
 | EC-39 | Corpus file changed since the manifest | Hash check fails the run loudly. |
 | EC-40 | Partial run interrupted | Per-arm caching means resume re-runs only what is missing; the manifest records partial status. |

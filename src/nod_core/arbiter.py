@@ -32,9 +32,6 @@ BASE_MIN_MS: Final = 400
 BASE_MAX_MS: Final = 1280
 """Balanced starting point for `max_turn_silence`. Milliseconds."""
 
-BASE_CONF: Final = 0.40
-"""Balanced starting point for `end_of_turn_confidence_threshold`."""
-
 MIN_MS_FROM_P50_GAIN: Final = 0.6
 MIN_MS_OFFSET: Final = 120
 """`min_ms = MIN_MS_FROM_P50_GAIN * g_p50 + MIN_MS_OFFSET`. Milliseconds."""
@@ -43,18 +40,38 @@ MAX_MS_FROM_P90_GAIN: Final = 1.6
 MAX_MS_OFFSET: Final = 250
 """`max_ms = MAX_MS_FROM_P90_GAIN * g_p90 + MAX_MS_OFFSET`. Milliseconds."""
 
-CONF_DISFLUENCY_GAIN: Final = 0.45
-CONF_RECENT_CUTS_GAIN: Final = 0.15
-CONF_JITTER_GAIN: Final = 0.10
-"""Speaker-axis weights on the confidence threshold."""
+MAX_MS_DISFLUENCY_GAIN: Final = 0.45
+MAX_MS_RECENT_CUTS_GAIN: Final = 0.15
+"""Speaker-axis weights on `max_turn_silence` (CONTROL_SPEC.md §4, ADR-011).
+
+They moved off the confidence threshold because P1 measured that field inert on
+`universal-streaming-english`, and onto `max_turn_silence` because a mid-sentence
+pause is an incomplete utterance, which is the regime that knob governs.
+"""
+
+JITTER_GAIN: Final = 0.0
+"""Weight on `jitter`. Zero, deliberately (ADR-011).
+
+CONTROL_SPEC.md §2.4 assumed `end_of_turn_confidence` measures speaker
+uncertainty; P1 measured it near zero throughout an utterance and spiking only on
+the boundary frame, so it reports turn completion instead. The feature is still
+computed and logged so the bench can evaluate it. Raising this weight is an ADR,
+and CONTROL_SPEC.md §9 test 10 fails if it is raised silently.
+"""
+
+ENDPOINT_OVERHEAD_MS: Final = 0
+"""Milliseconds the boundary lands after the configured gate (EC-49).
+
+Zero until `make bench` measures it. P1 saw 155-290 ms across eleven single-sample
+configurations, which is directionally clear and not a number to hand-write into
+the control law: INV-9 applies here as much as to the README.
+"""
 
 MIN_MS_FLOOR: Final = 160
 MIN_MS_CEIL: Final = 900
 MAX_MS_FLOOR: Final = 400
 MAX_MS_CEIL: Final = 4000
-CONF_FLOOR: Final = 0.30
-CONF_CEIL: Final = 0.90
-"""Hard, absolute clamps. Milliseconds for the window, unitless for confidence."""
+"""Hard, absolute clamps. Milliseconds."""
 
 INVARIANT_GAP_MS: Final = 200
 """Invariant repair: `max_ms >= min_ms + INVARIANT_GAP_MS`. Milliseconds."""

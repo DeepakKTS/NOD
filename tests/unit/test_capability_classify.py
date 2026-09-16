@@ -215,10 +215,12 @@ def test_degrade_disables_the_confidence_axis_on_a_punctuation_model() -> None:
         has_word_timings=True,
     )
     disabled = degrade(caps)
-    assert "conf_axis" in disabled
+    # jitter is unavailable, but it was already weight 0, so no output changes.
     assert "jitter" in disabled
     assert "early_endpoint" in disabled
-    assert "silence_axis" not in disabled
+    # The silence knobs are live, so the law still has its primary surface.
+    assert "max_axis" not in disabled
+    assert "observe_only" not in disabled
 
 
 def test_degrade_is_empty_when_everything_is_live() -> None:
@@ -236,11 +238,31 @@ def test_degrade_is_empty_when_everything_is_live() -> None:
     assert degrade(caps) == frozenset()
 
 
-def test_degrade_falls_to_observe_when_no_silence_knob_is_live() -> None:
-    """CONTROL_SPEC §0 fact 2: silence is the axis that actually endpoints."""
+def test_degrade_falls_to_observe_without_the_primary_surface() -> None:
+    """ADR-011: `max_turn_silence` governs the incomplete-utterance regime.
+
+    Losing it means the mid-sentence pause — the case Nod exists for — cannot be
+    controlled at all, so the session drops to observe rather than pretending the
+    remaining knob covers it.
+    """
     caps = Capabilities(
         knobs=(
             ("max_turn_silence", KnobVerdict.STATIC_ONLY),
+            ("min_turn_silence", KnobVerdict.LIVE),
+        ),
+        confidence_field=ConfidenceField.VARYING,
+        force_endpoint=KnobVerdict.LIVE,
+        has_word_timings=True,
+    )
+    disabled = degrade(caps)
+    assert "max_axis" in disabled
+    assert "observe_only" in disabled
+
+
+def test_losing_min_turn_silence_costs_only_the_context_axis() -> None:
+    caps = Capabilities(
+        knobs=(
+            ("max_turn_silence", KnobVerdict.LIVE),
             ("min_turn_silence", KnobVerdict.INERT),
         ),
         confidence_field=ConfidenceField.VARYING,
@@ -248,8 +270,8 @@ def test_degrade_falls_to_observe_when_no_silence_knob_is_live() -> None:
         has_word_timings=True,
     )
     disabled = degrade(caps)
-    assert "silence_axis" in disabled
-    assert "observe_only" in disabled
+    assert "context_axis" in disabled
+    assert "observe_only" not in disabled
 
 
 def test_degrade_disables_the_profiler_without_word_timings() -> None:

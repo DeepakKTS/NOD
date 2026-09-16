@@ -57,7 +57,7 @@ FEATURES = SpeakerFeatures(
     recent_cuts=0.0,
     cold=False,
 )
-HINT = WindowHint(min_mult=1.0, max_mult=1.0, conf_delta=0.0)
+HINT = WindowHint(min_mult=1.0, max_mult=1.0)
 CONFIG = TurnConfig(
     min_turn_silence_ms=400,
     max_turn_silence_ms=1280,

@@ -40,7 +40,8 @@ detection configuration mid-call.
 It moves on two axes at once:
 
 - **Speaker axis.** Learned online from pause distribution, speech rate, disfluency
-  density, end-of-turn confidence jitter, and observed cut events.
+  density, and observed cut events. End-of-turn confidence jitter is logged but carries
+  no control authority (ADR-011).
 - **Context axis.** Declared by the agent's own dialogue state. When the expected answer
   is an ID, a date of birth, an address or a list, the listening window widens for that
   turn and snaps back afterwards.
@@ -82,7 +83,7 @@ Proves the loop and is what the console visualises.
 ### Core (must ship)
 - F-1 Session proxy with byte-transparent audio forwarding.
 - F-2 Speaker profiler: pause quantiles, speech rate, disfluency density, confidence
-  jitter, cut detection.
+  jitter (logged, weight 0), cut detection.
 - F-3 Context policy engine driven by a declarative YAML policy file.
 - F-4 Arbiter with hysteresis, asymmetric decay, latency ceiling, update rate cap.
 - F-5 Mid-stream `UpdateConfiguration` emission plus `ForceEndpoint` on confident early

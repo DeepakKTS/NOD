@@ -55,8 +55,11 @@ concrete adapter. This is what makes `FakeAssemblyAI` and offline tests possible
 From the stream: `Begin` (session id, expiry), `Turn` (both partial and final), and
 `Termination`. A `Turn` carries `turn_order`, `end_of_turn`, `end_of_turn_confidence`,
 `transcript`, and a `words` array of `{text, start, end, confidence, word_is_final}`
-with millisecond timings. Partials matter as much as finals: the confidence trajectory
-across partials is a first-class controller input.
+with millisecond timings. Partials matter as much as finals — they carry the word timings
+the pause profile is built from. The `end_of_turn_confidence` trajectory is logged as a
+feature but carries no control authority: P1 measured it near zero throughout an utterance
+and spiking only on the boundary frame, so it reports turn completion rather than speaker
+hesitation (CONTROL_SPEC.md §2.4, ADR-011).
 
 ## 3. Concurrency model
 
@@ -85,7 +88,7 @@ Notation: `T` = turns in a session, `W` = words in a turn, `G` = gap ring capaci
 | Ingest one partial `Turn` | `O(ΔW)` | `O(1)` | only new words are examined; `word_is_final` marks the boundary already processed |
 | Update pause quantiles | `O(1)` | `O(1)` | P² streaming quantile estimator, five markers per quantile |
 | Disfluency density update | `O(ΔW)` | `O(1)` | token comparison against a small ring of the last 4 tokens |
-| Confidence jitter update | `O(1)` | `O(1)` | Welford running variance over the partial sequence |
+| Confidence jitter update | `O(1)` | `O(1)` | Welford running variance over the partial sequence. Weight 0 in the law; computed so the bench can evaluate it (ADR-011) |
 | Cut detection | `O(1)` | `O(1)` | compares the new turn's first word start against the previous turn's last word end |
 | `arbiter.decide()` | `O(1)` | `O(1)` | pure arithmetic over fixed scalars, no allocation beyond one frozen dataclass |
 | Context policy lookup | `O(1)` | `O(P)` | policy compiled once into a dict at load |

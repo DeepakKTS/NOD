@@ -41,7 +41,7 @@ def _state() -> ArbiterInput:
             recent_cuts=0.33,
             cold=False,
         ),
-        hint=WindowHint(min_mult=1.0, max_mult=1.0, conf_delta=0.0),
+        hint=WindowHint(min_mult=1.0, max_mult=1.0),
         expected_answer="free",
         current=TurnConfig(
             min_turn_silence_ms=400,

@@ -831,16 +831,13 @@ def format_report(caps: Capabilities, result: RunResult, *, provisional: bool) -
         lines += [
             "Model class: the confidence axis is not usable on this model.",
             "",
-            "confidence_axis: dead. CONTROL_SPEC §7 row 1 calls this 'jitter",
-            "disabled, conf frozen at base', which understates it. §4's conf line",
-            "is the ONLY consumer of disfluency, recent_cuts and jitter, so",
-            "freezing conf strands three of the four speaker features with no path",
-            "to any output, and hint.conf_delta has nowhere to land.",
-            "",
-            "Two ways forward, and this is a control-law decision, not a commit:",
-            "  (a) pin a confidence-based model and keep the axis live;",
-            "  (b) revise CONTROL_SPEC §4 to route disfluency, recent_cuts and",
-            "      jitter into the silence axis. That is an ADR.",
+            "confidence_axis: dead. This is the measured state on",
+            "universal-streaming-english and the law already reflects it:",
+            "ADR-011 routed disfluency and recent_cuts onto max_turn_silence,",
+            "put the context axis on min_turn_silence, weighted jitter 0 and",
+            "stopped sending the threshold. The capability gate still consults",
+            "it, so a model that honours the field can be enabled by a future",
+            "ADR without re-litigating the law.",
         ]
 
     silence_live = {"min_turn_silence", "max_turn_silence"} & caps.updatable_fields
