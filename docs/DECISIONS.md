@@ -24,7 +24,20 @@ Consequence: one language across the two parts that share logic; horizontal scal
 sticky routing by session id, which is accepted until measurements say otherwise.
 
 ## ADR-001 — Model and capability baseline
-Status: **pending the live run** (harness landed 2026-09-15)
+Status: **pending one clean full matrix** (harness landed 2026-09-15; two of four
+knobs measured at N=3 on 2026-09-16)
+
+Settled at N=3 on `universal-streaming-english`, independent of the regime defect
+fixed on 2026-09-16:
+- `min_turn_silence` is **LIVE**: connect 315 / 2163 ms, mid-stream 303 / 2160 ms,
+  spreads 10-29 ms. Mid-stream lands where connect-time landed.
+- `end_of_turn_confidence_threshold` is **INERT**: arms at the documented
+  endpoints 0.0 and 1.0 gave 365 / 386 ms where the docs predict 2800 ms apart.
+
+Outstanding, because the first full matrix built every clip from the wrong lead
+segment and ran three arms in the complete-utterance regime: `max_turn_silence`,
+`vad_threshold`, `ForceEndpoint`, and the `universal-3-5-pro` arm. Re-run the full
+matrix and write the measured answer here.
 Context: the controller needs `end_of_turn_confidence` and mid-stream updates; Universal-3
 Pro Streaming uses punctuation-based turn detection rather than a confidence score.
 Decision: record here after `python -m nod_bench.probe` (not `nod_core.probe`, see ADR-007)
