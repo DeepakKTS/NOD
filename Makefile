@@ -12,8 +12,8 @@ RUN := $(UV) run
 PYTHON_VERSION := 3.12
 PATHS := src tests
 
-.PHONY: help install fmt lint types test bench-smoke check run demo \
-        bench bench-live bench-clean metrics report audit clean
+.PHONY: help install fmt lint types test bench-smoke check run demo probe \
+        probe-fake bench bench-live bench-clean metrics report audit clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
@@ -52,6 +52,12 @@ run: ## Serve the API on http://127.0.0.1:8000
 
 demo: ## Reference intake agent plus console, via docker compose
 	docker compose up --build
+
+probe: ## Capability probe against the real API; needs ASSEMBLYAI_API_KEY and SEED
+	$(RUN) python -m nod_bench.probe --seed-wav $(SEED)
+
+probe-fake: ## Capability probe against the in-memory upstream, zero API spend
+	$(RUN) python -m nod_bench.probe --fake --quick
 
 bench: ## Full benchmark offline against FakeAssemblyAI, no API key needed
 	$(RUN) python -m nod_bench.replay --fake --out bench/runs

@@ -135,7 +135,9 @@ convention = "google"
 mypy-init-return = true
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "D", "ANN", "PLR2004"]
+# ASYNC240: an async test asserting on files the run just wrote is doing so
+# deliberately; there is no event loop left to starve at that point.
+"tests/**" = ["S101", "D", "ANN", "PLR2004", "ASYNC240"]
 "src/nod_bench/**" = ["T20"]  # docs/PROMPTS.md P2/P3: the bench CLIs print reports
 "src/**/__init__.py" = ["D104"]
 
