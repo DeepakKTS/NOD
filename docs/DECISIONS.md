@@ -174,6 +174,18 @@ longer voids a run; sustained lag displaces the whole timeline and still does. T
 weaker per-frame, so the mutation test must still go red under the accumulating-schedule
 bug, which it does because that bug produces lag on every subsequent frame rather than one.
 
+Addendum 2026-09-16 — which test actually carries that guarantee. `test_sustained_lag_voids_the_run`
+does not. Mutating `PacedFeeder.feed` to `await asyncio.sleep(self._frame_s)` instead of
+sleeping to `self._t0 + n * self._frame_s` leaves it **green**: it asserts the guard fires,
+and the guard fires under the bug and under a legitimate sustained stall alike, so it
+cannot tell them apart. It is a runtime safety net for EC-37, not a correctness test for
+the schedule. That same mutation turns exactly three tests red —
+`test_schedule_absorbs_a_stall_instead_of_carrying_it_forward` (the elapsed-time assertion,
+the one that verifies the schedule), `test_one_isolated_stall_does_not_void_the_run` and
+`test_the_counter_resets_between_separated_stalls`. Recorded because the sentence above is
+true but reads as if the drift-guard test were the one doing the work, and a future session
+trusting that would weaken the pacing loop with the guard test still passing.
+
 ## ADR-013 — Redaction is specified over partials, not finished utterances
 2026-09-16 · Status: accepted
 Context: INV-6 masked digit runs of 4+ and phone shapes of 9+ characters, both tuned to a

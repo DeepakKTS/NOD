@@ -84,7 +84,24 @@ async def test_schedule_absorbs_a_stall_instead_of_carrying_it_forward() -> None
 
 @pytest.mark.asyncio
 async def test_sustained_lag_voids_the_run() -> None:
-    """EC-37, as amended by ADR-012: four consecutive over-threshold frames."""
+    """EC-37, as amended by ADR-012: four consecutive over-threshold frames.
+
+    **This test does not discriminate the accumulating-schedule bug.** It
+    asserts the guard fires, and the guard fires either way: under the bug, and
+    under a legitimate sustained stall on a correct absolute schedule. Mutating
+    `feed` to sleep for `frame_s` instead of to `t0 + n * frame_s` leaves this
+    test green — the error it expects is still raised, for the wrong reason.
+
+    So read it as a runtime safety net, not a correctness test. It says the
+    void-the-run path works; it says nothing about the schedule being right.
+
+    The test that verifies the schedule is
+    `test_schedule_absorbs_a_stall_instead_of_carrying_it_forward` above, which
+    asserts on total elapsed time. Under the same mutation it goes red, together
+    with `test_one_isolated_stall_does_not_void_the_run` and
+    `test_the_counter_resets_between_separated_stalls`. If you are changing the
+    pacing loop, those three are the ones that must stay honest.
+    """
     feeder = PacedFeeder(max_lag_ms=25.0, sustain_frames=4)
 
     async def keep_falling_behind(frame: bytes) -> None:
