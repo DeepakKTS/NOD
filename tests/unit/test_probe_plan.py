@@ -20,6 +20,7 @@ from nod_bench.probe import (
     SECONDARY_MODEL,
     STIMULI,
     RunResult,
+    SessionSpec,
     _force_verdict,
     estimate,
     format_report,
@@ -27,8 +28,8 @@ from nod_bench.probe import (
     plan_sessions,
     summarise,
 )
-from nod_bench.probe_clip import UPDATE_AT_MS
-from nod_core.capabilities import NO_BOUNDARY, CellObservation
+from nod_bench.probe_clip import UPDATE_AT_MS, ClipLayout
+from nod_core.capabilities import NO_BOUNDARY, CellObservation, CellPlan
 from nod_core.types import Capabilities, ConfidenceField, KnobVerdict
 
 
@@ -189,6 +190,37 @@ def test_summarise_of_an_empty_run_is_all_unproven() -> None:
     assert caps.updatable_fields == frozenset()
 
 
+def _spec_with(
+    *, segments: tuple[tuple[int, int], ...], lead_segment: int
+) -> SessionSpec:
+    """A minimal spec for exercising span selection."""
+    layout = ClipLayout(gap_ms=1500)
+    return SessionSpec(
+        model=PRIMARY_MODEL,
+        label="x",
+        cell="connect_low",
+        field="max_turn_silence",
+        arm_value=600.0,
+        connect={},
+        layout=layout,
+        plan=CellPlan(
+            cell="connect_low",
+            field="max_turn_silence",
+            arm_value=600.0,
+            delta=1.0,
+            direction=1,
+            midstream=False,
+            expected_shift_ms=100,
+            update_at_ms=0,
+            gap_start_ms=layout.gap_start_ms,
+            gap_end_ms=layout.gap_end_ms,
+        ),
+        repeat=0,
+        segments=segments,
+        lead_segment=lead_segment,
+    )
+
+
 def _isolated_seed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A valid seed plus a credential, in a directory with no real `.env`.
 
@@ -309,3 +341,52 @@ def test_dry_run_with_everything_present_prints_the_matrix(
     assert "connect_low" in printed
     assert "All preconditions satisfied" in printed
     assert "No session was opened" in printed
+
+
+def test_the_lead_span_is_the_requested_segment_not_the_second() -> None:
+    """Regression: the full matrix ran three knobs in the wrong regime.
+
+    `build_clip` was handed all four spans and took `segments[:3]`, so the lead
+    was always segment 1 — a complete sentence — no matter what `lead_segment`
+    said. `max_turn_silence`, `vad_threshold` and `ForceEndpoint` all need the
+    fragment regime, and all three reported inert against a stimulus that never
+    gave them a chance to bind (EC-50).
+    """
+    from nod_bench.probe import lead_spans
+
+    spans = ((0, 100), (200, 300), (400, 500), (600, 700))
+    spec = _spec_with(segments=spans, lead_segment=3)
+    assert lead_spans(spec) == ((0, 100), (600, 700), (400, 500))
+
+    spec_default = _spec_with(segments=spans, lead_segment=1)
+    assert lead_spans(spec_default) == ((0, 100), (200, 300), (400, 500))
+
+
+def test_lead_spans_falls_back_when_the_seed_has_no_fragment() -> None:
+    from nod_bench.probe import lead_spans
+
+    three = ((0, 100), (200, 300), (400, 500))
+    assert lead_spans(_spec_with(segments=three, lead_segment=3)) is None
+    assert lead_spans(_spec_with(segments=(), lead_segment=1)) is None
+
+
+def test_every_fragment_regime_stimulus_asks_for_a_fragment_segment() -> None:
+    """The knobs that only bind after an incomplete utterance must say so."""
+    from nod_bench.probe import STIMULI
+
+    by_field = {k.field: k for k in STIMULI}
+    assert by_field["max_turn_silence"].lead_segment == 3
+    assert by_field["vad_threshold"].lead_segment == 3
+    assert by_field["min_turn_silence"].lead_segment == 1
+    assert by_field["end_of_turn_confidence_threshold"].lead_segment == 1
+
+
+def test_the_planned_specs_carry_the_lead_segment_through() -> None:
+    """A stimulus asking for the fragment must reach the session that runs it."""
+    specs = [
+        s
+        for s in plan_sessions(quick=True, segment_ms=(100, 100, 100, 100))
+        if s.field == "max_turn_silence"
+    ]
+    assert specs
+    assert all(s.lead_segment == 3 for s in specs)

@@ -386,6 +386,30 @@ class ConcurrencyLimitError(RuntimeError):
     """
 
 
+def lead_spans(spec: SessionSpec) -> tuple[tuple[int, int], ...] | None:
+    """Pick the three seed spans this cell's clip is built from. `O(1)`.
+
+    The middle one is `spec.lead_segment`, not `segments[1]`. Which segment sits
+    before the test gap decides which silence knob can bind at all (EC-50), so
+    getting this wrong silently runs every cell in the other regime and reports
+    the knob under test as inert.
+
+    Args:
+        spec: The cell to build a clip for.
+
+    Returns:
+        `(preamble, lead, trail)` spans, or `None` when the seed has no manifest
+        and the caller should fall back to fixed offsets.
+    """
+    if len(spec.segments) <= max(2, spec.lead_segment):
+        return None
+    return (
+        spec.segments[0],
+        spec.segments[spec.lead_segment],
+        spec.segments[2],
+    )
+
+
 def _failed(spec: SessionSpec, error_code: int | None) -> CellObservation:
     """Build the observation for a session that produced no measurement. `O(1)`."""
     return CellObservation(
@@ -616,7 +640,7 @@ async def run_session(
     Returns:
         The measurement, carrying `error_code` if the field was rejected.
     """
-    pcm = build_clip(seed_pcm, layout=spec.layout, segments=spec.segments or None)
+    pcm = build_clip(seed_pcm, layout=spec.layout, segments=lead_spans(spec))
     frames = frames_of(pcm, sample_rate=SAMPLE_RATE)
     sink = TraceSink(spec.session_id, directory=trace_dir, raw=raw)
     feeder = PacedFeeder(
