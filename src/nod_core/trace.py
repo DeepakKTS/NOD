@@ -55,14 +55,26 @@ _WORDY_DATE = re.compile(
     r"\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b",
     re.IGNORECASE,
 )
-_PHONE = re.compile(r"\+?\d[\d\s().-]{5,}\d")
+# \u2013 en dash, \u2014 em dash: universal-3-5-pro formats digit groups
+# with them, and a hyphen-only class does not see those numbers at all.
+_PHONE = re.compile(r"\+?\d[\d\s().\-\u2013\u2014]{5,}\d")
 _DIGIT_RUN = re.compile(rf"\d{{{DIGIT_RUN_MIN},}}")
 _URL_CREDENTIAL = re.compile(
     r"(?i)\b(token|authorization|api_key|apikey|key)=[^&\s]+",
 )
 
-_REDACTED_TEXT_KEYS: Final = ("transcript", "utterance", "text")
-"""Payload keys carrying caller speech. Everything else is numbers or structure."""
+_REDACTED_TEXT_KEYS: Final = ("transcript", "utterance")
+"""Payload keys carrying a *sentence* of caller speech.
+
+`text` is deliberately not here. A sentence and a single word token need
+different rules, because every shape rule below is defined over context a
+one-word token does not have (ADR-015). See `_REDACTED_WORD_KEYS`.
+"""
+
+_REDACTED_WORD_KEYS: Final = ("text",)
+"""Payload keys carrying one word token, redacted by `redact_word` (ADR-015)."""
+
+_ANY_DIGIT = re.compile(r"\d")
 
 
 def redact(text: str) -> str:
@@ -95,6 +107,40 @@ def redact(text: str) -> str:
     return _DIGIT_RUN.sub("[NUM]", text)
 
 
+def redact_word(token: str) -> str:
+    """Mask one `words[].text` token. `O(len(token))`.
+
+    Order is the decision (ADR-015): run `redact`'s shape rules first, then mask
+    any token that still carries a digit as `[NUM]`. Shape-first preserves the
+    mask type, so a fully transcribed `5551234567` still reads `[PHONE]` and
+    only the fragments a shape rule cannot recognise — `61`, `01`, `4` — fall
+    through to `[NUM]`.
+
+    The catch-all exists because a word token is one to four characters and
+    every threshold in `redact` is therefore too coarse for it. A streaming
+    endpointer grows a word character by character, so the committed trace
+    carried `6`, `61`, `5`, `55`, `0`, `01` while the completed `617`, `555` and
+    `0142` masked correctly — the prefixes of a real phone number, in a file
+    bound for a public repository.
+
+    Nothing the controller reads is lost. CONTROL_SPEC.md §1 uses token text for
+    disfluency features only, and §2.3's three features are adjacent repeats,
+    filler-set membership and duration outliers; none reads a digit's value.
+    `start`, `end`, `confidence` and `word_is_final` are untouched, which is
+    what `redact_payload` actually has to protect.
+
+    Args:
+        token: One word's text, as transcribed.
+
+    Returns:
+        The token with its shape masked, or `[NUM]` if any digit survived.
+    """
+    masked = redact(token)
+    if _ANY_DIGIT.search(masked):
+        return "[NUM]"
+    return masked
+
+
 def redact_url(url: str) -> str:
     """Strip credentials from a recorded URL. `O(len(url))`.
 
@@ -118,6 +164,9 @@ def redact_payload(payload: JsonValue) -> JsonValue:
     measurement — a blanket "redact the words array" would silently destroy every
     turn-boundary reading while appearing to be the more cautious choice.
 
+    Sentence keys go through `redact`, word tokens through `redact_word`. The
+    split is ADR-015: the shape rules need context a single token does not have.
+
     Args:
         payload: Any JSON value from an upstream frame.
 
@@ -125,15 +174,20 @@ def redact_payload(payload: JsonValue) -> JsonValue:
         The same structure with speech strings masked.
     """
     if isinstance(payload, Mapping):
-        return {
-            key: redact(value)
-            if key in _REDACTED_TEXT_KEYS and isinstance(value, str)
-            else redact_payload(value)
-            for key, value in payload.items()
-        }
+        return {key: _redact_value(key, value) for key, value in payload.items()}
     if isinstance(payload, (list, tuple)):
         return [redact_payload(item) for item in payload]
     return payload
+
+
+def _redact_value(key: str, value: JsonValue) -> JsonValue:
+    """Apply the rule this key's content calls for. `O(size)`."""
+    if isinstance(value, str):
+        if key in _REDACTED_TEXT_KEYS:
+            return redact(value)
+        if key in _REDACTED_WORD_KEYS:
+            return redact_word(value)
+    return redact_payload(value)
 
 
 class TraceSink:

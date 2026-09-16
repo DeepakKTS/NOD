@@ -215,3 +215,37 @@ Consequence: a three-digit quantity is now masked too (`turn 100 of 250` reads
 `turn [NUM] of [NUM]`), which is the right direction to err for a persisted trace;
 `NOD_TRACE_RAW=1` remains the only escape, and key-scoping to `transcript`/`utterance`/
 `text` keeps `clip_sha256` and `session_id` intact under the looser digit rule.
+
+## ADR-015 — Word tokens are redacted by a different rule than sentences
+2026-09-16 · Status: accepted
+Context: ADR-013 closed the `transcript` leak but `words[].text` kept carrying `6`, `61`,
+`5`, `55`, `0`, `01`, `4` — the prefixes of a real phone number — in the trace chosen as
+the ROADMAP Phase 1 bullet 5 replay fixture, bound for a public repository. A word token is
+one to four characters, so every threshold in `redact` is too coarse for it: a streaming
+endpointer grows a word character by character and only the completed `617`, `555`, `0142`
+ever reach a rule that recognises them.
+Decision: split `text` out of `_REDACTED_TEXT_KEYS` into `_REDACTED_WORD_KEYS`, routed
+through `redact_word`, which runs the existing shape rules **first** and only then masks
+any token that still carries a digit as `[NUM]`. The ordering is the decision: shape-first
+preserves mask type, so a fully transcribed `5551234567` still reads `[PHONE]` while `61`,
+`01` and `4` become `[NUM]`. Digits-first would flatten both to `[NUM]` and lose the
+distinction. `transcript` and `utterance` rules are unchanged.
+Consequence: nothing the controller reads is lost — CONTROL_SPEC §1 uses token text for
+disfluency features only, and §2.3's three features are adjacent repeats, filler-set
+membership and duration outliers, none of which reads a digit's value. `start`, `end`,
+`confidence` and `word_is_final` stay untouched, which is what `redact_payload` exists to
+protect. The same string now behaves differently in the two places it appears: `"3"` in a
+sentence is a quantity and survives, `"3"` as a whole token being read aloud is a digit of
+something and masks.
+Also widened `_PHONE`'s separator class to include en dash (`–`) and em dash
+(`—`), because `universal-3-5-pro` formats digit groups with them and a hyphen-only
+class does not see those numbers at all.
+Not fixed, and named so it is not mistaken for covered: **hyphen-separated single digits**
+in a *sentence* — the `6-1-1` shape `universal-3-5-pro` produces. It defeats `_DIGIT_RUN`,
+which needs three consecutive digits and sees none, and `_PHONE`, which needs seven
+characters and counts five. Widening the dash class does not reach it, and neither does the
+word rule, which only governs `words[].text`. A bare trailing digit (`6—`, and the
+`30` left behind when `_WORDY_DATE` matches a date whose year is still being transcribed)
+is the same gap. Closing it means masking single digits inside sentences, which contradicts
+`test_short_digit_runs_survive`'s standing decision that "I have 3 cats" is not PII, so it
+needs its own ADR rather than a threshold nudge.

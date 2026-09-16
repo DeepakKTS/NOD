@@ -75,7 +75,7 @@ names (`test_ec_014_upstream_expiry`).
 
 | Id | Case | Required behaviour |
 |---|---|---|
-| EC-42 | PII in transcript | Redaction on by default, and specified over **partials**, not finished utterances: digit runs of 3+, two-group phone shapes, dates, emails, and everything captured during an entity turn. A rule tuned to the completed number leaks every prefix of it, and the prefix of a phone number is an area code (ADR-013). Raw retention requires `NOD_TRACE_RAW=1` plus an explicit per-session flag. |
+| EC-42 | PII in transcript | Redaction on by default, specified over **partials** rather than finished utterances, and **per key**. Sentence keys (`transcript`, `utterance`): digit runs of 3+, phone shapes separated by spaces, hyphens, en or em dashes, dates, emails, and everything captured during an entity turn. Word keys (`words[].text`): shape rules first, then any token still carrying a digit masks as `[NUM]` — a one-to-four character token is below every sentence threshold (ADR-015). A rule tuned to the completed number leaks every prefix of it, and the prefix of a phone number is an area code (ADR-013). Known gap: hyphen-separated single digits in a sentence (`6-1-1`) are still unmasked, see ADR-015. Raw retention requires `NOD_TRACE_RAW=1` plus an explicit per-session flag. |
 | EC-43 | Disk full | Trace writer detects `ENOSPC`, disables tracing for the session, emits a metric, and the call continues. Tracing is never load-bearing for a call. |
 | EC-44 | Cache corruption after a crash | Atomic write (`.tmp` + `os.replace`); a truncated file can never be read as valid. |
 | EC-45 | API credits exhausted | Console switches to replay mode driven by committed traces so a demo still runs. |

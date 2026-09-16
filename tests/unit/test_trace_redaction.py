@@ -19,6 +19,7 @@ from nod_core.trace import (
     redact,
     redact_payload,
     redact_url,
+    redact_word,
 )
 from nod_core.types import TRACE_SCHEMA_VERSION, JsonValue
 
@@ -118,6 +119,92 @@ def test_word_timings_and_confidences_are_never_touched() -> None:
     # ...while the speech itself is masked, in both places it appears.
     assert "5551234567" not in json.dumps(out)
     assert "[PHONE]" in str(words[1]["text"])
+
+
+# The `words[].text` tokens the P3 replay fixture actually carried while the
+# speaker read a phone number. A streaming endpointer grows a word character by
+# character, so the completed words masked and their prefixes did not.
+LEAKED_WORD_TOKENS: list[str] = ["6", "61", "5", "55", "0", "01", "4"]
+
+
+@pytest.mark.parametrize("token", LEAKED_WORD_TOKENS)
+def test_no_digit_bearing_word_token_survives(token: str) -> None:
+    """ADR-015. Every threshold in `redact` is too coarse for one word token."""
+    assert redact_word(token) == "[NUM]"
+    assert not re.search(r"\d", redact_word(token))
+
+
+def test_a_word_token_keeps_its_mask_type() -> None:
+    """Shape rules run first, so `redact_word` does not flatten [PHONE] to [NUM].
+
+    This is the ordering ADR-015 chose. Masking digits first would lose the
+    distinction between a recognised phone number and an unrecognisable
+    fragment, and `test_word_timings_and_confidences_are_never_touched` asserts
+    the [PHONE] case.
+    """
+    assert redact_word("5551234567") == "[PHONE]"
+    assert redact_word("617") == "[NUM]"
+
+
+def test_a_word_token_without_digits_is_untouched() -> None:
+    """Disfluency features are token text. Masking real words would break them."""
+    for token in ("um", "the", "appointment", "Nod"):
+        assert redact_word(token) == token
+
+
+def test_the_words_array_is_routed_through_the_word_rule() -> None:
+    """The routing, not just `redact_word` in isolation (ADR-015).
+
+    Calling `redact_word` directly does not prove `redact_payload` reaches it;
+    putting `text` back on the sentence rule leaves such a test green while the
+    leak returns. This drives the real fixture tokens through the walker.
+    """
+    words_in: list[dict[str, JsonValue]] = [
+        {"text": token, "start": 0} for token in LEAKED_WORD_TOKENS
+    ]
+    out = redact_payload({"words": words_in})
+    assert isinstance(out, dict)
+    words = out["words"]
+    assert isinstance(words, list)
+    assert [w["text"] for w in words] == ["[NUM]"] * len(LEAKED_WORD_TOKENS)
+    assert not re.search(r"\d", json.dumps([w["text"] for w in words]))
+
+
+def test_sentence_keys_and_word_keys_take_different_rules() -> None:
+    """ADR-015 split `text` out of the sentence keys.
+
+    The same string must survive in a transcript and mask in a word token: "3"
+    in a sentence is a quantity, "3" as a whole token being read aloud is a
+    digit of something.
+    """
+    out = redact_payload(
+        {"transcript": "I have 3 cats", "words": [{"text": "3", "confidence": 0.9}]}
+    )
+    assert isinstance(out, dict)
+    assert out["transcript"] == "I have 3 cats"
+    words = out["words"]
+    assert isinstance(words, list)
+    assert words[0]["text"] == "[NUM]"
+    assert words[0]["confidence"] == 0.9
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "call me back on 6\u20131\u20131\u20132",
+        "call me back on 6\u20141\u20141\u20142",
+    ],
+)
+def test_dash_separated_digit_groups_are_masked(raw: str) -> None:
+    """universal-3-5-pro formats numbers with en and em dashes (ADR-015).
+
+    A hyphen-only separator class does not see those numbers at all, so the
+    whole sequence fell through `_PHONE` and, being single digits, through the
+    digit-run rule too.
+    """
+    out = redact(raw)
+    assert "[PHONE]" in out
+    assert not re.search(r"\d", out)
 
 
 def test_redact_url_strips_a_credential_and_keeps_the_rest() -> None:
