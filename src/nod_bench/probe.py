@@ -798,7 +798,7 @@ def _resolve_api_key(out: TextIO) -> str:
             f"`Settings` forbids unknown keys.\n"
         )
         return ""
-    if secret is None:
+    if secret is None or not secret.get_secret_value().strip():
         out.write(
             "No ASSEMBLYAI_API_KEY found. Either export it for one run:\n"
             "  ASSEMBLYAI_API_KEY=... python -m nod_bench.probe --quick "

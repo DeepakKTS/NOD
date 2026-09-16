@@ -136,3 +136,44 @@ def test_comma_separated_lists_parse_as_documented(
         monkeypatch.delenv(field.upper(), raising=False)
     monkeypatch.chdir(tmp_path)
     assert Settings().tts_providers == expected
+
+
+def test_blank_credentials_parse_as_absent_not_as_empty(
+    env_from_example: Path,
+) -> None:
+    """Regression: `cp .env.example .env` left every credential `SecretStr("")`.
+
+    That is not `None`, so an `is None` guard passes it through and the caller
+    fails later with an empty key rather than a missing one. In the probe that
+    surfaced as exit 2 with no message at all — a silent failure on the exact
+    path the documentation tells a new user to take.
+    """
+    settings = Settings()
+    assert settings.assemblyai_api_key is None
+    assert settings.nod_api_token is None
+    assert settings.llm_api_key is None
+    assert settings.llm_provider is None
+
+
+def test_a_real_credential_still_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blank-normalisation must not swallow a key that is actually set."""
+    for field in Settings.model_fields:
+        monkeypatch.delenv(field.upper(), raising=False)
+    (tmp_path / ".env").write_text("ASSEMBLYAI_API_KEY=sk-real\n")
+    monkeypatch.chdir(tmp_path)
+
+    key = Settings().assemblyai_api_key
+    assert isinstance(key, SecretStr)
+    assert key.get_secret_value() == "sk-real"
+
+
+def test_whitespace_only_credentials_are_also_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for field in Settings.model_fields:
+        monkeypatch.delenv(field.upper(), raising=False)
+    (tmp_path / ".env").write_text('ASSEMBLYAI_API_KEY="   "\n')
+    monkeypatch.chdir(tmp_path)
+    assert Settings().assemblyai_api_key is None

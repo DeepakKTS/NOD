@@ -97,3 +97,28 @@ def test_cli_accepts_a_dotenv_key_then_stops_on_the_missing_seed(
     printed = capsys.readouterr().out
     assert "--seed-wav is required" in printed
     assert "ASSEMBLYAI_API_KEY" not in printed
+
+
+def test_the_documented_first_run_path_explains_itself(tmp_path: Path) -> None:
+    """`cp .env.example .env` with the key left blank must not fail silently."""
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    (tmp_path / ".env").write_text(example.read_text(encoding="utf-8"))
+
+    buffer = io.StringIO()
+    assert _resolve_api_key(buffer) == ""
+    printed = buffer.getvalue()
+    assert printed, "a blank credential must produce guidance, not silence"
+    assert "cp .env.example .env" in printed
+
+
+def test_a_blank_key_in_the_environment_is_also_absent() -> None:
+    import os
+
+    os.environ["ASSEMBLYAI_API_KEY"] = ""
+    try:
+        get_settings.cache_clear()
+        buffer = io.StringIO()
+        assert _resolve_api_key(buffer) == ""
+        assert buffer.getvalue()
+    finally:
+        del os.environ["ASSEMBLYAI_API_KEY"]

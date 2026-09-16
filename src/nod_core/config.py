@@ -44,6 +44,33 @@ type CsvTuple = Annotated[tuple[str, ...], NoDecode, BeforeValidator(_split_csv)
 """A comma-separated environment list, as DEPLOYMENT.md §2 documents them."""
 
 
+def _blank_to_none(value: object) -> object:
+    """Treat an empty or whitespace-only credential as absent.
+
+    `.env.example` ships every credential blank, because none of them has a
+    default, so `cp .env.example .env` — the documented first-run path — yields
+    `ASSEMBLYAI_API_KEY=`. Pydantic reads that as `SecretStr("")`, which is not
+    `None`, so an `is None` check passes it through and the caller fails later
+    with an empty key instead of a missing one.
+
+    Args:
+        value: The raw environment value.
+
+    Returns:
+        `None` for a blank string, otherwise the value unchanged.
+    """
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
+type OptionalSecret = Annotated[SecretStr | None, BeforeValidator(_blank_to_none)]
+"""A credential that is absent when blank, not present-and-empty."""
+
+type OptionalText = Annotated[str | None, BeforeValidator(_blank_to_none)]
+"""A non-secret optional setting, blank-normalised the same way."""
+
+
 class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own Any
     """Every variable in DEPLOYMENT.md §2, with its documented default.
 
@@ -62,11 +89,11 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     nod_env: Literal["dev", "prod"] = "prod"
     """`dev` re-raises controller errors after the call (INV-8)."""
 
-    assemblyai_api_key: SecretStr | None = None
+    assemblyai_api_key: OptionalSecret = None
     """Required at runtime, server-side only (INV-5)."""
 
     nod_model: str = "universal-streaming-english"
-    nod_api_token: SecretStr | None = None
+    nod_api_token: OptionalSecret = None
     nod_auth: Literal["required", "off"] = "required"
 
     nod_allowed_origins: CsvTuple = ()
@@ -88,8 +115,8 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     nod_db_path: Path = Path("/data/nod.db")
     nod_log_level: str = "info"
 
-    llm_provider: str | None = None
-    llm_api_key: SecretStr | None = None
+    llm_provider: OptionalText = None
+    llm_api_key: OptionalSecret = None
 
     tts_providers: CsvTuple = ("browser",)
     """Comma-separated fallback chain, in order."""
