@@ -3,13 +3,25 @@
 Routes follow ARCHITECTURE.md §7 exactly. There is deliberately no module-level
 `app`: `make run` uses `uvicorn --factory`, so importing this module never runs
 application construction.
+
+Scope exception to the Phase 0 "every stub raises" rule, granted explicitly and
+limited to this file: `create_app`, `/healthz` and `/readyz` are real. Health
+endpoints are infrastructure, not business logic, and leaving them unimplemented
+would mean the uvicorn factory, the container healthcheck and the readiness path
+go unexercised until deployment week. Every other route here still raises
+`NotImplementedError`, including `/metrics`.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
+from http import HTTPStatus
+from typing import Final
 
 from fastapi import APIRouter, FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from nod_core.config import Settings
 from nod_core.types import JsonValue, Voice
@@ -18,20 +30,86 @@ router = APIRouter(prefix="/v1")
 health_router = APIRouter()
 
 
+@dataclass(frozen=True, slots=True)
+class ReadinessCheck:
+    """One condition `/readyz` reports on (DEPLOYMENT.md §4)."""
+
+    name: str
+    ready: bool
+    detail: str
+    implemented_in: str
+
+
+READINESS_CHECKS: Final = (
+    ReadinessCheck(
+        name="config_loaded",
+        ready=False,
+        detail="nod_core.config.get_settings is not implemented",
+        implemented_in="P0",
+    ),
+    ReadinessCheck(
+        name="data_volume_writable",
+        ready=False,
+        detail="NOD_TRACE_DIR writability is unchecked; the trace sink lands in P6",
+        implemented_in="P6",
+    ),
+    ReadinessCheck(
+        name="sqlite_reachable",
+        ready=False,
+        detail="the SQLite index of ARCHITECTURE.md §6 is not opened yet",
+        implemented_in="P6",
+    ),
+    ReadinessCheck(
+        name="capability_probe_cached",
+        ready=False,
+        detail="nod_core.capabilities.probe lands in P1 (ADR-001 is still pending)",
+        implemented_in="P1",
+    ),
+)
+"""The four conditions of DEPLOYMENT.md §4, none of them met at Phase 0.
+
+`/readyz` reports every one of them so the 503 says what is missing rather than
+being opaque. As each subsystem lands, flip its entry to a live check.
+"""
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the application.
 
-    Wires CORS deny-by-default from `NOD_ALLOWED_ORIGINS` (never `*`), bearer
-    auth on mutating routes when `NOD_AUTH=required`, and the routes of
-    ARCHITECTURE.md §7.
+    Wires CORS deny-by-default from `NOD_ALLOWED_ORIGINS` (never `*`) and the
+    routes of ARCHITECTURE.md §7. Bearer auth on mutating routes lands with
+    `nod_server.auth` in P6.
 
     Args:
-        settings: Process settings; read from the environment when omitted.
+        settings: Process settings. Built from the environment when omitted;
+            `get_settings` is the cached accessor and is still a stub.
 
     Returns:
         The configured application.
     """
-    raise NotImplementedError
+    resolved = settings if settings is not None else Settings()
+
+    app = FastAPI(
+        title="Nod",
+        description="Adaptive turn-timing controller for voice agents.",
+        version="0.1.0",
+    )
+
+    # CORS defaults to deny; the console origin is allow-listed explicitly and
+    # never `*` (ARCHITECTURE.md §7, INV-5).
+    if resolved.nod_allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(resolved.nod_allowed_origins),
+            allow_credentials=True,
+            allow_methods=["GET", "POST"],
+            allow_headers=["Authorization", "Content-Type"],
+        )
+
+    app.state.settings = resolved
+    app.include_router(health_router)
+    app.include_router(router)
+    return app
 
 
 @router.post("/sessions")
@@ -90,8 +168,15 @@ async def get_bench_run(run_id: str) -> dict[str, JsonValue]:
 
 @health_router.get("/healthz")
 async def healthz() -> Response:
-    """Liveness. Green when the process is alive; never touches upstream."""
-    raise NotImplementedError
+    """Liveness. Green when the process is alive; never touches upstream.
+
+    DEPLOYMENT.md §4: this endpoint never calls AssemblyAI, SQLite or the disk,
+    now or later. It answers exactly one question — is this process running.
+
+    Returns:
+        `200 {"status": "ok"}`.
+    """
+    return JSONResponse(status_code=HTTPStatus.OK, content={"status": "ok"})
 
 
 @health_router.get("/readyz")
@@ -99,10 +184,34 @@ async def readyz() -> Response:
     """Readiness: config loaded, `/data` writable, SQLite reachable, probe cached.
 
     Deliberately does not call AssemblyAI. An upstream outage must not take the
-    container out of rotation, because `observe` and replay still work
+    container out of rotation, because `observe` mode and replay mode still work
     (DEPLOYMENT.md §4).
+
+    At Phase 0 none of the four conditions is met, so this reports every one of
+    them by name rather than returning a bare 503.
+
+    Returns:
+        `200` once every check passes, otherwise `503` listing what is missing.
     """
-    raise NotImplementedError
+    checks = [
+        {
+            "name": check.name,
+            "ready": check.ready,
+            "detail": check.detail,
+            "implemented_in": check.implemented_in,
+        }
+        for check in READINESS_CHECKS
+    ]
+    ready = all(check.ready for check in READINESS_CHECKS)
+    status = HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE
+    return JSONResponse(
+        status_code=status,
+        content={
+            "status": "ready" if ready else "not_ready",
+            "not_ready": [c.name for c in READINESS_CHECKS if not c.ready],
+            "checks": checks,
+        },
+    )
 
 
 @health_router.get("/metrics")

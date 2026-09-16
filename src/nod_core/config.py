@@ -12,12 +12,35 @@ file rather than environment variables.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BeforeValidator, SecretStr
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from nod_core.types import NodMode
+
+
+def _split_csv(value: object) -> object:
+    """Parse the comma-separated list form DEPLOYMENT.md §2 documents.
+
+    pydantic-settings JSON-decodes complex fields before validation, so without
+    `NoDecode` the documented `TTS_PROVIDERS=browser,elevenlabs` form raises
+    rather than parsing. An empty value yields an empty tuple.
+
+    Args:
+        value: The raw environment value, or an already-parsed sequence.
+
+    Returns:
+        A tuple of stripped, non-empty entries when given a string; otherwise
+        the value unchanged, so programmatic construction still works.
+    """
+    if isinstance(value, str):
+        return tuple(item.strip() for item in value.split(",") if item.strip())
+    return value
+
+
+type CsvTuple = Annotated[tuple[str, ...], NoDecode, BeforeValidator(_split_csv)]
+"""A comma-separated environment list, as DEPLOYMENT.md §2 documents them."""
 
 
 class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own Any
@@ -45,7 +68,7 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     nod_api_token: SecretStr | None = None
     nod_auth: Literal["required", "off"] = "required"
 
-    nod_allowed_origins: tuple[str, ...] = ()
+    nod_allowed_origins: CsvTuple = ()
     """CORS allow-list. Never `*` (ARCHITECTURE.md §7)."""
 
     nod_max_sessions: int = 64
@@ -67,7 +90,7 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     llm_provider: str | None = None
     llm_api_key: SecretStr | None = None
 
-    tts_providers: tuple[str, ...] = ("browser",)
+    tts_providers: CsvTuple = ("browser",)
     """Comma-separated fallback chain, in order."""
 
     tts_api_keys: dict[str, SecretStr] = {}
@@ -79,8 +102,8 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     nod_mode_default: NodMode = NodMode.ADAPT
     """Default mode for new sessions.
 
-    DEPLOYMENT.md §5 step 1 deploys with `NOD_MODE_DEFAULT=observe`; the variable
-    is named there but is absent from the §2 table.
+    DEPLOYMENT.md §5 step 1 deploys with `NOD_MODE_DEFAULT=observe`, which is
+    genuinely zero-risk: `observe` cannot change a call's behaviour.
     """
 
 

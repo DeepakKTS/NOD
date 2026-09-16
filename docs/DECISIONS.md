@@ -56,3 +56,22 @@ Decision: `uv` with a committed `uv.lock`; `make install` and CI both run `uv sy
 --frozen`, and `uv python install 3.12` supplies the interpreter the repo pins.
 Consequence: lockfile drift fails the build instead of silently resolving something new;
 contributors need `uv` on PATH, and `requires-python = ">=3.12,<3.13"` rejects a 3.13 box.
+
+## ADR-005 — Paired significance test
+2026-09-16 · Status: accepted
+Context: BENCH_SPEC §9 requires a paired Wilcoxon signed-rank test; CLAUDE §3's numerics
+row names only numpy, and scipy was arriving undeclared as a librosa transitive.
+Decision: use `scipy.stats.wilcoxon` in `nod_bench.metrics`, with `scipy` declared
+explicitly in the `bench` extra rather than inherited.
+Consequence: scipy is a stated bench-only dependency excluded from the runtime image per
+DEPLOYMENT §3; a librosa change can no longer silently remove code we import.
+
+## ADR-006 — Untyped third-party imports (pending)
+2026-09-16 · Status: **pending P2 and P7**
+Context: mypy runs strict repo-wide, but librosa, soundfile, scipy and assemblyai ship no
+inline types; declaring `ignore_missing_imports` overrides before anything imports them
+trips `warn_unused_configs` and leaves dead config in pyproject.toml.
+Decision: add each `[[tool.mypy.overrides]]` block in the phase that first imports the
+package — librosa, soundfile and scipy at P2, assemblyai at P1 and P7 — never pre-emptively.
+Consequence: the first import of each package fails `make types` until its override lands,
+which is the intended prompt; revisit if any of the four ships a `py.typed` marker.

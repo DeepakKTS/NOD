@@ -55,6 +55,10 @@ bench = [
     "soundfile==0.14.0",
     # BENCH_SPEC.md §2 `prolong`: time-stretch without pitch shift.
     "librosa==1.0.0",
+    # BENCH_SPEC.md §9 requires a paired Wilcoxon signed-rank test; nod_bench
+    # imports scipy.stats directly, so it is declared rather than inherited from
+    # librosa (ADR-005).
+    "scipy==1.18.1",
 ]
 
 dev = [
@@ -173,9 +177,11 @@ module = "tests.*"
 disallow_untyped_decorators = false
 disallow_any_explicit = false
 
-# NOTE: librosa, soundfile and assemblyai ship no inline types. Add an
-# `ignore_missing_imports` override for them when P2 and P7 first import them;
-# declaring it now trips warn_unused_configs.
+# Untyped third-party imports: see ADR-006 in docs/DECISIONS.md. librosa,
+# soundfile, scipy and assemblyai ship no inline types, so each needs an
+# `ignore_missing_imports` override added at the phase that first imports it.
+# Declaring the overrides now trips warn_unused_configs, so they are deferred
+# rather than carried as dead config.
 
 # ---------------------------------------------------------------------------
 # pytest — CLAUDE.md §3 Tests, INV-7

@@ -130,11 +130,11 @@ def dec_p99(runs: Sequence[RunResult]) -> float:
 
 
 def wilcoxon(a: Samples, b: Samples) -> tuple[float, float]:
-    """Paired Wilcoxon signed-rank test (BENCH_SPEC.md §9).
+    """Paired Wilcoxon signed-rank test, via `scipy.stats.wilcoxon` (ADR-005).
 
     The same clips run through every arm, so the comparison is paired and an
-    unpaired test would be wrong. Report the effect size and the n alongside any
-    p-value.
+    unpaired test would be wrong (BENCH_SPEC.md §9). Report the effect size and
+    the n alongside any p-value.
 
     Args:
         a: One arm's per-clip values.

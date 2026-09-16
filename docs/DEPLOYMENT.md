@@ -30,6 +30,7 @@ forwarding is I/O bound. Record any change to this in an ADR.
 | `NOD_MAX_SESSIONS` | `64` | per worker |
 | `NOD_CEILING_MS` | `2600` | default latency ceiling |
 | `NOD_PRESET` | `balanced` | default preset |
+| `NOD_MODE_DEFAULT` | `adapt` | default mode for new sessions; §5 rolls out with `observe` |
 | `NOD_TRACE_RAW` | `0` | `1` disables redaction; requires a documented reason |
 | `NOD_TRACE_DIR` | `/data/traces` | on the persistent volume |
 | `NOD_CACHE_DIR` | `/data/.nodcache` | TTS and bench caches |
