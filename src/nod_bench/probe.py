@@ -42,7 +42,7 @@ from nod_bench.probe_clip import (
     UPDATE_AT_MS,
     ZEROS,
     ClipLayout,
-    SeedFormatError,
+    SeedError,
     build_clip,
     clip_sha256,
     load_seed,
@@ -883,7 +883,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         try:
             seed_pcm, note = load_seed(args.seed_wav)
-        except SeedFormatError as exc:
+        except SeedError as exc:
             out.write(f"{exc}\n")
             return 2
         out.write(f"Seed: {args.seed_wav} ({note}).\n")

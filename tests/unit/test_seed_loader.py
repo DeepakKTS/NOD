@@ -16,7 +16,9 @@ import pytest
 
 from nod_bench.probe_clip import (
     SAMPLE_RATE,
+    SeedError,
     SeedFormatError,
+    SeedNotFoundError,
     describe_wav,
     load_seed,
     read_wav,
@@ -136,3 +138,41 @@ def test_read_wav_still_refuses_to_convert(tmp_path: Path) -> None:
     path = _write(tmp_path / "stereo.wav", channels=2, width=2, rate=SAMPLE_RATE)
     with pytest.raises(SeedFormatError, match="does not convert"):
         read_wav(path)
+
+
+def test_a_missing_seed_is_a_message_not_a_traceback(tmp_path: Path) -> None:
+    """Regression: `load_seed` caught wave.Error but not FileNotFoundError, so a
+    missing file bypassed the whole descriptive-error path and surfaced as a raw
+    traceback out of the stdlib."""
+    missing = tmp_path / "nope.wav"
+    with pytest.raises(SeedNotFoundError) as caught:
+        load_seed(missing)
+
+    message = str(caught.value)
+    assert str(missing) in message
+    assert "15 seconds" in message
+    assert "--fake" in message
+    # ffmpeg is useless advice for a file that does not exist.
+    assert "ffmpeg" not in message
+
+
+def test_read_wav_also_reports_a_missing_file_cleanly(tmp_path: Path) -> None:
+    with pytest.raises(SeedNotFoundError):
+        read_wav(tmp_path / "nope.wav")
+
+
+def test_a_directory_in_place_of_a_seed_is_reported(tmp_path: Path) -> None:
+    directory = tmp_path / "seed.wav"
+    directory.mkdir()
+    with pytest.raises(SeedError):
+        load_seed(directory)
+
+
+def test_describe_wav_says_missing_rather_than_raising(tmp_path: Path) -> None:
+    assert describe_wav(tmp_path / "nope.wav") == "missing"
+
+
+def test_both_seed_failures_share_a_base_the_cli_can_catch() -> None:
+    """`main` catches `SeedError`; both modes must be reachable through it."""
+    assert issubclass(SeedNotFoundError, SeedError)
+    assert issubclass(SeedFormatError, SeedError)

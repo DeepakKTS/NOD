@@ -164,7 +164,36 @@ def fill(
     raise ValueError(msg)
 
 
-class SeedFormatError(ValueError):
+class SeedError(ValueError):
+    """The seed recording cannot be used. Base of the seed failure modes."""
+
+
+class SeedNotFoundError(SeedError):
+    """There is no file at the given path.
+
+    Kept distinct from `SeedFormatError` because the remedy is different: an
+    ffmpeg command is useless advice for a file that does not exist.
+    """
+
+    def __init__(self, path: Path) -> None:
+        """Say what is missing and what would satisfy it.
+
+        Args:
+            path: Where the seed was expected.
+        """
+        self.path = path
+        super().__init__(
+            f"No seed recording at {path}.\n"
+            f"The probe needs roughly 15 seconds of speech: a few short complete "
+            f"sentences, plus one line containing a phone number and a date so "
+            f"redaction is exercised on real output.\n"
+            f"Any wav format will do — it is converted to mono "
+            f"{SAMPLE_RATE} Hz 16-bit automatically.\n"
+            f"Run with --fake to exercise the probe without a recording."
+        )
+
+
+class SeedFormatError(SeedError):
     """The seed recording is not something we can read or convert.
 
     Carries what the file actually is alongside what it needs to be, plus the
@@ -207,7 +236,9 @@ def describe_wav(path: Path) -> str:
             width = handle.getsampwidth()
             rate = handle.getframerate()
             comp = handle.getcomptype()
-    except wave.Error as exc:
+    except FileNotFoundError:
+        return "missing"
+    except (wave.Error, OSError) as exc:
         return f"not a PCM wav Python can read ({exc})"
     plural = "channel" if channels == 1 else "channels"
     codec = "PCM" if comp == "NONE" else comp
@@ -305,8 +336,11 @@ def load_seed(path: Path, *, sample_rate: int = SAMPLE_RATE) -> tuple[bytes, str
         Mono PCM16 bytes at `sample_rate`, and a note describing any conversion.
 
     Raises:
-        SeedFormatError: The file cannot be read or converted.
+        SeedNotFoundError: There is no file at `path`.
+        SeedFormatError: The file exists but cannot be read or converted.
     """
+    if not path.is_file():
+        raise SeedNotFoundError(path)
     try:
         with wave.open(str(path), "rb") as handle:
             channels = handle.getnchannels()
@@ -314,7 +348,7 @@ def load_seed(path: Path, *, sample_rate: int = SAMPLE_RATE) -> tuple[bytes, str
             rate = handle.getframerate()
             comptype = handle.getcomptype()
             frames = handle.readframes(handle.getnframes())
-    except (wave.Error, EOFError) as exc:
+    except (wave.Error, EOFError, OSError) as exc:
         raise SeedFormatError(
             path,
             describe_wav(path),
@@ -362,8 +396,11 @@ def read_wav(path: Path) -> tuple[bytes, int]:
         Raw PCM bytes and the sample rate.
 
     Raises:
+        SeedNotFoundError: There is no file at `path`.
         SeedFormatError: The file is not mono 16-bit.
     """
+    if not path.is_file():
+        raise SeedNotFoundError(path)
     with wave.open(str(path), "rb") as handle:
         if handle.getnchannels() != 1 or handle.getsampwidth() != BYTES_PER_SAMPLE:
             raise SeedFormatError(
