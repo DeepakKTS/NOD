@@ -1,0 +1,219 @@
+# Nod — project and toolchain configuration.
+#
+# The stack is fixed by CLAUDE.md §3. Do not introduce an alternative without an
+# ADR in docs/DECISIONS.md. Packaging and lockfile tooling is ADR-004.
+
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nod"
+version = "0.1.0"
+description = "Adaptive turn-timing controller for voice agents."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Deepak Kumaran T S" }]
+
+# CLAUDE.md §3 fixes Python 3.12. The upper bound is deliberate: it turns a
+# local interpreter that diverges from CI into an install-time error instead of
+# a silent behavioural difference.
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    # CLAUDE.md §3 Backend. Serves the HTTP routes and both WebSocket endpoints
+    # of ARCHITECTURE.md §7.
+    "fastapi==0.141.1",
+    # CLAUDE.md §3 Backend. DEPLOYMENT.md §1: one uvicorn process, one worker.
+    "uvicorn[standard]==0.53.0",
+    # proxy.py "owns both sockets" (ARCHITECTURE.md §2). Imported directly, so
+    # it is a direct dependency rather than a uvicorn[standard] transitive.
+    "websockets==17.1",
+    # ARCHITECTURE.md §10: policy YAML parsed into a closed pydantic schema.
+    # Also the request/response models of ARCHITECTURE.md §7.
+    "pydantic==2.13.5",
+    # CLAUDE.md §6: "All tunables live in nod_core.config.Settings".
+    "pydantic-settings==2.15.0",
+    # ARCHITECTURE.md §10: yaml.safe_load for policy and preset files.
+    "pyyaml==6.0.3",
+    # CLAUDE.md §3 Numerics: quantiles, metrics.
+    "numpy==2.5.3",
+    # CLAUDE.md §3 Storage: the SQLite index of ARCHITECTURE.md §6.
+    "aiosqlite==0.22.1",
+    # CLAUDE.md §6: structured logging, one event per line.
+    "structlog==26.1.0",
+    # ARCHITECTURE.md §9 and DEPLOYMENT.md §4: /metrics in Prometheus format.
+    "prometheus-client==0.26.0",
+    # CLAUDE.md §3 justifies the language choice with "AssemblyAI SDK".
+    "assemblyai==1.5.4",
+]
+
+[project.optional-dependencies]
+# CLAUDE.md §3 Audio: "bench only, not runtime". DEPLOYMENT.md §3 excludes this
+# group from the runtime image to hold it under 400 MB.
+bench = [
+    "soundfile==0.14.0",
+    # BENCH_SPEC.md §2 `prolong`: time-stretch without pitch shift.
+    "librosa==1.0.0",
+]
+
+dev = [
+    # CLAUDE.md §3 Lint/format: one tool, lint and format.
+    "ruff==0.16.7",
+    # CLAUDE.md §3 Typing: strict, no Any in nod_core.
+    "mypy==2.3.1",
+    # Without stubs, yaml.safe_load is Any and breaks disallow_any_explicit.
+    "types-PyYAML==6.0.12.20260906",
+    # CLAUDE.md §3 Tests.
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    # The 85% coverage gate required by docs/PROMPTS.md P0.
+    "pytest-cov==7.1.0",
+    # CLAUDE.md §3: property tests catch clamp bugs. CONTROL_SPEC.md §9.
+    "hypothesis==6.168.0",
+    # ARCHITECTURE.md §10 and docs/PROMPTS.md P0: pip-audit runs in CI.
+    "pip-audit==2.10.1",
+    # Required by starlette.testclient. In-process ASGI, so no socket: INV-7 holds.
+    "httpx==0.28.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/DeepakKTS/NOD"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/nod_core",
+    "src/nod_bench",
+    "src/nod_server",
+    "src/nod_adapters",
+]
+
+# ---------------------------------------------------------------------------
+# ruff — CLAUDE.md §3 Lint/format
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",  # pycodestyle + pyflakes
+    "I",            # import order
+    "N",            # pep8-naming
+    "UP",           # pyupgrade at py312
+    "B",            # bugbear; B006 is CLAUDE.md §6 "no mutable default arguments"
+    "ANN",          # CLAUDE.md §6 "public functions get type hints"
+    "D",            # CLAUDE.md §6 "...and a docstring"
+    "ASYNC",        # CLAUDE.md §6 "no blocking calls in the event loop"
+    "S",            # bandit; ARCHITECTURE.md §10 no eval, yaml.safe_load only
+    "DTZ",          # naive datetimes; supports CLAUDE.md §6 wall-clock rule
+    "T20",          # CLAUDE.md §6 logging is structlog, not print
+    "TID",          # tidy-imports; carries the banned-api table below
+    "TD",           # TD003 is CLAUDE.md §5 "no TODO without an issue reference"
+    "ERA",          # no commented-out code
+    "PTH",          # pathlib over os.path
+    "SIM", "C4", "PERF", "RUF",
+]
+ignore = [
+    "D203",  # incompatible with D211
+    "D213",  # incompatible with D212
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"yaml.load".msg = "ARCHITECTURE.md §10: yaml.safe_load only, into a closed pydantic schema."
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ANN", "PLR2004"]
+"src/nod_bench/**" = ["T20"]  # docs/PROMPTS.md P2/P3: the bench CLIs print reports
+"src/**/__init__.py" = ["D104"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# mypy — CLAUDE.md §3 Typing
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+files = ["src", "tests"]
+strict = true
+warn_unreachable = true
+warn_unused_configs = true
+enable_error_code = [
+    "redundant-expr",
+    "possibly-undefined",
+    "truthy-bool",
+    "ignore-without-code",
+    "unused-awaitable",
+    "explicit-override",
+]
+
+# CLAUDE.md §3: "strict mypy, no Any in nod_core". The controller is the product,
+# so it gets a harder tier than the rest of the repository.
+[[tool.mypy.overrides]]
+module = "nod_core.*"
+disallow_any_explicit = true
+disallow_any_decorated = true
+disallow_any_unimported = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false
+disallow_any_explicit = false
+
+# NOTE: librosa, soundfile and assemblyai ship no inline types. Add an
+# `ignore_missing_imports` override for them when P2 and P7 first import them;
+# declaring it now trips warn_unused_configs.
+
+# ---------------------------------------------------------------------------
+# pytest — CLAUDE.md §3 Tests, INV-7
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+# -m 'not live' lives here rather than in the CI command so INV-7 holds for a
+# developer typing bare `pytest`, not only for CI.
+addopts = """\
+-ra --strict-markers --strict-config \
+-m 'not live' \
+--cov=nod_core --cov-branch \
+--cov-report=term-missing --cov-report=xml \
+--cov-fail-under=85\
+"""
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["error"]
+markers = [
+    "live: requires network and ASSEMBLYAI_API_KEY; excluded from CI (INV-7)",
+    "smoke: the bench leg of `make check`",
+    "slow: soak and load tests (EC-09, EC-10)",
+]
+
+# Coverage source and branch mode come from the pytest addopts above
+# (--cov=nod_core --cov-branch); declaring them again here starts a second
+# measurement and trips a module-not-measured warning.
+
+[tool.coverage.report]
+show_missing = true
+# `raise NotImplementedError` is deliberately NOT excluded. Excluding it is the
+# easy way to make the gate pass on a stub repository and it makes the gate
+# vacuous exactly when it should bite; tests/unit/test_stub_contract.py executes
+# every stub instead. Protocol `...` bodies are unreachable by construction.
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "^\\s*\\.\\.\\.$",
+]

@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, types, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # No ASSEMBLYAI_API_KEY, LLM_API_KEY or TTS_API_KEY_* here, deliberately.
+    # INV-7: tests never touch the network. A `live` test that slipped past the
+    # marker filter fails on a missing key rather than quietly spending credits.
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --frozen --extra dev --extra bench
+
+      - name: Lint
+        run: make lint
+
+      - name: Types
+        run: make types
+
+      - name: Tests and coverage gate
+        run: make test
+
+      - name: Bench smoke
+        run: make bench-smoke
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: warn
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A separate job so a newly-published advisory is a distinct red signal
+    # rather than masking a lint or type regression (ARCHITECTURE.md §10).
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --frozen --extra dev --extra bench
+
+      - name: pip-audit
+        run: make audit

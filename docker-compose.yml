@@ -1,0 +1,39 @@
+# Local development only.
+#
+# Runs the stock Python image with the source bind-mounted, so there is no
+# Dockerfile to keep in sync until P11 builds the real multi-stage image
+# (docs/DEPLOYMENT.md §3, target under 400 MB, non-root, read-only root
+# filesystem, pinned base by digest).
+
+services:
+  nod:
+    image: python:3.12-slim
+    working_dir: /app
+    command: >
+      bash -lc "pip install --no-cache-dir uv
+      && uv sync --frozen --extra dev --extra bench
+      && uv run uvicorn --factory nod_server.app:create_app
+      --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # /data is the only writable mount in production; mirror that locally.
+      NOD_TRACE_DIR: /data/traces
+      NOD_CACHE_DIR: /data/.nodcache
+      NOD_DB_PATH: /data/nod.db
+      NOD_ENV: dev
+      NOD_AUTH: "off"
+    volumes:
+      - .:/app
+      - nod-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  nod-data:

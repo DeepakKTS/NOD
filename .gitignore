@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Nod runtime data (DEPLOYMENT §2: NOD_TRACE_DIR, NOD_CACHE_DIR, NOD_DB_PATH)
+data/*
+!data/.gitkeep
+.nodcache/
+*.db
+*.db-wal
+*.db-shm
+
+# Bench output; committed traces under bench/traces/ are the exception (BENCH_SPEC §7)
+bench/runs/*
+!bench/runs/.gitkeep
+bench/report.html
+
+# Secrets (INV-5). .env.example is committed, .env never is.
+.env
+.env.*
+!.env.example
+
+# Console (P8)
+node_modules/
+.next/
+out/
+
+# OS
+.DS_Store

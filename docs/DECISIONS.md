@@ -47,3 +47,12 @@ Decision: Nod runs on the Realtime STT path; the Voice Agent API may appear only
 clearly labelled comparison arm in the benchmark.
 Consequence: Nod owns orchestration, LLM and TTS, which is more work but is the only way
 the control loop can exist at all.
+
+## ADR-004 — Packaging and lockfile
+2026-09-15 · Status: accepted
+Context: ARCHITECTURE §10 requires dependencies pinned with hashes, which version pins in
+`pyproject.toml` alone cannot express, and CLAUDE §3 names no packaging tool.
+Decision: `uv` with a committed `uv.lock`; `make install` and CI both run `uv sync
+--frozen`, and `uv python install 3.12` supplies the interpreter the repo pins.
+Consequence: lockfile drift fails the build instead of silently resolving something new;
+contributors need `uv` on PATH, and `requires-python = ">=3.12,<3.13"` rejects a 3.13 box.
