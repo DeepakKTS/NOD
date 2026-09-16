@@ -52,6 +52,53 @@ class NodMode(Enum):
     OFF = "off"
 
 
+class KnobVerdict(Enum):
+    """What the capability probe could actually prove about one knob (ADR-001).
+
+    A boolean cannot express the distinction this enum exists for. The upstream
+    API returns nothing on a successful `UpdateConfiguration`, so "no error came
+    back" is equally consistent with "the field was applied" and "the field was
+    silently dropped". Only a measured change in turn-boundary timing separates
+    them, and `UNPROVEN` is the honest answer when the measurement does not.
+    """
+
+    LIVE = "live"
+    """Connect-time and mid-stream effects both measured. Safe to send."""
+
+    STATIC_ONLY = "static_only"
+    """Connect-time works, mid-stream does not. The closed loop cannot use it."""
+
+    INERT = "inert"
+    """Accepted at both, with no behavioural effect either way."""
+
+    REJECTED = "rejected"
+    """The server returned an `Error` frame naming this field."""
+
+    UNPROVEN = "unproven"
+    """Separation was within run-to-run noise, or the knob was never measured."""
+
+
+class ConfidenceField(Enum):
+    """How usable `end_of_turn_confidence` is as a controller input.
+
+    CONTROL_SPEC.md §2.4 wants a trajectory across partials, not a field. A
+    present-but-constant field satisfies `"key in event"` and is still useless,
+    so presence alone is not the question worth asking.
+    """
+
+    ABSENT = "absent"
+    """The key never appears on a `Turn` event."""
+
+    CONSTANT = "constant"
+    """Present, but never takes a second value. No jitter signal exists."""
+
+    FINALS_ONLY = "finals_only"
+    """Varies, but only on finals: one sample per turn, too sparse for §2.4."""
+
+    VARYING = "varying"
+    """Varies across partials. The jitter feature is live."""
+
+
 @dataclass(frozen=True, slots=True)
 class Word:
     """One word from a `Turn` event's `words` array (ARCHITECTURE.md §2).
@@ -153,12 +200,57 @@ class Capabilities:
     """What the chosen model actually exposes (CONTROL_SPEC.md §7).
 
     `capabilities.probe` fills this in; nothing else may assume a knob exists.
+
+    `knobs` is a tuple of pairs rather than a mapping so the dataclass stays
+    hashable and slotted, matching `ConfigDecision.inputs`.
     """
 
-    updatable_fields: frozenset[str]
-    has_end_of_turn_confidence: bool
-    supports_force_endpoint: bool
+    knobs: tuple[tuple[str, KnobVerdict], ...]
+    confidence_field: ConfidenceField
+    force_endpoint: KnobVerdict
     has_word_timings: bool
+
+    def verdict(self, field: str) -> KnobVerdict:
+        """Return the measured verdict for one knob. `O(len(knobs))`, len 4.
+
+        Args:
+            field: One of `capabilities.UPDATABLE_FIELDS`.
+
+        Returns:
+            The verdict, or `UNPROVEN` for a knob the probe never measured.
+            An unmeasured knob is never a supported one.
+        """
+        for name, verdict in self.knobs:
+            if name == field:
+                return verdict
+        return KnobVerdict.UNPROVEN
+
+    @property
+    def updatable_fields(self) -> frozenset[str]:
+        """The knobs the arbiter's capability gate may send (CONTROL_SPEC.md §5).
+
+        Only `LIVE` qualifies, so every other verdict fails closed. That is the
+        deliberate reading: `STATIC_ONLY` means mid-stream updates do not work,
+        and `UNPROVEN` means we could not show that they do. Neither is a licence
+        to send.
+        """
+        return frozenset(
+            name for name, verdict in self.knobs if verdict is KnobVerdict.LIVE
+        )
+
+    @property
+    def has_end_of_turn_confidence(self) -> bool:
+        """Whether the confidence axis has a usable input (CONTROL_SPEC.md §2.4).
+
+        True only for `VARYING`: a constant or finals-only field cannot carry the
+        trajectory the jitter feature is defined over.
+        """
+        return self.confidence_field is ConfidenceField.VARYING
+
+    @property
+    def supports_force_endpoint(self) -> bool:
+        """Whether the §4 early-endpoint path is available."""
+        return self.force_endpoint is KnobVerdict.LIVE
 
 
 @dataclass(frozen=True, slots=True)

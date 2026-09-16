@@ -21,9 +21,11 @@ from typing import Any, cast
 
 import pytest
 
-from nod_core import arbiter, capabilities, config, policy, profiler, proxy, trace
+from nod_core import arbiter, capabilities, config, policy, profiler, proxy
 from nod_core.types import (
     Capabilities,
+    ConfidenceField,
+    KnobVerdict,
     SpeakerFeatures,
     Turn,
     TurnConfig,
@@ -63,9 +65,9 @@ CONFIG = TurnConfig(
     vad_threshold=None,
 )
 CAPS = Capabilities(
-    updatable_fields=frozenset(capabilities.UPDATABLE_FIELDS),
-    has_end_of_turn_confidence=True,
-    supports_force_endpoint=True,
+    knobs=tuple((f, KnobVerdict.LIVE) for f in capabilities.UPDATABLE_FIELDS),
+    confidence_field=ConfidenceField.VARYING,
+    force_endpoint=KnobVerdict.LIVE,
     has_word_timings=True,
 )
 ARBITER_INPUT = arbiter.ArbiterInput(
@@ -151,16 +153,6 @@ SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = (
         lambda: _uninitialised(arbiter.Arbiter).note_error(RuntimeError("x")),
     ),
     ("arbiter.Arbiter.state", lambda: _uninitialised(arbiter.Arbiter).state),
-    ("capabilities.degrade", lambda: capabilities.degrade(CAPS)),
-    ("trace.redact", lambda: trace.redact("account 1234567")),
-    (
-        "trace.TraceSink.__init__",
-        lambda: trace.TraceSink("s1", directory=Path("data/traces")),
-    ),
-    (
-        "trace.TraceSink.emit",
-        lambda: _uninitialised(trace.TraceSink).emit("turn", {}, t_ms=0),
-    ),
     (
         "proxy.SessionProxy.__init__",
         lambda: proxy.SessionProxy(
@@ -175,9 +167,6 @@ SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = (
 )
 
 ASYNC_STUBS: tuple[tuple[str, Callable[[], Coroutine[Any, Any, object]]], ...] = (
-    ("capabilities.probe", lambda: capabilities.probe(cast(Any, None), model="m")),
-    ("trace.TraceSink.drain", lambda: _uninitialised(trace.TraceSink).drain()),
-    ("trace.TraceSink.aclose", lambda: _uninitialised(trace.TraceSink).aclose()),
     ("proxy.SessionProxy.run", lambda: _uninitialised(proxy.SessionProxy).run()),
     (
         "proxy.SessionProxy.pump_audio_up",

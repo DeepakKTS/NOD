@@ -16,7 +16,14 @@ import pytest
 
 from nod_core.arbiter import DEFAULT_CEILING_MS, Arbiter, ArbiterInput
 from nod_core.capabilities import UPDATABLE_FIELDS
-from nod_core.types import Capabilities, SpeakerFeatures, TurnConfig, WindowHint
+from nod_core.types import (
+    Capabilities,
+    ConfidenceField,
+    KnobVerdict,
+    SpeakerFeatures,
+    TurnConfig,
+    WindowHint,
+)
 
 DECIDE_P99_BUDGET_MS = 5.0
 DECIDE_MEAN_BUDGET_MS = 0.2
@@ -43,9 +50,9 @@ def _state() -> ArbiterInput:
             vad_threshold=None,
         ),
         capabilities=Capabilities(
-            updatable_fields=frozenset(UPDATABLE_FIELDS),
-            has_end_of_turn_confidence=True,
-            supports_force_endpoint=True,
+            knobs=tuple((f, KnobVerdict.LIVE) for f in UPDATABLE_FIELDS),
+            confidence_field=ConfidenceField.VARYING,
+            force_endpoint=KnobVerdict.LIVE,
             has_word_timings=True,
         ),
         ceiling_ms=DEFAULT_CEILING_MS,
