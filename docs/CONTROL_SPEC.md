@@ -1,0 +1,212 @@
+# Nod — Control specification
+
+This is the authoritative description of the control law. Implementation must match it
+line for line, and any change to a constant here is an ADR, not a commit.
+
+## 0. The two facts the whole design rests on
+
+1. **Configuration can be changed mid-session.** `UpdateConfiguration` applies without
+   reconnecting and covers `end_of_turn_confidence_threshold`, `min_turn_silence`,
+   `max_turn_silence` and `vad_threshold`.
+2. **Silence beats confidence.** Silence-based detection can override model-based
+   detection even at a high confidence threshold, and endpointing does not fire until the
+   last word is finalised. Therefore raising `end_of_turn_confidence_threshold` alone
+   does **not** stop the agent interrupting a long pause. `max_turn_silence` is the real
+   hard cutoff. Both axes must move together. Every implementation of this spec must have
+   a test that would fail if only the confidence axis were moved.
+
+## 1. Inputs
+
+Per partial and final `Turn` event:
+
+| Field | Use |
+|---|---|
+| `turn_order` | ordering, cut detection |
+| `end_of_turn` | boundary marker |
+| `end_of_turn_confidence` | jitter and trajectory features |
+| `words[].start`, `words[].end` | pause profile, speech rate (stream-relative ms) |
+| `words[].confidence` | disfluency proxy |
+| `words[].word_is_final` | which words are safe to process; unfinalised last word is skipped |
+| `transcript` | token-level disfluency features only |
+
+From the host application (context axis, mode B and C only):
+
+| Field | Use |
+|---|---|
+| `expected_answer` | one of `free`, `boolean`, `entity_id`, `entity_date`, `entity_address`, `entity_list`, `spelling`, `number` |
+| `prompt_id` | policy lookup and trace correlation |
+
+## 2. Features
+
+All updated incrementally, all `O(1)` per word or per turn.
+
+### 2.1 Pause profile
+Inter-word gap `g_i = words[i].start - words[i-1].end`, computed only over finalised
+words within a turn. Gaps are clamped to `[0, 6000]` ms before ingestion to stop one
+pathological silence from poisoning the estimator.
+
+Maintain P² estimators for `g_p50` and `g_p90`. Require `n_gaps >= 8` before either is
+consulted; below that, the profiler reports `cold`.
+
+### 2.2 Speech rate
+`rate = finalised_words / voiced_ms * 1000`, where `voiced_ms = Σ(word.end - word.start)`.
+EWMA with `α = 0.2`. Used only for the sanity clamp in §4.
+
+### 2.3 Disfluency density
+Per turn, count:
+- adjacent repeated normalised tokens (`the the`, `I I`),
+- tokens in the filler set (`um, uh, er, like, you know, hmm`) — configurable per locale,
+- duration outliers: `(word.end - word.start) > 2.5 × median_duration_for_length(len(text))`
+  where the median table is a fixed five-bucket lookup by character length.
+
+`disfluency = clamp(count / max(finalised_words, 1), 0, 1)`, EWMA `α = 0.3`.
+
+### 2.4 Confidence jitter
+Over the partial sequence within one turn, maintain Welford variance of
+`end_of_turn_confidence`. A clean ramp has low variance and a monotone trend; disfluent
+speech produces a noisy riser. Output `jitter ∈ [0,1]` by normalising against a constant
+`JITTER_SCALE = 0.04` and clamping. EWMA across turns, `α = 0.25`.
+
+### 2.5 Cut detection (the unsupervised label)
+
+A **cut** is recorded when all of the following hold:
+
+1. Turn `n` ended (`end_of_turn = true`), and
+2. Turn `n+1` begins with `first_word.start - last_word_end(n) < RESUME_MS` (default 1200), and
+3. The agent had **not** produced audio for turn `n` before turn `n+1` started, or had
+   produced less than `AGENT_GRACE_MS` (default 300) of audio, and
+4. Turn `n+1`'s first token is not an affirmation or a new-topic marker
+   (`yes`, `no`, `correct`, `wait`, `sorry`) — those indicate a genuine new turn or a
+   correction, and
+5. Turn `n`'s `end_of_turn_confidence` was below `CUT_CONF_MAX` (default 0.85).
+
+Conditions 3 and 4 exist because the naive rule produces false positives every time a
+caller answers quickly or corrects themselves. Every condition here has a regression
+test with a hand-labelled fixture.
+
+`recent_cuts` = count of cuts in the last `CUT_WINDOW` (default 5) turns, normalised to
+`[0,1]` by dividing by 3 and clamping.
+
+## 3. The context axis
+
+A policy file compiles to `expected_answer → WindowHint`:
+
+```yaml
+version: 1
+default: {min_mult: 1.0, max_mult: 1.0, conf_delta: 0.0}
+answers:
+  boolean:        {min_mult: 0.7, max_mult: 0.7, conf_delta: -0.05}
+  free:           {min_mult: 1.0, max_mult: 1.0, conf_delta:  0.0}
+  number:         {min_mult: 1.2, max_mult: 1.6, conf_delta: +0.10}
+  entity_id:      {min_mult: 1.3, max_mult: 2.0, conf_delta: +0.15}
+  entity_date:    {min_mult: 1.2, max_mult: 1.8, conf_delta: +0.10}
+  entity_address: {min_mult: 1.3, max_mult: 2.0, conf_delta: +0.15}
+  entity_list:    {min_mult: 1.4, max_mult: 2.2, conf_delta: +0.15}
+  spelling:       {min_mult: 1.5, max_mult: 2.4, conf_delta: +0.20}
+```
+
+Applied for exactly one turn, then released. A context hint never persists into the
+speaker profile; the two axes are combined at decision time and stored separately.
+
+Rationale for widening on identifiers: a caller reading a member number pauses between
+groups of digits, and those pauses are structural rather than personal.
+
+## 4. The control law
+
+```
+base_min   = 400     # ms, balanced starting point
+base_max   = 1280    # ms
+base_conf  = 0.40
+
+# speaker axis
+min_ms  = 0.6 * g_p50 + 120
+max_ms  = 1.6 * g_p90 + 250
+conf    = base_conf + 0.45 * disfluency + 0.15 * recent_cuts + 0.10 * jitter
+
+# context axis
+min_ms  *= hint.min_mult
+max_ms  *= hint.max_mult
+conf    += hint.conf_delta
+
+# clamps (hard, absolute)
+min_ms  = clamp(min_ms, 160, 900)
+max_ms  = clamp(max_ms, 400, 4000)
+conf    = clamp(conf, 0.30, 0.90)
+
+# invariant repair
+max_ms  = max(max_ms, min_ms + 200)
+
+# latency ceiling
+max_ms  = min(max_ms, ceiling_ms)      # default 2600, per-deployment
+```
+
+If the profiler is `cold` (`n_gaps < 8`), the speaker axis is skipped entirely and only
+the context axis applies to the base values. Adaptation begins at roughly turn three.
+
+### Confident early endpoint
+When the profiler is warm, the caller's trailing gap already exceeds
+`max(max_ms, g_p90 * 1.8)`, and the last word is finalised, the controller may send
+`ForceEndpoint` rather than waiting out the silence. Rate-limited to once per turn and
+disabled entirely when `disfluency > 0.35`, because a disfluent speaker is exactly the
+person whose long gap is not a finished turn.
+
+## 5. Guards
+
+| Guard | Rule | Reason |
+|---|---|---|
+| **Hysteresis** | emit only if any field moves more than `HYST = 15 %` of its current value, or `conf` moves more than 0.05 | prevents socket chatter |
+| **Rate cap** | at most 1 patch per turn, at most `MAX_PATCHES = 24` per session | bounds cost and blast radius |
+| **Asymmetric decay** | widening applies immediately; narrowing applies at most `NARROW_STEP = 12 %` per turn | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
+| **Ceiling** | `max_ms` never exceeds `ceiling_ms` | a fluent caller can never be made to wait |
+| **Floor on boolean turns** | on `boolean`, `min_ms` never exceeds 400 | yes/no must stay snappy |
+| **Freeze on instability** | if 3 patches in 5 turns all reverse direction, freeze the speaker axis for 10 turns and emit `controller_frozen` | detects oscillation instead of thrashing |
+| **Host override** | if the host application sent its own `UpdateConfiguration` in the last 5 s, Nod does not touch the fields the host set | the host owns its own decisions |
+| **Capability gate** | a field the capability probe marked unsupported is never sent | punctuation-based models have no confidence axis |
+
+## 6. State machine
+
+```
+COLD ──(n_gaps ≥ 8)──► WARM ──(3 reversals in 5 turns)──► FROZEN ──(10 turns)──► WARM
+  │                      │
+  └──────────────────────┴──(controller_error)──► SAFE ──(next turn)──► COLD
+```
+
+- `COLD`: base config plus context axis only.
+- `WARM`: full law.
+- `FROZEN`: speaker axis held, context axis still applies.
+- `SAFE`: last known good config, no patches, error counted. Entered on any exception.
+  Per INV-8 the call continues.
+
+State transitions are logged and appear in the trace and on the console strip.
+
+## 7. Degradation matrix
+
+| Missing capability | Behaviour |
+|---|---|
+| No `end_of_turn_confidence` in events | jitter feature disabled, `conf` axis frozen at base, silence axis carries everything |
+| `end_of_turn_confidence_threshold` not updatable | same as above; emit `capability_degraded` once |
+| No word timings | profiler disabled entirely; controller runs context axis only; emit a loud warning |
+| `UpdateConfiguration` rejected | one retry, then fall to `observe` mode for the session and surface it on the console |
+| `ForceEndpoint` unsupported | early-endpoint path disabled |
+
+## 8. Tuning
+
+The constants above are the starting point, not the answer. They are tuned by
+`nod tune`, which sweeps them against the bench corpus and reports the Pareto frontier.
+Hand-tuning by listening is forbidden (see CLAUDE.md §7). Any constant change lands with
+the bench delta in the commit message.
+
+## 9. Property tests (must exist)
+
+Written with `hypothesis`, over arbitrary feature vectors:
+
+1. Output is always within the hard clamps.
+2. `max_ms >= min_ms + 200` always holds.
+3. `max_ms <= ceiling_ms` always holds.
+4. Monotonicity: increasing `disfluency` with everything else fixed never decreases
+   `conf` and never decreases `max_ms`.
+5. Idempotence: `decide()` on the same state twice returns an equal patch and the second
+   emits nothing after hysteresis.
+6. Narrowing never exceeds `NARROW_STEP` in one turn.
+7. `decide()` performs no I/O — asserted by monkeypatching `socket` and `open` to raise.
+8. On `boolean` context, `min_ms <= 400`.
