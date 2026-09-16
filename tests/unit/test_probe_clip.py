@@ -128,7 +128,8 @@ def test_wav_round_trip(tmp_path: Path) -> None:
     assert rate == SAMPLE_RATE
 
 
-def test_stereo_seed_is_rejected(tmp_path: Path) -> None:
+def test_stereo_seed_is_rejected_by_the_verbatim_reader(tmp_path: Path) -> None:
+    """`read_wav` does not convert; the message must still say what the file is."""
     import wave
 
     path = tmp_path / "stereo.wav"
@@ -137,5 +138,5 @@ def test_stereo_seed_is_rejected(tmp_path: Path) -> None:
         handle.setsampwidth(2)
         handle.setframerate(SAMPLE_RATE)
         handle.writeframes(b"\x00" * 400)
-    with pytest.raises(ValueError, match="must be mono 16-bit"):
+    with pytest.raises(ValueError, match="2 channels, 16000 Hz, 16-bit PCM"):
         read_wav(path)

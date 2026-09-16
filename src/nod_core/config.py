@@ -11,6 +11,7 @@ file rather than environment variables.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -107,13 +108,20 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     """
 
 
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return the process-wide settings, reading the environment once.
 
+    Cached, so `.env` is parsed once per process rather than once per caller.
+    Precedence is pydantic-settings' own: an explicit environment variable beats
+    a `.env` entry, which beats the field default. That ordering is what lets a
+    one-off `ASSEMBLYAI_API_KEY=... python -m nod_bench.probe` override a
+    committed `.env` without editing it.
+
+    Tests that manipulate the environment must call `get_settings.cache_clear()`
+    or construct `Settings()` directly.
+
     Returns:
         The cached `Settings` instance.
-
-    Raises:
-        NotImplementedError: scaffold only.
     """
-    raise NotImplementedError
+    return Settings()

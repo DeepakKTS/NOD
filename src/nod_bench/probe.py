@@ -25,13 +25,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import math
-import os
 import sys
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Protocol, TextIO
+
+from pydantic import ValidationError
 
 from nod_adapters.assemblyai.session import AssemblyAISession, UpstreamError
 from nod_bench.feeder import PacedFeeder, frames_of
@@ -41,9 +42,10 @@ from nod_bench.probe_clip import (
     UPDATE_AT_MS,
     ZEROS,
     ClipLayout,
+    SeedFormatError,
     build_clip,
     clip_sha256,
-    read_wav,
+    load_seed,
 )
 from nod_core.capabilities import (
     NO_BOUNDARY,
@@ -54,6 +56,7 @@ from nod_core.capabilities import (
     probe,
     verdict_for,
 )
+from nod_core.config import get_settings
 from nod_core.trace import TraceSink, redact_url
 from nod_core.types import (
     Capabilities,
@@ -772,6 +775,41 @@ async def run(
     return result
 
 
+def _resolve_api_key(out: TextIO) -> str:
+    """Find the credential the way DEPLOYMENT.md §2 says it is configured.
+
+    Through `Settings` rather than `os.environ` directly, so a `.env` file — the
+    documented first-run path, `cp .env.example .env` — actually works. An
+    exported variable still wins, because that is pydantic-settings' own
+    precedence, which keeps a one-off inline key overriding a committed `.env`.
+
+    Args:
+        out: Where to explain a failure.
+
+    Returns:
+        The key, or an empty string if none was found or settings would not load.
+    """
+    try:
+        secret = get_settings().assemblyai_api_key
+    except ValidationError as exc:
+        out.write(
+            f"Settings would not load, so the credential could not be read:\n{exc}\n"
+            f"A `.env` entry that is not in DEPLOYMENT.md §2 will do this; "
+            f"`Settings` forbids unknown keys.\n"
+        )
+        return ""
+    if secret is None:
+        out.write(
+            "No ASSEMBLYAI_API_KEY found. Either export it for one run:\n"
+            "  ASSEMBLYAI_API_KEY=... python -m nod_bench.probe --quick "
+            "--seed-wav data/seed.wav\n"
+            "or put it in a .env file:  cp .env.example .env\n"
+            "Run with --fake to exercise the probe without a credential.\n"
+        )
+        return ""
+    return secret.get_secret_value()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the capability probe CLI.
 
@@ -827,11 +865,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         factory = FakeProbeSession
         out.write("Fake upstream: no credential used, no credits spent.\n")
     else:
-        api_key = os.environ.get("ASSEMBLYAI_API_KEY", "")
+        api_key = _resolve_api_key(out)
         if not api_key:
-            out.write(
-                "ASSEMBLYAI_API_KEY is not set; the probe needs a live session.\n"
-            )
             return 2
 
     if args.seed_wav is None:
@@ -846,12 +881,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         seed_pcm = room_tone(20_000, dbfs=-12.0, seed=11)
     else:
-        seed_pcm, rate = read_wav(args.seed_wav)
-        if rate != SAMPLE_RATE:
-            out.write(
-                f"{args.seed_wav} is {rate} Hz; the probe needs {SAMPLE_RATE} Hz.\n"
-            )
+        try:
+            seed_pcm, note = load_seed(args.seed_wav)
+        except SeedFormatError as exc:
+            out.write(f"{exc}\n")
             return 2
+        out.write(f"Seed: {args.seed_wav} ({note}).\n")
 
     result = asyncio.run(
         run(

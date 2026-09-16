@@ -21,7 +21,7 @@ from typing import Any, cast
 
 import pytest
 
-from nod_core import arbiter, capabilities, config, policy, profiler, proxy
+from nod_core import arbiter, capabilities, policy, profiler, proxy
 from nod_core.types import (
     Capabilities,
     ConfidenceField,
@@ -94,7 +94,6 @@ PROFILER_STATE = profiler.ProfilerState(
 )
 
 SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = (
-    ("config.get_settings", config.get_settings),
     ("profiler.P2Quantile.__init__", lambda: profiler.P2Quantile(0.5)),
     (
         "profiler.P2Quantile.update",

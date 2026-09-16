@@ -18,6 +18,8 @@ from typing import Any
 
 import pytest
 
+from nod_core.config import get_settings
+
 _LOOPBACK_HOSTNAMES = frozenset({"localhost", "localhost.localdomain", ""})
 
 
@@ -72,3 +74,17 @@ def _no_external_network(
     monkeypatch.setattr(socket.socket, "connect", guarded_connect)
     monkeypatch.setattr(socket.socket, "connect_ex", guarded_connect_ex)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _fresh_settings() -> Iterator[None]:
+    """Clear the process-wide settings cache around every test.
+
+    `get_settings` is `lru_cache`d so `.env` is parsed once per process. Without
+    this, a test that resolves a credential leaves it cached for every later
+    test, and a test asserting the *absence* of a key passes or fails depending
+    on collection order.
+    """
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
