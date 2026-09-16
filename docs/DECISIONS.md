@@ -173,3 +173,15 @@ Consequence: a one-frame stall displaces one 50 ms frame out of tens of thousand
 longer voids a run; sustained lag displaces the whole timeline and still does. The guard is
 weaker per-frame, so the mutation test must still go red under the accumulating-schedule
 bug, which it does because that bug produces lag on every subsequent frame rather than one.
+
+## ADR-013 — Redaction is specified over partials, not finished utterances
+2026-09-16 · Status: accepted
+Context: INV-6 masked digit runs of 4+ and phone shapes of 9+ characters, both tuned to a
+completed number. A streaming endpointer emits one group at a time, so the P1 traces
+carried `617` in 30 records and `617 555` in 44 while the finished number masked correctly.
+Decision: `DIGIT_RUN_MIN` 4 → 3 and `_PHONE` admits two groups (`{7,}` → `{5,}`); the
+regression test asserts over the real partial sequence, not a synthetic whole utterance.
+Consequence: a three-digit quantity is now masked too (`turn 100 of 250` reads
+`turn [NUM] of [NUM]`), which is the right direction to err for a persisted trace;
+`NOD_TRACE_RAW=1` remains the only escape, and key-scoping to `transcript`/`utterance`/
+`text` keeps `clip_sha256` and `session_id` intact under the looser digit rule.

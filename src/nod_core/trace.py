@@ -32,8 +32,17 @@ ROTATE_BYTES: Final = 64 * 1024 * 1024
 TRACE_QUEUE_MAXSIZE: Final = 1024
 """Bounded queue for the `drain_trace` task; drop-oldest (ARCHITECTURE.md §3)."""
 
-DIGIT_RUN_MIN: Final = 4
-"""Digit runs of this length or longer are masked (INV-6, EC-42)."""
+DIGIT_RUN_MIN: Final = 3
+"""Digit runs of this length or longer are masked (INV-6, EC-42).
+
+Three, not four, because a streaming endpointer emits a phone number one group
+at a time. The P1 probe traces carried `617` in 30 records and `617 555` in 44:
+the completed number masked correctly and every partial on the way to it did
+not, because a single group clears neither the old four-digit floor nor
+`_PHONE`. The cost is that a three-digit quantity is now masked too —
+`turn 100 of 250` reads `turn [NUM] of [NUM]`. That is the right direction to
+err for a persisted trace, and `NOD_TRACE_RAW=1` is the escape hatch (ADR-013).
+"""
 
 REDACTED_CREDENTIAL_MARK: Final = "[REDACTED]"
 """Replacement for a credential in a recorded URL (INV-5)."""
@@ -46,7 +55,7 @@ _WORDY_DATE = re.compile(
     r"\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b",
     re.IGNORECASE,
 )
-_PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
+_PHONE = re.compile(r"\+?\d[\d\s().-]{5,}\d")
 _DIGIT_RUN = re.compile(rf"\d{{{DIGIT_RUN_MIN},}}")
 _URL_CREDENTIAL = re.compile(
     r"(?i)\b(token|authorization|api_key|apikey|key)=[^&\s]+",
@@ -66,6 +75,11 @@ def redact(text: str) -> str:
     Order is load-bearing. Dates run before the digit-run rule because an ISO
     date contains a four-digit year that would otherwise be masked as a bare
     number, losing the fact that it was a date at all.
+
+    The input is a *partial*, not a finished utterance. `_PHONE` therefore
+    admits two groups (`617 555`) rather than waiting for a full number, and
+    `DIGIT_RUN_MIN` catches the single leading group. A rule tuned to the
+    completed shape leaks every prefix of it (ADR-013).
 
     Args:
         text: The raw transcript fragment.

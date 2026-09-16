@@ -9,6 +9,7 @@ take.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -61,8 +62,42 @@ def test_dates_are_not_swallowed_by_the_digit_rule() -> None:
 
 
 def test_short_digit_runs_survive() -> None:
-    """EC-42 masks runs of four or more. "I have 3 cats" is not PII."""
+    """EC-42 masks runs of three or more. "I have 3 cats" is not PII."""
     assert redact("I have 3 cats and 12 fish") == "I have 3 cats and 12 fish"
+
+
+# The partial sequence a live probe session actually produced while the speaker
+# read a phone number. Taken verbatim from
+# probe-...-min_turn_silence-connect_low-r0.jsonl, where the completed number
+# masked as [PHONE] and the two prefixes leaked in 74 trace records.
+LEAKED_PARTIALS: list[str] = [
+    "i am reading at a normal pace you can call me back on 617",
+    "i am reading at a normal pace you can call me back on 617 555",
+    "i am reading at a normal pace you can call me back on 617 555 0134",
+]
+
+_MARK = re.compile(r"\[(?:NUM|PHONE|DATE|EMAIL)\]")
+
+
+@pytest.mark.parametrize("partial", LEAKED_PARTIALS)
+def test_no_prefix_of_a_phone_number_survives_redaction(partial: str) -> None:
+    """EC-42 over partials, not whole utterances (ADR-013).
+
+    A streaming endpointer emits a number one group at a time. Masking only the
+    completed shape leaks every prefix of it, and the prefix of a phone number
+    is an area code.
+    """
+    out = redact(partial)
+    assert "617" not in out
+    assert "555" not in out
+    assert not re.search(r"\d", _MARK.sub("", out)), out
+
+
+def test_the_rest_of_a_leaking_partial_is_preserved() -> None:
+    """Redaction removes the number, not the turn. The words carry the features."""
+    out = redact(LEAKED_PARTIALS[1])
+    assert out.startswith("i am reading at a normal pace you can call me back on ")
+    assert _MARK.search(out) is not None
 
 
 def test_word_timings_and_confidences_are_never_touched() -> None:
