@@ -137,7 +137,7 @@ Consequence: tolerances are always in the unit of the observable; `AGREEMENT_FRA
 stays below 0.5 so a mid-stream arm can never agree with the opposite connect-time arm.
 
 ## ADR-011 — The control law moves to the silence axis
-2026-09-16 · Status: **provisional**, confirmed on the full matrix at N=3
+2026-09-16 · Status: **accepted** — confirmed on the clean 69-session matrix at N=3, 2026-09-16
 Context: the P1 probe showed `end_of_turn_confidence_threshold` inert on
 `universal-streaming-english` — arms at the documented endpoints 0.0 and 1.0 gave
 boundaries 13 ms apart against an expected 2800 ms, boundaries fired at confidence 0.308
@@ -156,6 +156,24 @@ Consequence: the confidence axis contributes nothing to any output, so §4's `co
 `O(1)` update cost for no current benefit, which is accepted so the bench can evaluate it;
 and the law is now single-axis per regime, so a stimulus that tests a knob in the wrong
 regime reads as inert.
+
+Confirmed 2026-09-16 on the 69-session matrix, N=3, `universal-streaming-english`, every
+cell in its own regime and no rejected field:
+- `end_of_turn_confidence_threshold` **inert**: arms at 0.0 and 1.0 gave medians 353 and
+  347 ms — 6 ms apart against a documented 2800 ms — with spreads of 15-25 ms. The control
+  arm ended turns at confidence 0.251 with the threshold pinned at 0.40, so the field does
+  not gate endpointing even when it is set.
+- `max_turn_silence` **live** and categorical in the fragment regime: 817 ms on the 600 ms
+  arm against no boundary at all on the 3000 ms arm, 3/3 in both connect-time and
+  mid-stream cells.
+- `min_turn_silence` **live** in the complete-utterance regime: 306 to 2175 ms connect,
+  304 to 2172 ms mid-stream, the two landing within 3 ms of each other.
+- The confidence trajectory is the shape §2.4 now assumes: near zero across an utterance,
+  spiking only on the frame that is the boundary. `jitter` stays at weight 0.
+`universal-3-5-pro` showed no gating either, but on weaker evidence: every pro boundary
+landed at `max_turn_silence`, so the threshold never got an opportunity there and reads
+unproven rather than inert. A different model is a different measurement and is not merged
+into the verdicts above.
 
 ## ADR-012 — Feeder drift aborts on sustained lag, not a single frame
 2026-09-16 · Status: accepted
