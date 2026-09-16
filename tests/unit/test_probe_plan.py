@@ -390,3 +390,48 @@ def test_the_planned_specs_carry_the_lead_segment_through() -> None:
     ]
     assert specs
     assert all(s.lead_segment == 3 for s in specs)
+
+
+def test_no_spec_lets_the_plan_and_the_clip_disagree_about_the_lead() -> None:
+    """Regression: the force cells timed their gap from one segment and played
+    another.
+
+    `_layout` derives `lead_ms` from the segment it is handed, while the clip is
+    spliced from `spec.lead_segment` via `lead_spans`. The force spec omitted
+    `lead_segment=FORCE_LEAD_SEGMENT`, so it kept the default 1: the plan timed
+    the gap from segment 3's length and the audio carried segment 1. In the live
+    run that put `gap_start_ms` at 10015 against a real gap start of 10263, so
+    the measurement window and the `ForceEndpoint` send time both sat 248 ms off
+    the sound they were measuring — on top of running the wrong regime (EC-50).
+
+    Distinct segment lengths are the point. Equal ones make the two readings
+    agree by accident and the test proves nothing.
+    """
+    segment_ms = (1000, 2000, 3000, 4000)
+    specs = plan_sessions(quick=False, segment_ms=segment_ms)
+    assert specs
+    for spec in specs:
+        assert spec.layout.lead_ms == segment_ms[spec.lead_segment], (
+            f"{spec.label}/{spec.cell}: plan timed the lead at "
+            f"{spec.layout.lead_ms} ms but the clip splices segment "
+            f"{spec.lead_segment} ({segment_ms[spec.lead_segment]} ms)"
+        )
+
+
+def test_the_force_spec_asks_for_the_fragment_segment() -> None:
+    """ForceEndpoint needs a lead the model will not end on its own.
+
+    With a complete sentence the semantic gate fires at `min_turn_silence` and a
+    forced boundary is far harder to attribute, which is what `FORCE_PINNED`'s
+    docstring warns about.
+    """
+    from nod_bench.probe import FORCE_LEAD_SEGMENT
+
+    specs = [
+        s
+        for s in plan_sessions(quick=False, segment_ms=(100, 200, 300, 400))
+        if s.field == "force_endpoint"
+    ]
+    assert specs
+    assert {s.cell for s in specs} == {"force_test", "force_control"}
+    assert all(s.lead_segment == FORCE_LEAD_SEGMENT for s in specs)

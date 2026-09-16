@@ -571,6 +571,12 @@ def plan_sessions(
                 layout=force_layout,
                 plan=plan,
                 repeat=repeat,
+                # `force_layout` is built from FORCE_LEAD_SEGMENT, but the clip
+                # is spliced from `spec.lead_segment` (see `lead_spans`). Omit
+                # this and the two disagree: the plan times the gap from segment
+                # 3's length while the audio carries segment 1, so the window
+                # and the ForceEndpoint send time both sit 248 ms off the gap.
+                lead_segment=FORCE_LEAD_SEGMENT,
             )
             for repeat in range(repeats)
         )
