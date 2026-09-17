@@ -45,8 +45,11 @@ done, which is where the day comes from.
 - `FakeAssemblyAI` replay server built from Phase 0 traces. The seed trace is committed at
   `tests/fixtures/traces/seed-min-turn-silence-midstream.jsonl`.
 
-**Exit:** `make bench` produces a table and the Pareto chart for the three static arms,
-offline, on a clean clone. The tradeoff curve is visible. There is still no controller.
+**Exit:** `make bench` produces the tradeoff curve and the Pareto chart for the three
+static arms offline, on a clean clone, from the simulator — every artifact **labelled
+`simulated`** in its filename and run manifest (ADR-016, ADR-017). The tradeoff curve is
+visible. The published table is regenerated from live runs at Phase 4 per INV-9; nothing
+generated here is a published number. There is still no controller.
 
 ---
 

@@ -322,3 +322,60 @@ word rule, which only governs `words[].text`. A bare trailing digit (`6—`, and
 is the same gap. Closing it means masking single digits inside sentences, which contradicts
 `test_short_digit_runs_survive`'s standing decision that "I have 3 cats" is not PII, so it
 needs its own ADR rather than a threshold nudge.
+
+## ADR-016 — BENCH_SPEC §4 governs; ROADMAP's Phase 1 exit is amended
+2026-09-17 · Status: accepted
+Context: two documents specified incompatible things and both read as deliberate. BENCH_SPEC
+§4: "CI runs the fake; the published table is generated from live runs and the traces are
+committed" — the fake exists for determinism, never for published numbers. ROADMAP Phase 1
+exit: "`make bench` produces a table and the Pareto chart for the three static arms,
+**offline, on a clean clone**." Offline means the fake, so Phase 1 as written required the
+fake to produce the headline table that BENCH_SPEC reserves for live runs. Neither was a
+typo; each is coherent alone, and the conflict only surfaced when Gate C asked what
+`FakeAssemblyAI` actually has to do.
+Decision: **BENCH_SPEC §4 governs.** ROADMAP's Phase 1 exit is amended to read that
+`make bench` produces the tradeoff curve and Pareto chart offline from the simulator,
+**labelled simulated**, and that the published table is regenerated from live runs at
+Phase 4 per INV-9. BENCH_SPEC is unchanged.
+Consequence: Phase 1 can still exit offline on a clean clone, which was the point of that
+criterion — the harness must be runnable by someone without credits. What it may not do is
+let a simulated figure become a published one. The labelling is structural rather than
+editorial (ADR-017), because a chart leaving the repo has to carry its own provenance.
+BENCH_SPEC governs because it is the measurement contract and ROADMAP is a schedule: when a
+schedule and a contract disagree about what a number means, the contract wins.
+
+## ADR-017 — `FakeAssemblyAI` is a simulator, not a replayer
+2026-09-17 · Status: accepted
+Context: a replay of a recorded event stream reproduces the boundaries recorded under the
+config in force at capture time. The three-arm sweep varies exactly that config, so replay
+holds fixed the thing the sweep varies and yields one arm drawn three times. The committed
+trace compounds it: its arm is a probe stimulus (`min_turn_silence` 100 mid-stream, max
+3000) rather than aggressive/balanced/conservative, its audio is a spliced probe clip
+rather than a corpus clip, and it ships no `.truth.json`, so PCR and FRAG — both defined
+over ground-truth utterances — have nothing to score against.
+Decision: `FakeAssemblyAI` is the socket-level promotion of `nod_bench.fake_session`, which
+is already a parameterised endpointer rather than a canned script. Three changes make it
+sweep-grade, each forced by ADR-001:
+- **Regime comes from the truth sidecar**, not from `TURN_CONFIDENCE` against a threshold.
+  ADR-001 measured `end_of_turn_confidence_threshold` INERT, so a fake in which it works is
+  more capable than the service it stands for and would let the bench reward a control law
+  exploiting a knob that does not exist. The sidecar already records utterance boundaries
+  and the perturbation, so completeness is read from data rather than invented.
+- **Endpoint overhead is a named parameter defaulting to 0**, with the optimistic bias
+  stated wherever it is reported: a simulator that fires exactly at the configured gate is
+  early by the overhead on every turn. The value comes from `make bench` (INV-9) and is
+  never hand-written.
+- **`end_of_turn_confidence_threshold` is accepted and ignored**, matching what ADR-001
+  measured on `universal-streaming-english`.
+The simulated/live distinction is **structural, not editorial**: every artifact the
+simulator produces carries `simulated` in its filename and as a field in the run manifest.
+Prose labelling is not enough for a chart that leaves the repo.
+The committed trace keeps four jobs, and the first is load-bearing: **calibration**. A test
+feeds the simulator the same clip at min=100/max=3000 and asserts the boundary lands near
+the 304 ms the real service produced (`data/traces-p0-final`). Without it the simulator is
+an assertion; with it, it is falsifiable. The other three are console replay mode
+(PRD F-10, EC-45), transport fixtures under INV-7, and realistic input-side material.
+Consequence: the fake produces the *shape* — a tradeoff curve, a Pareto chart, CI
+determinism — and never a published number. A simulated chart presented as measured is the
+marketing number CLAUDE §7 and §8 forbid, and the filename is what stops that happening by
+accident.
