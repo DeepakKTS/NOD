@@ -24,28 +24,64 @@ Consequence: one language across the two parts that share logic; horizontal scal
 sticky routing by session id, which is accepted until measurements say otherwise.
 
 ## ADR-001 — Model and capability baseline
-Status: **pending one clean full matrix** (harness landed 2026-09-15; two of four
-knobs measured at N=3 on 2026-09-16)
+2026-09-17 · Status: **accepted** — measured on the clean 69-session matrix, N=3
+Context: the controller needs to know which turn-detection fields this model actually
+honours mid-stream, and whether `end_of_turn_confidence` is usable as a feature. Verdicts
+below are per `KnobVerdict` under ADR-014's two paths. Figures come from
+`data/traces-p0-final` (the 69-session matrix) except `ForceEndpoint`, which comes from
+`data/traces-force` — the matrix's force cells were void, see below.
+Decision: record the measured answer. Four states are distinguished and must not be
+collapsed into each other.
 
-Settled at N=3 on `universal-streaming-english`, independent of the regime defect
-fixed on 2026-09-16:
-- `min_turn_silence` is **LIVE**: connect 315 / 2163 ms, mid-stream 303 / 2160 ms,
-  spreads 10-29 ms. Mid-stream lands where connect-time landed.
-- `end_of_turn_confidence_threshold` is **INERT**: arms at the documented
-  endpoints 0.0 and 1.0 gave 365 / 386 ms where the docs predict 2800 ms apart.
+**`universal-streaming-english`, N=3, connect-time and mid-stream** (`data/traces-p0-final`)
 
-Outstanding, because the first full matrix built every clip from the wrong lead
-segment and ran three arms in the complete-utterance regime: `max_turn_silence`,
-`vad_threshold`, `ForceEndpoint`, and the `universal-3-5-pro` arm. Re-run the full
-matrix and write the measured answer here.
-Context: the controller needs `end_of_turn_confidence` and mid-stream updates; Universal-3
-Pro Streaming uses punctuation-based turn detection rather than a confidence score.
-Decision: record here after `python -m nod_bench.probe` (not `nod_core.probe`, see ADR-007)
-— the per-knob verdict, whether confidence varies across partials, whether ForceEndpoint moved
-a boundary.
-Consequence: determines whether the confidence axis is live or the controller runs on the
-silence axis alone; `KnobVerdict.STATIC_ONLY` or `INERT` on a silence knob falsifies
-CONTROL_SPEC §0 fact 2 and the control law is rewritten rather than tuned.
+| field | verdict | evidence |
+|---|---|---|
+| `min_turn_silence` | **LIVE**, continuous | 306 → 2175 ms at connect, 304 → 2172 ms mid-stream; worst arm spread 29 ms; mid lands within 2–3 ms of its connect twin |
+| `vad_threshold` | **LIVE**, continuous (ADR-014) | 404 ms separation at connect, 415 ms mid; worst arm spread 42 ms; inverted direction as predicted; mid within 7 and 18 ms of its connect twin. Clears the noise test ~5× and the 100 ms floor ~4×. The superseded `0.6 × expected_shift_ms` gate demanded 480 ms and called this INERT |
+| `max_turn_silence` | **LIVE**, categorical | the 600 ms arm ends the turn at 817 ms, 3/3, at connect and mid; the 3000 ms arm produces **no boundary inside the gap at all**, 3/3, in both. No floor applies to this path |
+| `ForceEndpoint` | **LIVE**, categorical (`data/traces-force`) | `force_test` ends at 424 ms, 3/3, spread 1 ms; `force_control` on the identical clip produces no boundary, 3/3. Send-to-boundary latency 22 ms, spread 1 ms |
+| `end_of_turn_confidence_threshold` | **INERT** | arms at the documented endpoints 0.0 and 1.0 landed 353 and 347 ms — 6 ms apart, the high arm *earlier* — against a documented 2800 ms. The control arm ended turns at confidence 0.251 with the threshold pinned at 0.40, so the field does not gate endpointing even when it is set |
+| `end_of_turn_confidence` | **present and varying** | 69/69 sessions carry samples, 13–52 per session, varying across partials. Trajectory is near zero across an utterance and spikes only on the boundary frame, so it reports turn-completion probability, not speaker hesitation (§2.4, ADR-011) |
+| word timings | **present** | `words[].start` / `.end` on every session |
+
+INERT is used exactly once above, and only where boundaries occurred and did not move with
+the knob. A separation too small to resolve is UNPROVEN, never INERT (ADR-014).
+
+**`universal-3-5-pro`, N=2, connect-time only** (`data/traces-p0-final`)
+
+A different model is a different measurement and is **not merged** into the verdicts above.
+
+| field | result | why |
+|---|---|---|
+| `end_of_turn_confidence_threshold` | **no gating observed — UNPROVEN** | arms at 0.0 and 1.0 gave 3532 and 3422 ms, 110 ms apart, which is smaller than the high arm's own 143 ms spread. But both arms landed at `max_turn_silence` (pinned 3000), so that gate bound first and the threshold never got an opportunity to act |
+| `min_turn_silence` | **no gating observed — UNPROVEN** | 3431 vs 3364 ms, 67 ms apart against spreads of 420 and 100 ms. Same cause: every boundary landed at the pinned `max_turn_silence` of 3000 ms, so the minimum was never the binding constraint |
+| `max_turn_silence` | **connect-time effect observed** | the 600 ms arm ends the turn at 902 ms; the 3000 ms arm produces no boundary. Mid-stream was not run on this model, so this is not a claim about `UpdateConfiguration` there |
+
+**None of the pro rows is INERT.** The automated classifier returns `inert` for the first
+two and `static_only` for the third; both are artifacts and are not the recorded answer.
+`inert` is wrong because it asserts the model ignores a field, which the traces contradict —
+the stimulus never gave either field an opportunity, which is the UNPROVEN case by
+ADR-014's own reasoning, and the classifier cannot see that `max_turn_silence` bound first.
+`static_only` is wrong because pro is planned connect-time only, so the absence of
+mid-stream cells is by design, not a finding. Fixing the classifier to detect a
+bound-elsewhere stimulus is out of scope here and is not needed by the control law, which
+runs on `universal-streaming-english`.
+
+Also recorded: `SpeechStarted`, an undocumented frame type, 22 occurrences, `pro` only,
+never on `universal-streaming-english` (see `KNOWN_FRAME_TYPES`).
+
+Consequence: the confidence axis is dead on the chosen model and the controller runs on the
+silence axis alone, which is ADR-011, now confirmed rather than provisional. Both silence
+knobs are sendable mid-stream and the capability gate will pass them. `vad_threshold` is
+live but is not a control surface in CONTROL_SPEC §4 and nothing sends it. `ForceEndpoint`
+is available for §4's confident-early-endpoint path at ~22 ms.
+
+Caveat carried from the seed: every figure above was measured against **synthesized speech**
+(macOS `say`, voice Samantha, 160 wpm). That is adequate for capability probing, which asks
+only whether a boundary moves. It is not adequate for Track C, disfluency features, cut
+detection, or any published number — those come from `make bench` over real audio (INV-9).
+
 
 ## ADR-002 — Streaming quantiles
 2026-09-15 · Status: accepted

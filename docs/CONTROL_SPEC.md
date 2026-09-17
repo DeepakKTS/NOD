@@ -8,15 +8,18 @@ line for line, and any change to a constant here is an ADR, not a commit.
 1. **Configuration can be changed mid-session.** `UpdateConfiguration` applies without
    reconnecting. Measured at P1: `min_turn_silence` and `max_turn_silence` take effect
    mid-stream, each landing where the same value set at connect time landed.
-   `end_of_turn_confidence_threshold` is accepted and ignored, and `vad_threshold` is
-   unproven. The server answers a successful update with silence, so acceptance is never
-   evidence: only a measured change in boundary timing counts (ADR-001).
+   `vad_threshold` also takes effect mid-stream, and `end_of_turn_confidence_threshold` is
+   accepted and ignored. The server answers a successful update with silence, so acceptance
+   is never evidence: only a measured change in boundary timing counts (ADR-001).
+   `vad_threshold` is live but is **not** a control surface in §4 — nothing sends it.
 2. **Silence is the only axis, and which silence knob binds depends on the utterance.**
    Measured at P1 on `universal-streaming-english` (ADR-011, ADR-001):
    `end_of_turn_confidence_threshold` is inert — arms at the documented endpoints 0.0 and
-   1.0 produced boundaries 13 ms apart where the documentation predicts 2800 ms, and turns
-   end at confidence 0.308 against a threshold of 0.95. Endpointing runs on two silence
-   gates:
+   1.0 produced boundaries 6 ms apart, the high arm the *earlier* of the two, where the
+   documentation predicts 2800 ms; and the control arm ended turns at confidence 0.251 with
+   the threshold pinned at 0.40, so the field does not gate endpointing even when it is
+   set. (These supersede the 13 ms and 0.308 figures taken at N=1 before the clean matrix;
+   the conclusion is unchanged.) Endpointing runs on two silence gates:
 
    - after a **semantically complete** utterance the model's own gate fires and
      `min_turn_silence` decides when;
