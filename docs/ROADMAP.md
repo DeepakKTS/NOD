@@ -27,14 +27,23 @@ which knobs moved and which did not.
 
 ---
 
-## Phase 1 — Measurement (Sep 16–18)
+## Phase 1 — Measurement (Sep 17–19)
 
+Restated on 17 Sep. Phase 0 ran a day long — the capability matrix had to be re-run twice,
+once for a lead-segment defect and once for a redaction defect — so this phase starts on
+the 17th rather than the 16th. It does not get three days of slack back: **feature freeze
+is the 26th** and Phases 2 to 4 are unchanged behind it. One of the five bullets is already
+done, which is where the day comes from.
+
+- ~~Paced real-time feeder with deadline scheduling and drift abort.~~ **Done**
+  — `src/nod_bench/feeder.py`, absolute-deadline schedule, sustained-lag abort
+  (ADR-008, ADR-012). Shipped during Phase 0 because the probe needed it.
 - `nod_bench`: perturbation generator (`pause`, `repeat`, `prolong`, `correct`, `burst`),
   truth sidecars, seeded and deterministic.
-- Paced real-time feeder with deadline scheduling and drift abort.
 - Metrics: PCR, TTL p50/p90/p99, FRAG, and the run manifest.
 - Baseline sweep: aggressive / balanced / conservative over Track A and Track C.
-- `FakeAssemblyAI` replay server built from Phase 0 traces.
+- `FakeAssemblyAI` replay server built from Phase 0 traces. The seed trace is committed at
+  `tests/fixtures/traces/seed-min-turn-silence-midstream.jsonl`.
 
 **Exit:** `make bench` produces a table and the Pareto chart for the three static arms,
 offline, on a clean clone. The tradeoff curve is visible. There is still no controller.
@@ -103,23 +112,42 @@ Reserved. Do not plan work here. Submit on the 29th, not the 30th.
 5. Trace or metric emitted where the behaviour should be observable.
 6. Doc updated if behaviour diverged from the spec, or an ADR if a decision was made.
 
-## 3. Cut list, in order
+## 3. Cut, and what survives
 
-Cut from the top when behind:
+This is no longer a contingency list. The first three are **cut**. They are not deferred,
+not "if time permits", not revisited on the 25th. They are out of scope for this build and
+belong in §4.
 
-1. Track B (real atypical-speech corpus).
-2. Streaming diarization and per-speaker profiles.
-3. `nod tune` sweep, keep hand-picked presets.
+**Cut:**
+
+1. **Track B**, the real atypical-speech corpus. Track A and Track C carry the measurement.
+2. **Streaming diarization and per-speaker profiles.** One speaker per session.
+3. **`nod tune`.** Hand-picked presets, tuned against `make bench`, never by ear.
+
+Still contingent, cut from the top if the 26th is at risk:
+
 4. Cloud TTS providers, keep `browser` only.
 5. Benchmark view in the console, keep the static report card.
 6. The context axis. **Cut last — it is half the originality.**
 
-Never cut: the harness, the traces, the honest-scope section.
+**The four that survive.** If everything else goes, these ship:
+
+1. **The harness.** `nod_bench` plus the committed traces. The claim is the measurement;
+   without it there is no project, only an assertion.
+2. **The two-gate controller.** `max_turn_silence` for the incomplete-utterance regime,
+   `min_turn_silence` for the complete one — the silence axis, per ADR-011 and ADR-001.
+3. **One demo screen.** The live call view with the Floor Meter, the config strip and the
+   reason line. One screen that shows the loop closing, not three that show architecture.
+4. **The honest-scope section.** Nod is not the first adaptive endpointer. It is an open
+   one on the STT path with a published policy and published numbers (CLAUDE.md §8).
 
 ## 4. Post-hackathon backlog
 
 Not in scope before 30 Sep, listed so it stops leaking into the build:
 
+- Track B, a real atypical-speech corpus, with the consent and licensing that needs.
+- Streaming diarization and per-speaker profiles.
+- `nod tune`, an automated sweep over the control-law constants.
 - SIP and telephony adapter.
 - Per-tenant policy management and auth.
 - Learned endpointing policy (contextual bandit over the same features), with the static
