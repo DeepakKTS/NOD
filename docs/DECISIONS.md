@@ -216,6 +216,43 @@ Consequence: a three-digit quantity is now masked too (`turn 100 of 250` reads
 `NOD_TRACE_RAW=1` remains the only escape, and key-scoping to `transcript`/`utterance`/
 `text` keeps `clip_sha256` and `session_id` intact under the looser digit rule.
 
+## ADR-014 — A separation is real if it clears the noise and 100 ms
+2026-09-17 · Status: accepted
+Context: `_separated` required `gap >= MIN_SEPARATION_FRACTION * expected_shift_ms` on top
+of the IQR test. That fraction is well calibrated where `expected_shift_ms` is a
+prediction — `min_turn_silence` predicted 1900 ms and delivered 1840 — and wrong where it
+is an upper bound. `vad_threshold` declares 800 ms because that is the accumulation window
+it acts inside, not a distance the boundary is expected to travel, so the derived 480 ms
+floor demanded more movement than the mechanism can produce and a knob that plainly moved
+the boundary classified INERT. Worse, `verdict_for` routes a failed `connect_moved`
+straight to INERT, which is a positive claim that the model ignores the field — the same
+inference the file already refuses ten lines earlier for the no-boundary case.
+Decision: there are **two admissible paths to a real separation**, not one rule.
+1. **Categorical** — one arm produces no boundary inside the gap and the other fires on
+   every repeat. The arms are separated by construction, no statistics apply, and **no
+   floor is applied**. This is `max_turn_silence` and `ForceEndpoint`.
+2. **Continuous** — both arms produce boundaries. The gap between the medians must clear
+   **both** the existing noise test (`IQR_MULTIPLE` × the wider arm's IQR) **and** a
+   **100 ms** absolute floor. Conjunctive: clearing one is not enough.
+`MIN_SEPARATION_FRACTION * expected_shift_ms` is deleted. That derivation, and nothing
+else, is what this ADR removes; the IQR test is untouched.
+The floor is the literal **100**. Measured endpoint overhead runs 147–274 ms across the
+plain silence-gate cells, so a shift smaller than 100 ms is smaller than the unmodelled
+overhead of the very system the knob is meant to steer, and is not actionable even if it
+is real. It is deliberately not derived from `expected_shift_ms` or from any documented
+figure — those are what produced the bad gate. **Revisit it once `make bench` measures
+`ENDPOINT_OVERHEAD_MS`; do not let it be inherited unexamined.**
+A separation that clears the noise test and misses the floor is `UNPROVEN`, never `INERT`.
+`INERT` stays reserved for boundaries that occurred and did not move with the knob.
+`_force_verdict`'s categorical `fired and quiet` test is correct as written and is **not**
+changed by this ADR. It reported UNPROVEN only because the force cells ran the
+complete-utterance regime, where the control arm ends its own turn; with the fragment lead
+restored it returns LIVE unaided.
+Consequence: `vad_threshold` resolves **LIVE** on the continuous path — 404 ms separation
+at connect and 415 ms mid-stream against a worst arm spread of 42 ms, clearing `2 × IQR`
+roughly fivefold and the 100 ms floor fourfold, in the predicted direction, with mid-stream
+landing within 7 and 18 ms of its connect-time twin (`data/traces-p0-final`).
+
 ## ADR-015 — Word tokens are redacted by a different rule than sentences
 2026-09-16 · Status: accepted
 Context: ADR-013 closed the `transcript` leak but `words[].text` kept carrying `6`, `61`,

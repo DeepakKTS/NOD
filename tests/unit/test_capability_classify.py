@@ -108,12 +108,19 @@ def test_unproven_when_a_cell_was_never_measured() -> None:
 
 
 def test_unproven_separation_within_noise_is_not_supported() -> None:
-    """BENCH_SPEC §4: spread wider than the difference is inconclusive."""
+    """BENCH_SPEC §4: spread wider than the difference is inconclusive.
+
+    UNPROVEN, not INERT (ADR-014). The medians move 100 ms in the predicted
+    direction against a spread of 800, so this is a measurement that failed to
+    resolve, not evidence the model ignores the knob. The name of this test said
+    "unproven" while it asserted INERT.
+    """
     noisy_low = (600.0, 1400.0, 900.0)
     noisy_high = (700.0, 1500.0, 1000.0)
     obs = four_cells(noisy_low, noisy_high, noisy_low, noisy_high)
     assert (
-        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1) is KnobVerdict.INERT
+        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1)
+        is KnobVerdict.UNPROVEN
     )
 
 
@@ -146,10 +153,17 @@ def test_midstream_landing_in_the_wrong_place_is_not_live() -> None:
 
 
 def test_an_arm_that_fires_inconsistently_is_not_proof() -> None:
+    """UNPROVEN, not INERT (ADR-014).
+
+    An arm that ends the turn on some repeats and not others is not
+    reproducible. That is absence of usable data, which is the UNPROVEN case;
+    INERT is a positive claim that the model ignores the field.
+    """
     mixed = (605.0, NO_BOUNDARY, 611.0)
     obs = four_cells(mixed, NEVER, mixed, NEVER)
     assert (
-        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1) is KnobVerdict.INERT
+        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1)
+        is KnobVerdict.UNPROVEN
     )
 
 
@@ -304,8 +318,8 @@ def test_iqr_uses_quartiles_once_there_are_four_samples() -> None:
 def test_separation_and_agreement_need_both_arms_present() -> None:
     from nod_core.capabilities import _agrees, _separated
 
-    assert _separated([], [600.0], 100.0) is False
-    assert _separated([600.0], [], 100.0) is False
+    assert _separated([], [600.0]) is False
+    assert _separated([600.0], []) is False
     assert _agrees([], [600.0], 100.0) is False
     assert _agrees([600.0], [], 100.0) is False
 
@@ -408,3 +422,76 @@ def test_one_arm_silent_and_one_firing_is_still_a_real_separation() -> None:
     """The categorical case must survive the new guard."""
     obs = four_cells(EARLY, NEVER, EARLY, NEVER)
     assert verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1) is KnobVerdict.LIVE
+
+
+def test_a_continuous_separation_must_clear_both_the_noise_and_the_floor() -> None:
+    """ADR-014: conjunctive. Clearing one gate is not enough.
+
+    80 ms apart on very tight repeats clears `2 x IQR` easily and still fails the
+    100 ms floor, because a shift that small is inside the unmodelled endpoint
+    overhead of the system the knob is meant to steer.
+    """
+    from nod_core.capabilities import MIN_SEPARATION_MS
+
+    tight_low = (600.0, 602.0, 601.0)
+    tight_high = (680.0, 682.0, 681.0)
+    assert MIN_SEPARATION_MS > 80.0
+    obs = four_cells(tight_low, tight_high, tight_low, tight_high)
+    assert (
+        verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1)
+        is KnobVerdict.UNPROVEN
+    )
+
+
+def test_the_vad_threshold_shape_resolves_live_on_the_continuous_path() -> None:
+    """ADR-014, from `data/traces-p0-final`.
+
+    The measured `vad_threshold` cells: 404 ms apart at connect and 415 mid,
+    worst arm spread 42 ms, inverted direction, mid landing within 7 and 18 ms of
+    its connect twin. The old `0.6 * expected_shift_ms` gate demanded 480 ms and
+    called this INERT.
+    """
+    connect_low = (1371.0, 1371.0, 1349.0)
+    connect_high = (967.0, 988.0, 946.0)
+    mid_low = (1374.0, 1346.0, 1364.0)
+    mid_high = (951.0, 929.0, 949.0)
+    obs = four_cells(connect_low, connect_high, mid_low, mid_high)
+    assert verdict_for(obs, expected_shift_ms=800.0, direction=-1) is KnobVerdict.LIVE
+
+
+def test_the_categorical_path_applies_no_floor() -> None:
+    """ADR-014 path 1: one arm never ends the turn, the other always does.
+
+    Separated by construction. The floor is a statistic about two distributions
+    and there is only one here, so applying it would be meaningless — and would
+    reject `max_turn_silence`, whose whole stimulus is this shape.
+    """
+    obs = four_cells(EARLY, NEVER, EARLY, NEVER)
+    assert verdict_for(obs, expected_shift_ms=1.0, direction=1) is KnobVerdict.LIVE
+
+
+def test_a_missed_floor_is_never_reported_as_inert() -> None:
+    """The distinction ADR-014 exists to protect.
+
+    INERT is a positive claim that the model ignores the field. Movement in the
+    predicted direction that is merely too small to act on does not license it.
+    """
+    low = (600.0, 601.0, 602.0)
+    high = (640.0, 641.0, 642.0)
+    obs = four_cells(low, high, low, high)
+    verdict = verdict_for(obs, expected_shift_ms=SHIFT_MS, direction=1)
+    assert verdict is not KnobVerdict.INERT
+    assert verdict is KnobVerdict.UNPROVEN
+
+
+def test_boundaries_that_do_not_move_are_still_inert() -> None:
+    """ADR-014 narrowed INERT; it did not remove it.
+
+    `end_of_turn_confidence_threshold` on `universal-streaming-english`: arms at
+    the documented endpoints landed 6 ms apart, the high arm *earlier* than the
+    low one, against a documented 2800 ms (`data/traces-p0-final`).
+    """
+    connect_low = (353.0, 378.0, 353.0)
+    connect_high = (347.0, 357.0, 342.0)
+    obs = four_cells(connect_low, connect_high, connect_low, connect_high)
+    assert verdict_for(obs, expected_shift_ms=2800.0, direction=1) is KnobVerdict.INERT

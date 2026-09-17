@@ -49,8 +49,26 @@ PROBE_CACHE_SIZE: Final = 16
 PROBE_CACHE_TTL_S: Final = 3600
 """Probe cache time to live. Seconds (ARCHITECTURE.md §5)."""
 
-MIN_SEPARATION_FRACTION: Final = 0.6
-"""Two arms must differ by this fraction of the expected shift to count."""
+MIN_SEPARATION_MS: Final = 100.0
+"""Absolute floor on a continuous separation, in milliseconds (ADR-014).
+
+Conjunctive with `IQR_MULTIPLE`: a knob is live only if it clears both. The
+noise test alone is scale-free and at `N=3` `_iqr` degrades to the range, so a
+systematic 40 ms offset with some other cause can clear `2 x IQR` on tight
+repeats. This is the floor that stops that.
+
+A literal, deliberately. The previous gate was `0.6 * expected_shift_ms`, which
+is well calibrated where that figure is a prediction and wrong where it is an
+upper bound -- `vad_threshold` declares 800 ms because that is the window it
+acts inside, so the derived 480 ms floor demanded more travel than the mechanism
+can produce. 100 ms is the scale of the measurement instead: endpoint overhead
+runs 147-274 ms across the plain silence-gate cells, so a shift under 100 ms is
+smaller than the unmodelled overhead of the system the knob is meant to steer
+and is not actionable even if real.
+
+Revisit once `make bench` measures `ENDPOINT_OVERHEAD_MS`. Do not inherit it
+unexamined.
+"""
 
 IQR_MULTIPLE: Final = 2.0
 """Arm medians must differ by this multiple of the wider arm's IQR.
@@ -66,11 +84,14 @@ Deliberately below `0.5`: at half the expected shift a mid-stream arm could
 "agree" with the *opposite* connect-time arm, and the check would pass on a knob
 that moved the boundary to exactly the wrong place.
 
-Both this and `MIN_SEPARATION_FRACTION` scale an *expected shift in
-milliseconds*, never the knob's own delta. A confidence threshold's delta is
-dimensionless (0.95 - 0.20 = 0.75) and a silence knob's is milliseconds; scaling
-a millisecond tolerance by the former yields 0.3 ms, which no real measurement
-can satisfy, and a working knob is reported `STATIC_ONLY`.
+This scales an *expected shift in milliseconds*, never the knob's own delta. A
+confidence threshold's delta is dimensionless (0.95 - 0.20 = 0.75) and a silence
+knob's is milliseconds; scaling a millisecond tolerance by the former yields
+0.3 ms, which no real measurement can satisfy, and a working knob is reported
+`STATIC_ONLY`. ADR-014 replaced the separation gate with an absolute floor for
+the same family of reasons, but left this one alone: agreement is a statement
+about two readings of the *same* arm value, where the expected shift really is
+the right scale for "landed somewhere else entirely".
 """
 
 
@@ -162,21 +183,23 @@ def _no_boundaries(values: Sequence[float]) -> bool:
     return bool(values) and all(math.isinf(v) for v in values)
 
 
-def _separated(
-    low: Sequence[float], high: Sequence[float], expected_shift_ms: float
-) -> bool:
+def _separated(low: Sequence[float], high: Sequence[float]) -> bool:
     """Whether two arms moved the boundary apart by more than the noise.
 
-    Categorical first: if exactly one arm never produced a boundary, the arms are
-    separated by construction and no statistics apply. Otherwise both medians and
-    spreads must clear `IQR_MULTIPLE` and `MIN_SEPARATION_FRACTION`.
+    ADR-014 admits two paths and only two:
+
+    1. **Categorical** -- exactly one arm never produced a boundary and the other
+       always did. The arms are separated by construction, no statistics apply,
+       and **no floor is applied**.
+    2. **Continuous** -- both arms produced boundaries. The gap between the
+       medians must clear `IQR_MULTIPLE` times the wider arm's IQR **and**
+       `MIN_SEPARATION_MS`. Conjunctive; clearing one is not enough.
 
     `O(n log n)` in the repeat count.
 
     Args:
         low: Boundary measurements from the low arm.
         high: Boundary measurements from the high arm.
-        expected_shift_ms: How far the boundary should move, in milliseconds.
 
     Returns:
         Whether the separation is real.
@@ -201,9 +224,7 @@ def _separated(
         return False
     gap = abs(_median(high) - _median(low))
     spread = max(_iqr(low), _iqr(high))
-    return gap >= IQR_MULTIPLE * spread and gap >= MIN_SEPARATION_FRACTION * abs(
-        expected_shift_ms
-    )
+    return gap >= IQR_MULTIPLE * spread and gap >= MIN_SEPARATION_MS
 
 
 def _directed(low: Sequence[float], high: Sequence[float], direction: int) -> bool:
@@ -278,9 +299,11 @@ def verdict_for(
         direction: `+1` if a lower arm value should yield an earlier boundary.
 
     Returns:
-        The verdict. Anything short of proof is `UNPROVEN`, never `LIVE`, and an
-        arm pair that produced no boundary at all is `UNPROVEN` rather than
-        `INERT`.
+        The verdict. Anything short of proof is `UNPROVEN`, never `LIVE`. An arm
+        pair that produced no boundary at all is `UNPROVEN` rather than `INERT`,
+        and so is one that moved the boundary in the predicted direction but by
+        less than the noise or less than `MIN_SEPARATION_MS` (ADR-014).
+        `INERT` is reserved for boundaries that occurred and did not move.
     """
     if any(o.error_code is not None for o in observations):
         return KnobVerdict.REJECTED
@@ -301,15 +324,20 @@ def verdict_for(
         # of an experiment that did not run.
         return KnobVerdict.UNPROVEN
 
-    connect_moved = _separated(
-        connect_low, connect_high, expected_shift_ms
-    ) and _directed(connect_low, connect_high, direction)
-    if not connect_moved:
-        # Boundaries did occur and did not move with the knob.
+    if not _directed(connect_low, connect_high, direction):
+        # Boundaries did occur and did not move with the knob, or moved against
+        # it. This is the only shape that earns INERT: a positive claim that the
+        # model ignores the field.
         return KnobVerdict.INERT
 
+    if not _separated(connect_low, connect_high):
+        # Movement in the predicted direction, too small to distinguish from
+        # noise or below the actionable floor (ADR-014). Not evidence the knob
+        # does nothing, so it must not read as INERT.
+        return KnobVerdict.UNPROVEN
+
     mid_moved = (
-        _separated(mid_low, mid_high, expected_shift_ms)
+        _separated(mid_low, mid_high)
         and _directed(mid_low, mid_high, direction)
         and _agrees(mid_low, connect_low, expected_shift_ms)
         and _agrees(mid_high, connect_high, expected_shift_ms)
