@@ -55,11 +55,36 @@ that guarantees a table exists on any clone.
 
 ## 3. Conditions (arms)
 
+### Static baselines — the vendor's published quick-start presets
+
+| Arm | `end_of_turn_confidence_threshold` | `min_turn_silence` | `max_turn_silence` |
+|---|---|---|---|
+| `aggressive` | 0.4 | 160 ms | 400 ms |
+| `balanced` **— the headline baseline** | 0.4 | 400 ms | 1280 ms |
+| `conservative` | 0.7 | 800 ms | 3600 ms |
+
+Transcribed verbatim from AssemblyAI's own documentation, not chosen by us. Accessed
+2026-09-17 from the [turn detection
+reference](https://www.assemblyai.com/docs/streaming/universal-streaming/turn-detection),
+corroborated against [optimizing accuracy and
+latency](https://www.assemblyai.com/docs/streaming/getting-started/optimizing-accuracy-and-latency);
+the two pages agree exactly. `balanced` is also the documented global default
+(with `vad_threshold` 0.4), which is why it is the headline baseline — it is what an
+integrator who changes nothing actually ships.
+
+Cross-check worth recording: CONTROL_SPEC §4's `base_min = 400` / `base_max = 1280` are the
+`balanced` preset exactly, so the control law starts from the vendor's own default rather
+than from a number we picked, and `CONTROL_PINNED` in the probe is the same triple.
+
+ADR-001 measured `end_of_turn_confidence_threshold` **INERT** on
+`universal-streaming-english`, so the threshold column is carried for fidelity to the
+published presets and is not expected to move any boundary. What separates these three arms
+on this model is the silence pair.
+
+### Nod and reference arms
+
 | Arm | Config |
 |---|---|
-| `aggressive` | the vendor's aggressive quick-start values |
-| `balanced` | the vendor's balanced quick-start values — **the headline baseline** |
-| `conservative` | the vendor's conservative quick-start values |
 | `nod` | Nod in `adapt` mode, default preset |
 | `nod-nocontext` | speaker axis only, ablation |
 | `nod-nospeaker` | context axis only, ablation |
