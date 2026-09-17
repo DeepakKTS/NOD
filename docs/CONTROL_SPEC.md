@@ -101,10 +101,13 @@ A **cut** is recorded when all of the following hold:
 
 **Condition 5 was dropped, deliberately and with its reason recorded.** It admitted a
 candidate cut when turn `n`'s `end_of_turn_confidence` was below `CUT_CONF_MAX` (0.85).
-The P1 probe measured 75 real boundaries: **67 of them (89 %) fall below 0.85**, median
-0.352. A condition that admits nine turns in ten is not discriminating, and leaving it in
-would suggest the label is better guarded than it is. Conditions 1 to 4 carry the whole
-discrimination.
+The 69-session P1 matrix measured 184 real boundaries: **144 of them (78 %) fall below
+0.85**, median 0.443. A condition that admits four turns in five is not discriminating, and
+leaving it in would suggest the label is better guarded than it is. Conditions 1 to 4 carry
+the whole discrimination.
+
+(These figures supersede the 67-of-75 at median 0.352 quoted before the clean matrix. The
+sample is larger and spans both regimes; the conclusion is unchanged.)
 
 Conditions 3 and 4 exist because the naive rule produces false positives every time a
 caller answers quickly or corrects themselves. Every condition here has a regression
@@ -191,7 +194,7 @@ person whose long gap is not a finished turn.
 | **Hysteresis** | emit only if any field moves more than `HYST = 15 %` of its current value | prevents socket chatter |
 | **Rate cap** | at most 1 patch per turn, at most `MAX_PATCHES = 24` per session | bounds cost and blast radius |
 | **Asymmetric decay** | widening applies immediately; narrowing applies at most `NARROW_STEP = 12 %` per turn | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
-| **Ceiling** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS` | a fluent caller can never be made to wait, and the measured overhead is inside the budget |
+| **Ceiling** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS` | **Unenforced pending a measured overhead.** `ENDPOINT_OVERHEAD_MS` is still 0, so the subtraction does nothing and the guard holds only arithmetically: the boundary arrives some way *after* the configured gate, so a `max_ms` clamped exactly to `ceiling_ms` overshoots the ceiling on every turn. The P1 matrix measured that lag as consistently positive and well outside the noise across every plain silence-gate cell. Until `make bench` supplies the value (INV-9 — it is not written here), do not rely on this guard to keep a fluent caller from waiting |
 | **Floor on boolean turns** | on `boolean`, `min_ms` never exceeds 400 | yes/no must stay snappy |
 | **Freeze on instability** | if 3 patches in 5 turns all reverse direction, freeze the speaker axis for 10 turns and emit `controller_frozen` | detects oscillation instead of thrashing |
 | **Host override** | if the host application sent its own `UpdateConfiguration` in the last 5 s, Nod does not touch the fields the host set | the host owns its own decisions |
@@ -238,7 +241,10 @@ Written with `hypothesis`, over arbitrary feature vectors:
 
 1. Output is always within the hard clamps.
 2. `max_ms >= min_ms + 200` always holds.
-3. `max_ms <= ceiling_ms - ENDPOINT_OVERHEAD_MS` always holds.
+3. `max_ms <= ceiling_ms - ENDPOINT_OVERHEAD_MS` always holds. Note this is currently
+   vacuous: with `ENDPOINT_OVERHEAD_MS` at 0 it reduces to `max_ms <= ceiling_ms`, which
+   the clamps already give. It becomes a real constraint only once the bench measures
+   the overhead (§5, Ceiling).
 4. Monotonicity: increasing `disfluency` with everything else fixed never decreases
    `max_ms`.
 5. Idempotence: `decide()` on the same state twice returns an equal patch and the second

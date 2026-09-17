@@ -309,9 +309,25 @@ FORCE_PINNED: Final = {
 }
 """Nothing can end a turn inside the gap unless `ForceEndpoint` does.
 
-Paired with `FORCE_LEAD_SEGMENT`: with a complete sentence the semantic gate
-fires at `min_turn_silence` and the control arm ends on its own at ~590 ms,
-which makes a forced boundary indistinguishable from an ordinary one.
+Confirmed: in the fragment regime the `force_control` arm produced no boundary
+inside the gap at all, 3 of 3, so a boundary in `force_test` is attributable to
+`ForceEndpoint` and nothing else.
+
+Paired with `FORCE_LEAD_SEGMENT`, and only sound with it. Given a complete
+sentence the semantic gate fires at `min_turn_silence`, `force_control` ends its
+own turn, and a forced boundary is no longer categorically distinguishable from
+an ordinary one. That is not hypothetical — it is what the first matrix did,
+because the force spec was missing `lead_segment` and ran the complete-utterance
+regime by accident.
+
+Two different cells are called a "control arm" in this probe and they are not
+interchangeable:
+  - `force_control` — this pinning, no `ForceEndpoint` sent. The paired arm.
+  - `control` — `CONTROL_PINNED`, a different threshold and a different
+    `max_turn_silence`, used only to read the confidence field.
+An earlier revision of this docstring quoted a latency for "the control arm"
+without saying which, and the number matched neither. Timings belong in the
+matrix output and in ADR-001, not here.
 """
 
 FORCE_LEAD_SEGMENT: Final = 3
