@@ -13,7 +13,7 @@ inside a parser that did not expect it.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Iterable, Mapping
 from typing import Final, cast
 from urllib.parse import urlencode
 
@@ -26,6 +26,48 @@ STREAMING_URL: Final = "wss://streaming.assemblyai.com/v3/ws"
 """The Universal-Streaming v3 endpoint."""
 
 MS_PER_SECOND: Final = 1000
+
+KNOWN_FRAME_TYPES: Final = frozenset(
+    {"Begin", "Turn", "Termination", "Error", "SpeechStarted"}
+)
+"""Every downstream frame type this adapter has actually observed.
+
+`Begin`, `Turn`, `Termination` and `Error` are the documented four and the only
+ones `events` translates. `SpeechStarted` is **undocumented**: the 69-session P1
+matrix saw it 22 times and only ever from `universal-3-5-pro`, never from
+`universal-streaming-english`. It is listed here so it does not read as new, not
+because anything consumes it — Nod's turn timing is driven by `Turn` boundaries,
+and a speech-onset marker on one model is not something the control law can
+depend on.
+
+Listing it is deliberately narrow. `unknown_frame_types` still reports anything
+outside this set, so a genuinely new type surfaces instead of being swallowed by
+a blanket "ignore what we don't parse".
+"""
+
+
+def unknown_frame_types(frames: Iterable[Mapping[str, JsonValue]]) -> frozenset[str]:
+    """Frame types in `frames` that this adapter does not recognise. Pure. `O(n)`.
+
+    The runtime path already tolerates an unknown type — `events` hands every
+    frame to `on_frame` before typing it and then ignores what it cannot
+    translate, so an unrecognised message can never drop a call (INV-8). That
+    tolerance is also how a new frame type stays invisible, which is what this
+    exists to prevent: run it over a trace and anything the upstream started
+    sending shows up as a name.
+
+    Args:
+        frames: Decoded downstream frames, in any order.
+
+    Returns:
+        The unrecognised `type` values, empty when every frame is known.
+    """
+    return frozenset(
+        str(kind)
+        for frame in frames
+        if (kind := frame.get("type")) is not None
+        and str(kind) not in KNOWN_FRAME_TYPES
+    )
 
 
 class UpstreamError(ExplainedUpstreamError):
