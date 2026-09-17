@@ -139,6 +139,13 @@ lines. That file is long-term memory; this file is the standing contract.
     stayed green when `text` was put back on the sentence rule and the PII leak
     returned. A unit test of a function does not cover the wiring that reaches it
     (ADR-015).
+  - CONTROL_SPEC §9 property 3, `max_ms <= ceiling_ms - ENDPOINT_OVERHEAD_MS`, is
+    vacuous while that constant is 0: it reduces to `max_ms <= ceiling_ms`, which the
+    clamps already give, so a property test written from it would pass under any
+    control law. Same defect, and it hid in a spec rather than a test file — an
+    invariant that cannot be violated under the current constants is a test that
+    cannot go red. Check the arithmetic of an invariant against the values the
+    constants actually hold, not against the values they are meant to hold one day.
   If a mutation leaves a test green, say so and add the test that goes red. Do not
   report coverage the suite does not have.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
