@@ -122,6 +122,25 @@ lines. That file is long-term memory; this file is the standing contract.
   `docs:`, `refactor:`, `test:`, `chore:`.
 - **Tests land with the code, not after.** A PR that adds a branch in the control law
   without a test that exercises that branch is incomplete.
+- **A test earns its place only once you have seen it red.** Revert the change it
+  guards, run it, confirm it fails, then restore. A test that passes in both states
+  documents behaviour; it does not protect it, and it is worse than no test because it
+  reads as coverage. Three defects in P1 were exactly this:
+  - `test_sustained_lag_voids_the_run` stayed green under the accumulating-schedule
+    bug. It asserts the drift guard fires, and the guard fires under the bug and under
+    a legitimate stall alike. The schedule is verified by
+    `test_schedule_absorbs_a_stall_instead_of_carrying_it_forward` (ADR-012).
+  - `test_the_planned_specs_carry_the_lead_segment_through` passed `segment_ms` as
+    `(100, 100, 100, 100)`. With equal segment lengths the plan's reading and the
+    clip's agree by accident, so it could not see the force spec timing its gap from
+    one segment and playing another. Fixtures need values that differ along the axis
+    under test.
+  - `test_no_digit_bearing_word_token_survives` called `redact_word` directly, so it
+    stayed green when `text` was put back on the sentence rule and the PII leak
+    returned. A unit test of a function does not cover the wiring that reaches it
+    (ADR-015).
+  If a mutation leaves a test green, say so and add the test that goes red. Do not
+  report coverage the suite does not have.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
   the coverage gate, and a bench smoke test. If it fails, fix it; do not describe the
   failure and move on.
