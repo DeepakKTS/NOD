@@ -4,6 +4,13 @@
 # gate, and a bench smoke test. Run it before declaring anything done.
 
 SHELL := bash
+# NOTE: inert on GNU make 3.81, which is what macOS ships (2006, and still the
+# stock /usr/bin/make). `.SHELLFLAGS` arrived in 3.82, so on a Mac this line is
+# read and ignored: `false | true` succeeds and the recipe continues. Verified
+# directly, not assumed. It is kept because it is correct on 3.82+, but **do not
+# rely on it** — any recipe that needs a pipeline's failure to propagate must
+# say so itself, as `gate` does below. A guard that has never once fired is the
+# CLAUDE.md §5 defect in the build file rather than the test suite.
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
@@ -21,8 +28,8 @@ RUN_BENCH := $(UV) run --extra bench
 PYTHON_VERSION := 3.12
 PATHS := src tests
 
-.PHONY: help install fmt lint types test bench-smoke check run demo probe \
-        probe-fake bench bench-live bench-clean metrics report audit clean
+.PHONY: help install fmt lint types test bench-smoke check gate seed-tests run \
+        demo probe probe-fake bench bench-live bench-clean metrics report audit clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
@@ -54,6 +61,33 @@ check: ## The gate: lint, types, tests, bench smoke
 	$(MAKE) types
 	$(MAKE) test
 	$(MAKE) bench-smoke
+
+gate: ## The gate, with its exit code preserved. Use this, not `make check | grep`
+	@# `make check` is what you want to know about; piping it through grep or
+	@# chaining a commit after it in one shell line lets grep's exit code stand
+	@# in for the gate's, and a red gate reaches a commit. That has now happened
+	@# twice on this repository (CLAUDE.md §5). This target exists so there is
+	@# never a reason to pipe: it tees the full log to a file, prints the part
+	@# you would have grepped for, and exits with the gate's own status.
+	@#
+	@# .SHELLFLAGS sets `-o pipefail` for every recipe line here, so the tee
+	@# pipeline below cannot swallow a failure the way an interactive shell can.
+	@# No pipeline at all, deliberately. `.SHELLFLAGS` cannot be trusted here
+	@# (see the note at the top), so the only reliable construction is to
+	@# redirect, test the status explicitly, and make the failure path the one
+	@# that produces output.
+	@$(MAKE) check > .gate.log 2>&1 || { \
+		tail -40 .gate.log; \
+		echo; \
+		echo "gate: FAILED — full log in .gate.log"; \
+		exit 1; \
+	}
+	@echo
+	@grep -E 'passed|Required test coverage' .gate.log | tail -3
+	@echo "gate: PASSED"
+
+seed-tests: ## Run the `say`-shelling tests, excluded from the default suite
+	$(RUN) pytest -m say -p no:cacheprovider
 
 run: ## Serve the API on http://127.0.0.1:8000
 	$(RUN) uvicorn --factory nod_server.app:create_app \

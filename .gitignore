@@ -49,3 +49,6 @@ out/
 
 # OS
 .DS_Store
+
+# `make gate` scratch log
+.gate.log
