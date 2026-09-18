@@ -26,7 +26,28 @@ one, the project changes rather than proceeding on faith.
   `min_turn_silence`, `max_turn_silence`, `vad_threshold` are updatable mid-stream on the
   chosen model, and whether `end_of_turn_confidence` appears in events. Record the answer
   in `docs/DECISIONS.md` as ADR-001.
-- Record Track C audio: 10 calls, fluent and deliberately hesitant.
+- Record Track C audio: 10 calls, fluent and deliberately hesitant. **Two requirements
+  added 18 Sep from what Gate 5 measured, and neither is optional** — the bullet as
+  originally written would be satisfied by ten hesitant monologues, which would satisfy
+  nothing else:
+  - **Enough turns per call to accumulate 24 inter-word gaps**, the warm threshold
+    (ADR-022). Gaps never span a turn boundary (§2.1), so a turn of `w` words contributes
+    `w - 1` gaps: measured, six words a turn warms the profiler on **turn 5** at 25 gaps.
+    Call it **five turns of six words**, and note that a turn of two or three words
+    contributes almost nothing — a short-answer script needs proportionally more turns.
+    A call of one long utterance carries 1–9 gaps and leaves the profiler cold for
+    its whole duration, which is exactly what Track A does today. Prefer calls that run
+    well past five turns, so the controller is warm for most of the recording rather than
+    only at the end.
+  - **Declared `expected_answer` classes**, one per prompt, from CONTROL_SPEC §1's eight.
+    The context axis has no other input: `hint_for(None)` returns the policy default, so a
+    recording without declared classes leaves `nod-nospeaker` measuring nothing and
+    `nod`'s context axis contributing nothing. An intake script asking for a member number,
+    a date and a yes/no answer supplies three of the eight for free — which is the point of
+    scripting the calls rather than recording free conversation.
+  Both are properties of the **recording script**, so they cost nothing if decided before
+  the session and cannot be added afterwards.
+
 **Exit:** a JSONL trace of a real session exists, and a one-page note states exactly
 which knobs moved and which did not.
 
