@@ -66,9 +66,36 @@ seconds over 120 clips.
 
 (2) and (3) are one problem and close together: **commit the audio** — the Track A corpus
 plus the Track C recordings once they exist. There is no cross-platform way to regenerate
-it, so committing is the only route to a clean-clone build. Expect roughly 36 MB for Track
-A plus whatever Track C weighs; large for git, and worth deciding whether it lands directly
-or through LFS before it lands at all.
+it, so committing is the only route to a clean-clone build. Roughly 36 MB for Track A plus
+whatever Track C weighs.
+
+**Decided: direct commit, not Git LFS.** 120 files averaging ~300 KB is well inside
+GitHub's per-file and repository limits, so LFS buys nothing here. It costs something real:
+a clone on a machine without `git-lfs` installed silently receives pointer files instead of
+audio, and `make bench` then fails on a wav that is 130 bytes of text. That failure is
+obscure and nobody diagnoses it quickly — which defeats the exact criterion the commit
+exists to satisfy. A clean clone that works everywhere beats a smaller clone that works
+where the tooling happens to be present.
+
+**Before the corpus lands, verify it is the current generation**, not an earlier one. Once
+committed it becomes the permanent ground truth behind every figure in the repository,
+which places it squarely in CLAUDE.md §5's non-negotiable category. Check three things:
+- it rebuilds byte-identically from `seed=7` under current code (`corpus_sha256` matches);
+- its sidecars carry `source_intrinsic` gaps, i.e. they are post-ADR-018 — a pre-ADR-018
+  corpus scores mid-utterance pauses under the wrong gate and inflates PCR;
+- `corpus.INTRINSIC_FLOOR_DBFS` still equals the simulator's floor at
+  `fake_assemblyai.DEFAULT_VAD` (both −44.0 dBFS at 0.4 today).
+
+That third one is a latent trap and is written down because nothing enforces it: the two
+constants are coupled by *meaning* and not by code, so changing `DEFAULT_VAD` would leave
+the corpus's intrinsic-gap detection silently calibrated to the old threshold. That is the
+same shape as the stale-bytecode and vacuous-invariant defects — a disagreement no test
+currently notices. Assert the equality before committing the audio, or the ground truth
+can drift out from under the figures without anything going red.
+
+Verified on 17 Sep: the corpus at `data/corpus/trackA` rebuilds byte-identically, its
+sidecars match a fresh build, it carries 125 `source_intrinsic` gaps, and the two floors
+agree.
 
 Considered and rejected: **swapping `say` for a cross-platform TTS** so the corpus could be
 regenerated anywhere instead of committed. It is real work this close to the 26th — a new
