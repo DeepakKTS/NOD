@@ -45,6 +45,7 @@ from hypothesis import strategies as st
 
 from nod_core import arbiter
 from nod_core.capabilities import UPDATABLE_FIELDS
+from nod_core.profiler import GAP_CLAMP_MAX_MS
 from nod_core.types import (
     Capabilities,
     ConfidenceField,
@@ -56,21 +57,11 @@ from nod_core.types import (
 )
 from tests.property import strategies
 
-STUB_XFAIL = pytest.mark.xfail(
-    reason="decide() and control_law() are P5 stubs",
-    raises=NotImplementedError,
-    strict=True,
-)
-"""One marker for every §9 property, and `strict=True` is the whole mechanism.
-
-These properties are written before the control law exists precisely so the law is
-shaped by them, which only works if an implementation that does not satisfy them
-cannot land quietly. A non-strict xfail would let the first passing implementation
-flip to XPASS and say nothing; a strict one turns the unexpected pass into a
-failure that has to be read. `raises=NotImplementedError` narrows it further: once
-the law exists, a property failing with an `AssertionError` is a real failure
-rather than a still-pending stub, and this marker will not absorb it.
-"""
+# The `xfail(strict=True, raises=NotImplementedError)` marker every property
+# carried through Gates 1 and 2 is gone as of Gate 3: `control_law` and `decide`
+# exist, so these are live tests. The marker did its job on the way past — each
+# property turned into a loud XPASS failure the moment the law satisfied it,
+# which is what forced this file to be read rather than discovered later.
 
 PROPERTY_SETTINGS = settings(deadline=None)
 """No per-example deadline.
@@ -132,7 +123,6 @@ def _decide(features: SpeakerFeatures) -> TurnConfig:
     return patch.config
 
 
-@STUB_XFAIL
 def test_an_incomplete_utterance_widens_max_turn_silence() -> None:
     """CONTROL_SPEC §9 test 9. The test the whole project turns on.
 
@@ -152,7 +142,6 @@ def test_an_incomplete_utterance_widens_max_turn_silence() -> None:
     )
 
 
-@STUB_XFAIL
 def test_a_longer_pause_profile_widens_max_more_than_a_shorter_one() -> None:
     """Monotonic in the direction that matters, not merely non-zero."""
     assert (
@@ -161,7 +150,6 @@ def test_a_longer_pause_profile_widens_max_more_than_a_shorter_one() -> None:
     )
 
 
-@STUB_XFAIL
 def test_jitter_has_no_effect_on_any_output() -> None:
     """CONTROL_SPEC §9 test 10, pinning ADR-011's weight-0 decision.
 
@@ -202,6 +190,44 @@ NON_BOOLEAN_ANSWERS = st.sampled_from(
 """Everything except `boolean`, for properties the §5 boolean floor would confound."""
 
 
+def _narrowing_states() -> st.SearchStrategy[arbiter.ArbiterInput]:
+    """The domain that demands a large narrowing, shared by property 6 and its twin.
+
+    Factored because it was not, and that cost a real defect. At Gate 1 the hint
+    clamp below sat on property 6 and was missing from
+    `test_a_narrowing_is_reachable_at_all`, so the companion asked for a narrowing
+    while letting the context axis draw multipliers up to `POLICY_MULT_MAX` and
+    widen instead. Both were `xfail` on a stub, so nothing could see it; it
+    surfaced the moment the law became real. Two tests sharing one domain by
+    copy is the same defect class as two constants agreeing by prose.
+    """
+    unit = st.floats(
+        min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+    )
+    return strategies.arbiter_inputs(
+        # A wide config already in force, and a speaker who no longer needs it:
+        # warm, fluent, gap quantiles near zero, so the law's target sits at the
+        # bottom clamps and a large narrowing is what it asks for.
+        current=strategies.turn_configs(
+            min_ms=st.integers(min_value=500, max_value=900),
+            max_ms=st.integers(min_value=2000, max_value=4000),
+        ),
+        features=strategies.speaker_features(
+            warm=True,
+            disfluency=st.just(0.0),
+            gaps_ms=st.floats(
+                min_value=0.0, max_value=50.0, allow_nan=False, allow_infinity=False
+            ),
+        ),
+        # The context axis must not be allowed to widen what the speaker axis is
+        # narrowing, or the property tests the sum of two opposing moves.
+        hint=st.builds(WindowHint, min_mult=unit, max_mult=unit),
+        # `boolean` is excluded: the §5 floor caps `min_ms` on a boolean turn,
+        # which is itself a narrowing and would confound this with property 8.
+        expected_answer=st.none() | NON_BOOLEAN_ANSWERS,
+    )
+
+
 def _assert_within_clamps(config: TurnConfig) -> None:
     assert arbiter.MIN_MS_FLOOR <= config.min_turn_silence_ms <= arbiter.MIN_MS_CEIL, (
         f"min_turn_silence_ms={config.min_turn_silence_ms} is outside the §4 "
@@ -232,7 +258,6 @@ def test_the_expected_answer_domain_is_complete() -> None:
     assert len(strategies.EXPECTED_ANSWERS) == len(declared) == 8
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(state=strategies.arbiter_inputs())
 def test_output_is_always_within_the_hard_clamps(state: arbiter.ArbiterInput) -> None:
@@ -258,7 +283,6 @@ def test_output_is_always_within_the_hard_clamps(state: arbiter.ArbiterInput) ->
         _assert_within_clamps(patch.config)
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(state=strategies.arbiter_inputs())
 def test_max_ms_always_clears_min_ms_by_the_invariant_gap(
@@ -318,7 +342,6 @@ def test_max_ms_always_clears_min_ms_by_the_invariant_gap(
         "of that spread the ceiling subtracts before this assertion means anything."
     ),
 )
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(state=strategies.arbiter_inputs())
 def test_max_ms_stays_under_the_ceiling_less_the_measured_overhead(
@@ -334,7 +357,6 @@ def test_max_ms_stays_under_the_ceiling_less_the_measured_overhead(
     assert config.max_turn_silence_ms <= state.ceiling_ms - arbiter.ENDPOINT_OVERHEAD_MS
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(
     features=strategies.speaker_features(),
@@ -375,7 +397,6 @@ def test_raising_disfluency_never_lowers_max_turn_silence(
     )
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(state=strategies.arbiter_inputs())
 def test_deciding_twice_on_the_same_state_is_idempotent(
@@ -413,39 +434,8 @@ def test_deciding_twice_on_the_same_state_is_idempotent(
     )
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
-@given(
-    state=strategies.arbiter_inputs(
-        # A wide config already in force, and a speaker who no longer needs it:
-        # warm, fluent, with gap quantiles near zero, so the law's target sits at
-        # the bottom clamps and a large narrowing is what it asks for.
-        current=strategies.turn_configs(
-            min_ms=st.integers(min_value=500, max_value=900),
-            max_ms=st.integers(min_value=2000, max_value=4000),
-        ),
-        features=strategies.speaker_features(
-            warm=True,
-            disfluency=st.just(0.0),
-            gaps_ms=st.floats(
-                min_value=0.0, max_value=50.0, allow_nan=False, allow_infinity=False
-            ),
-        ),
-        hint=st.builds(
-            WindowHint,
-            min_mult=st.floats(
-                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-            ),
-            max_mult=st.floats(
-                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-            ),
-        ),
-        # `boolean` is excluded: the §5 floor guard caps `min_ms` at 400 on a
-        # boolean turn, which is itself a narrowing and would confound this
-        # property with property 8.
-        expected_answer=st.none() | NON_BOOLEAN_ANSWERS,
-    )
-)
+@given(state=_narrowing_states())
 def test_narrowing_never_exceeds_one_step_per_turn(
     state: arbiter.ArbiterInput,
 ) -> None:
@@ -480,24 +470,8 @@ def test_narrowing_never_exceeds_one_step_per_turn(
         )
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
-@given(
-    state=strategies.arbiter_inputs(
-        current=strategies.turn_configs(
-            min_ms=st.integers(min_value=500, max_value=900),
-            max_ms=st.integers(min_value=2000, max_value=4000),
-        ),
-        features=strategies.speaker_features(
-            warm=True,
-            disfluency=st.just(0.0),
-            gaps_ms=st.floats(
-                min_value=0.0, max_value=50.0, allow_nan=False, allow_infinity=False
-            ),
-        ),
-        expected_answer=st.none() | NON_BOOLEAN_ANSWERS,
-    )
-)
+@given(state=_narrowing_states())
 def test_a_narrowing_is_reachable_at_all(state: arbiter.ArbiterInput) -> None:
     """Companion to property 6, and the reason it is not vacuous.
 
@@ -540,6 +514,82 @@ def test_a_narrowing_is_reachable_at_all(state: arbiter.ArbiterInput) -> None:
     )
 
 
+@PROPERTY_SETTINGS
+@given(
+    state=strategies.arbiter_inputs(
+        # The mirror of the narrowing domain: a narrow config already in force,
+        # and a speaker who plainly needs more room than it gives them.
+        current=strategies.turn_configs(
+            min_ms=st.integers(min_value=arbiter.MIN_MS_FLOOR, max_value=300),
+            max_ms=st.integers(min_value=arbiter.MAX_MS_FLOOR, max_value=800),
+        ),
+        features=strategies.speaker_features(
+            warm=True,
+            disfluency=st.floats(
+                min_value=0.5, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
+            gaps_ms=st.floats(
+                min_value=1200.0,
+                max_value=float(GAP_CLAMP_MAX_MS),
+                allow_nan=False,
+                allow_infinity=False,
+            ),
+        ),
+        hint=st.builds(
+            WindowHint,
+            min_mult=st.floats(
+                min_value=1.0, max_value=2.4, allow_nan=False, allow_infinity=False
+            ),
+            max_mult=st.floats(
+                min_value=1.0, max_value=2.4, allow_nan=False, allow_infinity=False
+            ),
+        ),
+        expected_answer=st.none() | NON_BOOLEAN_ANSWERS,
+    )
+)
+def test_a_widening_is_reachable_at_all(state: arbiter.ArbiterInput) -> None:
+    """The twin of `test_a_narrowing_is_reachable_at_all`, and owed by ADR-022.
+
+    ADR-022 caps widening at `WIDEN_STEP` where §5 previously made it immediate,
+    because an unbounded widening let one spurious early estimate park `max_ms` at
+    `MAX_MS_CEIL` for the 19 turns narrowing needs to undo it. A cap introduces the
+    failure mode its sibling already has: **a step cap that cannot clear the
+    hysteresis gate suppresses the very movement it was meant to bound.** That is
+    the 12-against-15 arithmetic of ADR-020, and `WIDEN_STEP` at 25 % against
+    `HYST = 15 %` is the same shape of question asked of different numbers.
+
+    It is not the same answer, and the reason is worth stating rather than
+    assuming: 25 % exceeds 15 %, so a full widening step clears the gate on its own
+    arithmetic where a full narrowing step does not. But that is an argument about
+    two constants, and either can move by ADR. This test is what makes it a fact —
+    move `WIDEN_STEP` to 0.12 and it goes red, which is precisely the outcome
+    `test_a_narrowing_is_reachable_at_all` exists to produce for the other
+    direction.
+
+    The domain is the narrowing test's mirror. `current` is drawn narrow —
+    `min_turn_silence` in `[160, 300]`, `max_turn_silence` in `[400, 800]`. The
+    speaker is warm with gap quantiles in `[1200, 6000]` ms and disfluency in
+    `[0.5, 1.0]`, so the §4 law wants a window several times wider than what is in
+    force. Multipliers are drawn in `[1.0, 2.4]`, CONTROL_SPEC §3's own widening
+    range, so the context axis cannot cancel the speaker axis. `boolean` is
+    excluded for the same reason as in the narrowing test: its §5 floor caps
+    `min_ms`, which is a narrowing, and would confound the two directions.
+    """
+    patch = _engine(state).decide(state)
+    assert patch is not None, (
+        "no decision emitted over a domain built to demand a large widening"
+    )
+    widened = (
+        patch.config.min_turn_silence_ms > state.current.min_turn_silence_ms
+        or patch.config.max_turn_silence_ms > state.current.max_turn_silence_ms
+    )
+    assert widened, (
+        "a warm, disfluent speaker on a narrow config produced no widening at all. "
+        "If this is HYST suppressing a WIDEN_STEP-sized step, the two §5 constants "
+        "are in conflict and one of them moves by ADR — see this test's docstring"
+    )
+
+
 @contextmanager
 def _no_io() -> Iterator[None]:
     """Make the two I/O primitives of §9 property 7 raise for the duration.
@@ -570,7 +620,6 @@ def _no_io() -> Iterator[None]:
         yield
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(state=strategies.arbiter_inputs())
 def test_decide_performs_no_io(state: arbiter.ArbiterInput) -> None:
@@ -586,7 +635,6 @@ def test_decide_performs_no_io(state: arbiter.ArbiterInput) -> None:
         engine.decide(state)
 
 
-@STUB_XFAIL
 @PROPERTY_SETTINGS
 @given(
     state=strategies.arbiter_inputs(
@@ -627,4 +675,79 @@ def test_a_boolean_turn_never_leaves_min_above_the_floor_cap(
         f"a boolean turn is left with min_turn_silence_ms="
         f"{effective.min_turn_silence_ms}, above the §5 cap of "
         f"{arbiter.BOOLEAN_MIN_MS_CAP}; yes/no has to stay snappy"
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "UNRESOLVED §5-vs-§5 conflict, found by Gate 3's impossible-value sweep and "
+        "not resolved here. The boolean floor guard says `min_ms` never exceeds 400 "
+        "on a boolean turn; asymmetric decay caps a narrowing at NARROW_STEP = 12 % "
+        "of the reference. From a reference of 900 ms the cap is 7 turns away, so a "
+        "boolean turn inherits whatever the previous caller-state left in force and "
+        "is not snappy for most of a short call. Measured: 6889 of 49233 emitted "
+        "patches leave a boolean turn above the cap. Needs an ADR — see the "
+        "docstring for both readings."
+    ),
+)
+@PROPERTY_SETTINGS
+@given(
+    state=strategies.arbiter_inputs(
+        expected_answer=st.just("boolean"),
+        # The half of the domain §9 property 8 excludes: a slow config already in
+        # force, so satisfying the cap requires a narrowing.
+        current=strategies.turn_configs(
+            min_ms=st.integers(
+                min_value=arbiter.BOOLEAN_MIN_MS_CAP + 1, max_value=arbiter.MIN_MS_CEIL
+            )
+        ),
+        features=strategies.speaker_features(warm=True),
+    )
+)
+def test_a_boolean_turn_is_capped_even_from_a_slow_reference(
+    state: arbiter.ArbiterInput,
+) -> None:
+    """§5's boolean floor against §5's asymmetric decay. **Unresolved.**
+
+    §9 property 8 passes, and it passes because its domain draws
+    `current.min_turn_silence_ms` at or below the cap — a restriction written at
+    Gate 1 with its reason recorded, precisely because this conflict was visible
+    then and had no ADR. This test is the other half of that domain, and it
+    fails. Gate 3's impossible-value sweep put a number on it: **6889 of 49233
+    emitted patches leave a boolean turn with `min_turn_silence_ms` above 400.**
+
+    The arithmetic. From a reference of 900 ms, reaching the 400 ms cap at
+    `NARROW_STEP = 12 %` per turn takes `ln(900/400) / -ln(0.88) = 6.35`, so
+    **7 turns**. §5's stated reason for the guard is "yes/no must stay snappy".
+    Seven turns is not snappy, and a hesitant caller who has widened the window
+    and is then asked a yes/no question is exactly who meets this.
+
+    Two readings, and this file does not choose between them (CLAUDE.md §5):
+
+    (a) **The cap is absolute and exempt from decay.** §5's reason is about the
+        value in force, so the guard outranks the decay limit on this one field.
+        Cost: a single boolean turn can collapse `min_ms` by more than
+        `NARROW_STEP`, so §9 property 6's bound acquires an exception and has to
+        say so — an unqualified property with a carve-out is how vacuous tests
+        start.
+    (b) **The cap is on the law's target and decay applies.** The guard describes
+        what the law may ask for, not what is in force. Cost: §5's "never
+        exceeds 400" is false as written and needs rewording, and the snappiness
+        §5 promises arrives up to seven turns late.
+
+    (a) matches §5's stated reason and (b) matches §5's stated mechanism, which is
+    why it needs an ADR rather than a judgement call in an implementation.
+
+    `strict=True` and `raises=AssertionError`: this must fail for the stated
+    reason and no other, and the moment an ADR resolves it the strict marker turns
+    the pass into a failure that has to be read.
+    """
+    patch = _engine(state).decide(state)
+    effective = state.current if patch is None else patch.config
+    assert effective.min_turn_silence_ms <= arbiter.BOOLEAN_MIN_MS_CAP, (
+        f"a boolean turn is left at min_turn_silence_ms="
+        f"{effective.min_turn_silence_ms}, above the §5 cap of "
+        f"{arbiter.BOOLEAN_MIN_MS_CAP}"
     )

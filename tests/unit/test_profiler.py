@@ -20,6 +20,7 @@ from nod_core.profiler import (
     ExactQuantile,
     P2Quantile,
     Profiler,
+    ProfilerState,
 )
 from nod_core.types import Cut, Turn, Word
 
@@ -675,3 +676,43 @@ def test_overlapping_word_timings_cannot_produce_a_negative_gap() -> None:
     assert features.n_gaps == 2
     assert features.g_p50_ms == 0.0, "an overlap must clamp to 0, not go negative"
     assert features.g_p90_ms >= 0.0
+
+
+def test_features_clamps_an_inverted_profile_it_is_handed() -> None:
+    """ADR-023's repair, exercised deterministically because it can no longer be
+    exercised statistically.
+
+    Added at Gate 3 because the repair became **unfalsifiable by the property
+    test that was meant to guard it**. `test_features_never_reports_an_inverted_profile`
+    draws realistic turn streams, and ADR-022 raised `MIN_GAPS_FOR_WARM` from 8 to
+    24 in the same sitting — measured, the inversion runs 0.120 % of streams at
+    `n` in `[8, 23]` and **0 of 20 000** at `n` in `[24, 400]`. So the property
+    passes with the repair removed: the condition simply does not arise in its
+    domain, which is CLAUDE.md §5's test that cannot go red.
+
+    Two independently derived ADRs, one substantially subsuming the other, and
+    neither noticed. The repair stays — it is one comparison, 0 of 20 000 is an
+    upper bound rather than a proof, and `features()` is called for cold profiles
+    too, where `n_gaps` is below the threshold by definition. But it needs a test
+    that can fail, and the only deterministic route to an inverted profile is to
+    hand one in: `restore` accepts a `ProfilerState` built by a caller, and
+    `restore`'s own docstring already notes that a hand-built state no profiler
+    could have produced is the one case it does not round-trip.
+    """
+    inverted = ProfilerState(
+        n_gaps=40,
+        g_p50_ms=800.0,
+        g_p90_ms=400.0,
+        speech_rate=2.4,
+        disfluency=0.1,
+        jitter=0.0,
+        recent_cuts=0.0,
+        last_turn_order=6,
+    )
+    features = Profiler.restore(inverted).features()
+    assert features.g_p50_ms == 800.0
+    assert features.g_p90_ms == 800.0, (
+        f"g_p90 reported as {features.g_p90_ms} below g_p50=800; the ADR-023 "
+        "repair did not fire on a profile it was handed"
+    )
+    assert features.g_p90_ms >= features.g_p50_ms

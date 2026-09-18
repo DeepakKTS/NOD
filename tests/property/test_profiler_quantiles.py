@@ -346,30 +346,38 @@ def test_g_p90_can_never_be_negative_or_beyond_the_clamp(
         assert 0.0 <= value <= GAP_CLAMP_MAX_MS, f"{name}={value} left the clamp"
 
 
-def test_two_independent_estimators_can_report_p90_below_p50() -> None:
-    """**Measured, not hypothetical: the profiler can emit an impossible state.**
+def test_the_raw_estimators_can_still_invert_so_the_repair_is_not_dead() -> None:
+    """The condition ADR-023 repairs is still reachable, at small `n`.
 
-    `g_p90 < g_p50` cannot be true of any real sample set — they are two quantiles
-    of one population. CONTROL_SPEC §2.1 says "maintain P² estimators for `g_p50`
-    and `g_p90`", two estimators, and says nothing about coupling them. Nothing
-    does: they approximate independently, so their errors are independent and the
-    order can invert.
+    Its job changed at Gate 3 and ADR-023 predicted the change: it used to assert
+    the inversion is reachable *through the profiler*, and after the repair
+    `features()` can no longer report one. So it now guards the other side — that
+    the repair is not dead code sitting over a condition that cannot occur.
 
-    Searched for by asking what value the pair could not take, and found: over
-    20 000 random streams the inversion occurred 28 times, 0.14 %, worst inversion
-    146 ms. This test pins one reproducing case so the behaviour is known rather
-    than latent.
+    **The sample range is pinned at `[8, 400]` and deliberately not tied to
+    `MIN_GAPS_FOR_WARM`**, because the constant moved underneath this test and
+    that is the finding. Measured at Gate 3:
 
-    Not repaired here, deliberately. Changing what `features()` reports is a change
-    to the control law's inputs, and CONTROL_SPEC §0 makes that an ADR rather than
-    a commit. The Gate 2 report carries the readings; what matters for now is that
-    it is written down and that `tests/property/strategies.py` no longer claims the
-    state is unreachable.
+    | `n` range | inversion rate | worst inversion |
+    |---|---|---|
+    | `[8, 23]` | 0.120 % | 317 ms |
+    | `[8, 40]` | 0.050 % | 347 ms |
+    | `[8, 400]` | 0.015 % | 288 ms |
+    | `[24, 400]` | **0 of 20 000** | — |
+
+    The inversion is almost entirely a small-`n` phenomenon, so **ADR-022's rise
+    of the warm threshold from 8 to 24 substantially subsumes ADR-023's repair**.
+    The two were derived independently in the same sitting and neither noticed the
+    other. The repair stays: it is one comparison, 0 of 20 000 is an upper bound
+    rather than a proof, and `features()` is called for cold profiles too, where
+    `n_gaps` is below the threshold by definition. But ADR-023's stated 0.14 % is
+    a rate over a range the *warm* path will no longer consult, and the Gate 3
+    report says so.
     """
     rng = random.Random(17)  # noqa: S311 — a seeded statistical fixture, not a secret
     found: tuple[float, float] | None = None
-    for _ in range(20_000):
-        size = rng.randint(MIN_GAPS_FOR_WARM, 400)
+    for _ in range(40_000):
+        size = rng.randint(8, 400)
         stream = [
             min(
                 max(rng.choice((rng.gauss(150, 30), rng.gauss(2500, 200))), 0.0), 6000.0
@@ -384,9 +392,9 @@ def test_two_independent_estimators_can_report_p90_below_p50() -> None:
             found = (p50.value, p90.value)
             break
     assert found is not None, (
-        "no inversion found in 20 000 streams. If the estimators have since been "
-        "coupled — by an ADR that repairs the order — this test has done its job "
-        "and should be replaced by one asserting g_p90 >= g_p50 always."
+        "no inversion in 40 000 streams over n in [8, 400]. If P2Quantile has "
+        "since been changed so the two estimators cannot invert, ADR-023's repair "
+        "is dead code and should be removed by an ADR rather than left in place."
     )
     assert found[1] < found[0]
 
@@ -576,4 +584,28 @@ def test_bisect_is_not_needed_to_state_the_rank_error() -> None:
     assert not below <= 0.90 <= above, (
         "P2 now places its p90 inside the correct tie block on this stream; the "
         "rank-error figure in the module docstring needs re-measuring"
+    )
+
+
+@PROPERTY_SETTINGS
+@given(turns=_turn_streams(), exact=st.booleans())
+def test_features_never_reports_an_inverted_profile(
+    turns: list[Turn], exact: bool
+) -> None:
+    """ADR-023, from the other end: whatever the estimators do, the report is sane.
+
+    `g_p90 >= g_p50` is arithmetic, not an approximation, so this needs no
+    tolerance and holds for every stream. It is the property
+    `strategies.speaker_features()` assumed at Gate 1 on the wrong grounds — it
+    read "a state violating this is one the profiler cannot emit", which was false
+    until the repair landed and is true by construction now. This test is what
+    makes that "by construction" checkable rather than asserted.
+    """
+    profiler = Profiler(exact_quantiles=exact)
+    for turn in turns:
+        profiler.observe_turn(turn)
+    features = profiler.features()
+    assert features.g_p90_ms >= features.g_p50_ms, (
+        f"features() reported g_p90={features.g_p90_ms} below "
+        f"g_p50={features.g_p50_ms}; the ADR-023 repair did not fire"
     )

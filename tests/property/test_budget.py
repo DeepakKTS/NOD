@@ -68,9 +68,11 @@ reimplemented so this number is computed the same way as every published latency
 figure (BENCH_SPEC §5), and because ADR-018 records interpolation understating the
 tail as one of Phase 1's four flattering-direction errors.
 
-`decide()` is a stub today, so this is `xfail(strict=True)`: the moment P5
-implements it, the marker turns the pass into a loud failure and whoever landed
-the law has to read the measured numbers rather than discover this file later.
+The `xfail(strict=True)` marker this file carried through Gates 1 and 2 is gone
+as of Gate 3: `decide()` exists, so the measurement above is live. It did its job
+on the way past — the moment the law landed, the marker turned the pass into a
+failure that had to be read, which is how the numbers in the Gate 3 report came to
+be looked at rather than assumed.
 """
 
 from __future__ import annotations
@@ -78,8 +80,6 @@ from __future__ import annotations
 import random
 import time
 from typing import Final
-
-import pytest
 
 from nod_bench.metrics import DECIDE_BUDGET_MS, quantile
 from nod_core.arbiter import (
@@ -197,12 +197,6 @@ def _states(rng: random.Random, count: int) -> tuple[ArbiterInput, ...]:
     return tuple(states)
 
 
-@pytest.mark.xfail(
-    raises=NotImplementedError,
-    strict=True,
-    reason="decide() is a P5 stub. The measurement below is the real one; it runs "
-    "as written the moment decide() exists.",
-)
 def test_decide_holds_the_latency_budget() -> None:
     """INV-2: `decide()` p99 under 5 ms, mean under 200 µs.
 
