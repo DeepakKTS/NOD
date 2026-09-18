@@ -115,15 +115,22 @@ the conflict arithmetically: `min_ms <= MIN_MS_CEIL` always, so `min_ms + 200 <=
 1100 <= ceiling_ms`, and the `min()` cannot drop `max_ms` below `min_ms + 200`.
 `DEFAULT_CEILING_MS` is 2600, well inside.
 
-Two readings of §4 are open and the ambiguity is not resolved here (CLAUDE.md §5):
-(a) the ordering is deliberate, the ceiling outranks the invariant, and a
-    deployment configuring a ceiling under 1100 ms has asked for `max < min + 200`;
-(b) the ordering is incidental, the invariant is the invariant, and the repair
-    should be re-applied after the ceiling — or the ceiling clamped to
-    `MIN_MS_CEIL + INVARIANT_GAP_MS` at load.
-Widen this bound once that is settled by ADR. It currently costs nothing, since
-no deployment sets a ceiling that low, and it is recorded so the restriction is
-not mistaken for a claim that low ceilings are safe.
+**Settled by ADR-021, and this bound does not widen.** A `ceiling_ms` below
+1100 ms is not a valid configuration: `Settings` rejects it at process startup
+and `SessionProxy` clamps a per-connection override up to it. §4's ordering stays
+verbatim and repair is not re-applied after the ceiling, because a law that
+applies a ceiling and then knowingly raises `max_ms` back above it returns a
+config violating the ceiling on purpose, every turn, silently.
+
+So the restriction below is **spec-backed rather than a convenience**. It was
+written as a deliberate narrowing with both readings noted, on the grounds that a
+property failing on an unreachable state reports a bug that does not exist; under
+ADR-021 that state is unreachable by construction, and this domain is the whole of
+the valid domain rather than a safe corner of it.
+
+Worth re-deriving when `ENDPOINT_OVERHEAD_MS` lands: the floor is stated against
+the ceiling *before* the overhead is subtracted, so a measured ~200 ms narrows the
+usable headroom. ADR-017's warning about inheriting a bound unexamined applies.
 """
 
 CEILING_MAX_MS: Final = 6000

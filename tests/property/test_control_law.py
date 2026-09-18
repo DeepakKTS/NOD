@@ -19,10 +19,15 @@ their own; if P5 lands without satisfying them, the strict marker turns the
 unexpected pass into a failure rather than letting it slip by.
 
 Two §5 guard conflicts were found by writing these rather than by reading §5, and
-both are recorded where they bite rather than resolved here:
-`strategies.CEILING_FLOOR_MS` (the ceiling outranks the invariant repair) and
-`test_a_narrowing_is_reachable_at_all` (`NARROW_STEP` = 12 % cannot clear
-`HYST` = 15 %).
+both are now settled by ADR — the properties came first and the decisions followed
+them, which is the order this gate exists to produce:
+
+- `NARROW_STEP` = 12 % cannot clear `HYST` = 15 %, so narrowing was unreachable.
+  **ADR-020**: hysteresis gates the law's target, decay bounds the emitted step.
+  No constant moved. See `test_a_narrowing_is_reachable_at_all`.
+- the latency ceiling could undo the invariant repair below `ceiling_ms` 1100.
+  **ADR-021**: that ceiling is rejected at configuration; §4's ordering stays.
+  See `strategies.CEILING_FLOOR_MS`.
 """
 
 from __future__ import annotations
@@ -268,8 +273,16 @@ def test_max_ms_always_clears_min_ms_by_the_invariant_gap(
 
     The domain excludes `ceiling_ms` below `CEILING_FLOOR_MS`, because §4 applies
     the ceiling *after* the invariant repair and a low enough ceiling therefore
-    breaks this property by the spec's own ordering. That restriction and the two
-    readings it leaves open are recorded at `strategies.CEILING_FLOOR_MS`.
+    breaks this property by the spec's own ordering. ADR-021 settles that by making
+    such a ceiling an invalid configuration rather than by re-ordering §4, so the
+    exclusion is the boundary of the valid domain and not a corner of it. The
+    arithmetic is at `strategies.CEILING_FLOOR_MS`.
+
+    Asserted on `decide()`'s output as well as the law's, which is load-bearing
+    under ADR-020: asymmetric decay applies per field, so a reference config
+    sitting at `max = min + 200` narrowed 12 % on both fields leaves a gap of
+    176 ms. ADR-020 step 4 re-applies repair after decay for exactly this reason,
+    and this is the property that catches it if it is skipped.
     """
     law = arbiter.control_law(
         state.features,
@@ -379,14 +392,13 @@ def test_deciding_twice_on_the_same_state_is_idempotent(
        record that varies run to run is a reason line the console cannot reproduce.
     2. **Suppression.** The second call on the *same* arbiter emits nothing.
 
-    Claim 2 forces a design choice that is worth stating before the law exists:
-    the caller passes the identical `ArbiterInput` both times, so `state.current`
-    has not moved. If hysteresis compared the law's target against
-    `state.current`, the second call would clear the threshold exactly as the
-    first did and emit again. It cannot, so **the arbiter has to remember the
-    configuration it last emitted and gate against that**, not against the
-    `current` its caller hands it. That is the implementable reading of §5
-    Hysteresis, and this property is where it is fixed.
+    Claim 2 forces a design choice, and it is now **ADR-020**: the caller passes
+    the identical `ArbiterInput` both times, so `state.current` has not moved. If
+    hysteresis compared the law's target against `state.current`, the second call
+    would clear the threshold exactly as the first did and emit again. It cannot,
+    so the arbiter remembers the configuration it last emitted and gates against
+    that, falling back to `state.current` only before it has emitted anything.
+    This property is what that ADR was written from.
     """
     engine = _engine(state)
     first = engine.decide(state)
@@ -489,31 +501,28 @@ def test_narrowing_never_exceeds_one_step_per_turn(
 def test_a_narrowing_is_reachable_at_all(state: arbiter.ArbiterInput) -> None:
     """Companion to property 6, and the reason it is not vacuous.
 
-    **§5's two guards contradict each other as written, and this test is where
-    that surfaces.** Hysteresis emits "only if any field moves more than
+    **This test found a contradiction in §5 and is now the guard on its
+    resolution.** Hysteresis emits "only if any field moves more than
     `HYST = 15 %` of its current value". Asymmetric decay says "narrowing applies
-    at most `NARROW_STEP = 12 %` per turn". Twelve is less than fifteen, so under
-    the reading where both guards apply in series to the emitted value, *every*
-    narrowing step is smaller than the threshold that would let it out. Narrowing
-    becomes unreachable and the controller is a one-way ratchet that only ever
-    widens, drifting to `MAX_MS_CEIL` over a long call.
+    at most `NARROW_STEP = 12 %` per turn". Twelve is less than fifteen, so if both
+    guards applied in series to the emitted value, *every* narrowing step would be
+    smaller than the threshold that lets it out: narrowing unreachable, and the
+    controller a one-way ratchet drifting to `MAX_MS_CEIL` over a long call. That
+    would serve a caller who becomes fluent mid-call **worse than the static
+    `balanced` arm**, which is the project's premise inverted.
 
-    Property 6 alone cannot see this. Its assertion is guarded on a patch that
+    **ADR-020 resolves it**: hysteresis gates the law's *target*, asymmetric decay
+    bounds the *step* emitted, and no constant moves. This test is what makes that
+    ordering checkable — an implementation that reverts to guards-in-series goes
+    red here and nowhere else.
+
+    Property 6 alone cannot carry it. Its assertion is guarded on a patch that
     narrows, so a law that never narrows satisfies it by never reaching the
-    assertion — a test that cannot go red, which is the defect CLAUDE.md §5
-    catalogues. This test supplies the missing half: over a domain that demands a
-    large narrowing, at least one decision must actually emit one.
-
-    Two readings of §5, unresolved here (CLAUDE.md §5 — do not guess and build):
-    (a) **Guards in series on the emitted value.** Hysteresis compares the
-        post-decay value against `current`. Narrowing is dead; `NARROW_STEP` is a
-        constant with no effect, and one of the two constants has to move by ADR.
-    (b) **Hysteresis on the law's target, decay on the step.** Hysteresis asks
-        whether the law wants a materially different window; decay then limits how
-        far this turn travels towards it. Both guards keep their stated purpose and
-        the arithmetic works.
-    (b) is the only reading under which §9 property 6 is a live constraint, which
-    is the argument for it, but it is not this file's call to make.
+    assertion — a test that cannot go red, the defect CLAUDE.md §5 catalogues.
+    This test supplies the missing half: over a domain that demands a large
+    narrowing, at least one decision must actually emit one. §9 property 6 being a
+    live constraint only under ADR-020's reading is also the second argument for
+    that reading, since §9 was written against a law in which §9.6 does work.
     """
     patch = _engine(state).decide(state)
     assert patch is not None, (
@@ -584,9 +593,10 @@ def test_decide_performs_no_io(state: arbiter.ArbiterInput) -> None:
         expected_answer=st.just("boolean"),
         # `current.min` is drawn at or below the cap, so no narrowing is required
         # to satisfy the guard and the §5 decay limit cannot be what enforces it.
-        # Starting above the cap makes this property unsatisfiable in one turn
-        # under decay, which is a real conflict between two §5 guards and is
-        # recorded at `test_a_narrowing_is_reachable_at_all`.
+        # Starting above the cap would need more than one turn under ADR-020's
+        # decay bound — 900 ms reaches the 400 ms cap in about seven turns, not
+        # one — so drawing there would test decay's rate rather than the cap, and
+        # `test_narrowing_never_exceeds_one_step_per_turn` already owns that.
         current=strategies.turn_configs(
             min_ms=st.integers(
                 min_value=arbiter.MIN_MS_FLOOR, max_value=arbiter.BOOLEAN_MIN_MS_CAP

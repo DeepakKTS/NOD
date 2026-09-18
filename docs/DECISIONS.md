@@ -578,3 +578,148 @@ and it does not cover the uncertainty that dominates: every clip comes from one 
 voice, so the bootstrap resamples 120 draws from one prosody model and cannot see that
 limitation at all (ADR-018). The bars are therefore a **lower bound on total uncertainty**
 and must be read as one. Widening them is not the fix; real speech is.
+
+## ADR-020 — Hysteresis gates the target, asymmetric decay bounds the step
+2026-09-18 · Status: accepted
+Context: CONTROL_SPEC §5 states two guards and never states their order. Hysteresis emits
+"only if any field moves more than `HYST = 15 %` of its current value". Asymmetric decay
+says "narrowing applies at most `NARROW_STEP = 12 %` per turn". **Twelve is less than
+fifteen.** Read as two filters applied in series to the emitted value, every narrowing step
+a turn is permitted to take is smaller than the threshold that would let it out, so
+narrowing is unreachable and nothing else in §5 can reach it either. Found at Phase 2
+Gate 1 while writing §9 property 6, not from re-reading §5 — the arithmetic is only
+visible once something has to satisfy both guards at once (ADR-016's pattern, fifth
+instance).
+Decision: **reading (b).** Hysteresis gates on the **law's target**; asymmetric decay
+limits the **step actually emitted**. Concretely, per turn, where `reference` is the config
+this arbiter last emitted in this session and `state.current` before it has emitted any:
+
+1. `target = control_law(...)`.
+2. Hysteresis: emit nothing unless some field's `|target - reference|` exceeds
+   `HYST × reference` for that field.
+3. Decay, per field: widening takes `target` immediately; narrowing takes
+   `max(target, reference × (1 - NARROW_STEP))`.
+4. Re-apply §4's invariant repair, then §4's clamps, to the decayed result.
+
+**No constant moves.** `HYST` stays 0.15 and `NARROW_STEP` stays 0.12.
+
+Reasoning: the two guards have distinct stated purposes and §5 gives each its own reason.
+Hysteresis suppresses churn from noise — it asks whether the law wants a *materially
+different* window, and its enemy is socket chatter. Decay bounds rate of change — it asks
+how far this turn may travel towards a window the law already wants, and its enemy is one
+stumble making the agent permanently slow, or one crisp answer re-exposing the caller to
+cutting. Reading (a) collapses them into a single guard in which one cancels the other:
+`NARROW_STEP` becomes a constant with no reachable effect, and the controller is a **one-way
+ratchet**. Over a long call it only ever widens, drifting to `MAX_MS_CEIL`.
+
+That is the project's premise inverted, which is the argument that settles it. Nod exists
+because one static threshold cannot serve one caller whose rhythm changes. A ratchet serves
+a caller who *becomes* fluent mid-call **worse than the static `balanced` arm would** — the
+arm would at least have held 1280 ms, where the ratchet has by then parked at 4000. A
+control law that is beaten by its own baseline on a case the baseline handles by doing
+nothing is not a control law.
+
+Second, independent evidence: **§9 property 6 is a live constraint only under (b).** Under
+(a) no narrowing is ever emitted, so the property's bound is never reached and it passes
+vacuously — a test that cannot go red, which CLAUDE.md §5 treats as worse than no test.
+§9 was written against a law in which §9.6 does work, so (b) is what §9 assumed. §9.5
+points the same way and pins the reference: it requires a second decision on an unchanged
+state to emit nothing, which is only possible if hysteresis compares against the last
+*emitted* config rather than against `state.current`, since the caller passes the same
+`current` both times.
+
+**What changes in code.** Nothing yet — `decide()` is still a stub. This ADR fixes the
+order Gate 3 implements, so the ordering is not re-derived from §5's silence:
+- `Arbiter` carries the last-emitted `TurnConfig` as session state; hysteresis and decay
+  both measure against it, not against `ArbiterInput.current`. `current` remains the
+  session's starting reference and the host-override input.
+- Step 4 is not optional and is easy to miss. Decay applied per field can break §4's
+  invariant even when the target satisfied it: a `reference` at `max = min + 200` narrowed
+  12 % on both fields gives a gap of 176 ms. §9 properties 1 and 2 assert on `decide()`'s
+  output as well as on `control_law()`'s, so repair and clamps run again after decay.
+- Widening stays unbounded, so step 4 can only raise `max_ms`, and cannot reintroduce a
+  narrowing larger than `NARROW_STEP`.
+
+**What does not change.** `HYST_FRACTION`, `NARROW_STEP` and every other §5 constant.
+CONTROL_SPEC §4's law, which is upstream of all of this and untouched. `control_law()`'s
+signature and purity — the reference config is `Arbiter` state, and passing it into the
+pure law would make the law stateful for no gain. Nothing about widening.
+Consequence: §5's table remains silent on the ordering and this ADR is the authority until
+someone amends it, which is a documentation debt recorded here rather than a decision left
+open. The reference config is new session state in `Arbiter`, which is `O(1)` and does not
+touch INV-3. And narrowing is slow on purpose: at 12 % a turn, crossing
+1280→400 ms takes **10 turns** and 4000→400 takes **19**. That is §5's stated intent —
+one crisp answer must not immediately re-expose the caller to cutting — but it also bounds
+how much the ratchet of reading (a) would have cost even if it were later fixed, since a
+session parked at `MAX_MS_CEIL` needs 19 turns to recover and most calls do not have 19
+turns left.
+
+## ADR-021 — The ceiling is validated at configuration, not repaired per turn
+2026-09-18 · Status: accepted
+Context: CONTROL_SPEC §4 orders invariant repair before the latency ceiling:
+
+    max_ms = max(max_ms, min_ms + INVARIANT_GAP_MS)      # repair
+    max_ms = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)   # ceiling
+
+so the ceiling can undo the repair. With `ceiling_ms` at 500 and `min_ms` clamped to its
+900 ms maximum, the law returns `max_ms = 500`, below `min_ms + 200 = 1100`, and §9
+property 2 — "`max_ms >= min_ms + 200` always holds" — is false for a reason in the spec's
+own ordering rather than in any implementation of it. Found at Phase 2 Gate 1, from the same
+cause as ADR-020: a property test had to satisfy two §4 lines at once.
+Decision: **reading (b), by validating at the boundary.** `ceiling_ms` below
+`MIN_MS_CEIL + INVARIANT_GAP_MS` — **1100 ms** today — is not a valid configuration.
+§4's ordering is left exactly as written and repair is **not** re-applied after the ceiling.
+
+Because the ceiling arrives from two places, INV-8's own dev/call split governs which
+failure it gets, and this is the rule Gate 3 implements rather than chooses:
+- **Process configuration** (`NOD_CEILING_MS` via `Settings`): **reject.** A validation
+  error at startup, before any call exists. An operator who typed 600 has to learn that,
+  and a silent clamp to 1100 is exactly the kind of accommodation nobody discovers.
+- **Per-connection override** (`ceiling_ms` on `SessionProxy`, and `Voice.pacing_hint_ms`
+  feeding it on a mid-session voice switch): **clamp to 1100 and emit once.** Rejecting
+  here would drop a live call to enforce a latency preference, which INV-8 forbids
+  outright — fail loud in dev, fail soft in a call.
+
+Reasoning: the alternative is re-applying repair after the ceiling, and it defeats the
+guard it is meant to rescue. The ceiling exists so a fluent caller is not made to wait; a
+law that applies it and then knowingly raises `max_ms` back above it returns a config that
+violates the ceiling on purpose, every turn, silently. That trades a loud impossibility for
+a quiet wrong answer. Validating at the boundary keeps **both** guarantees intact — the
+invariant always holds and the ceiling is never exceeded — by refusing the one input under
+which they cannot both hold. It also fails once, at configuration, instead of on every turn
+of every call.
+
+`DEFAULT_CEILING_MS` is 2600, more than double the floor, so **no deployment is affected
+and this costs nothing today** — which is precisely why now is the time to settle it. The
+same decision taken after a deployment has configured 800 ms would be a migration.
+
+Recorded because it is load-bearing for Gate 1's tests: `tests/property/strategies.py`'s
+`CEILING_FLOOR_MS` restricts the drawn domain to `ceiling_ms >= 1100`, and that restriction
+is now **spec-backed rather than a convenience**. It was written as a deliberate narrowing
+with both readings noted, on the grounds that a property failing on an unreachable state
+reports a bug that does not exist. Under this ADR the state is unreachable by construction,
+so the domain is the whole of the valid domain and the docstring's "widen this bound once
+that is settled by ADR" is answered: it does not widen.
+
+**What changes in code.**
+- `nod_core.config.Settings` grows a lower-bound validator on the ceiling, deriving
+  `1100` from `MIN_MS_CEIL + INVARIANT_GAP_MS` rather than writing the literal, so the
+  floor follows the clamps it comes from.
+- `SessionProxy.__init__` clamps its `ceiling_ms` argument and emits a
+  `capability_degraded`-style event once per session when it does.
+- `tests/property/strategies.py`'s `CEILING_FLOOR_MS` docstring loses its open question and
+  cites this ADR.
+
+**What does not change.** CONTROL_SPEC §4's arithmetic and the order of its two lines,
+which stay verbatim — this ADR constrains the input, not the law. `control_law()`, which
+keeps trusting its `ceiling_ms` argument and stays pure; validation belongs at the boundary
+and putting it in the law would put a raise inside the 5 ms budget. `MIN_MS_CEIL`,
+`INVARIANT_GAP_MS`, `MAX_MS_FLOOR`, `MAX_MS_CEIL` and `DEFAULT_CEILING_MS`, none of which
+move. `ENDPOINT_OVERHEAD_MS`, still 0 and still owed by `make bench` (INV-9); note the floor
+is stated against the ceiling *before* the overhead is subtracted, so landing a measured
+overhead of ~200 ms narrows the usable headroom and this floor is worth re-deriving then —
+ADR-017's warning about inheriting a bound unexamined applies here too.
+Consequence: a deployment can no longer express "never wait more than one second", and gets
+a startup error rather than a controller that quietly violates its own invariant. That is
+the intended trade. §9 property 2 becomes true unconditionally over the valid domain, and
+§9 property 3 stays skipped and vacuous on its own terms until the overhead is measured.
