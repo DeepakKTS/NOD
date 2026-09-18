@@ -177,6 +177,23 @@ lines. That file is long-term memory; this file is the standing contract.
   not theorised: it made a passing assertion fail against a file that was correct both on
   disk and in git, and it can produce false greens as easily as false reds. Delete the
   bytecode on both write and restore, and set `PYTHONDONTWRITEBYTECODE` for the subprocess.
+- **Before trusting a metric, ask what value it could not possibly take.** Given how the
+  metric is defined and what the input contains, name a value that is impossible or
+  near-impossible — then confirm the metric does not report it. This is not mutation
+  testing and does not overlap with it: mutation testing asks whether a test would notice
+  a change to the *code*, while this asks whether the *number* is consistent with the data
+  it claims to summarise. A metric can be computed by correct, well-tested code over
+  ground truth that is wrong, and no mutation will ever reveal it.
+  Both times it has been applied it found a real defect:
+  - `certain_only` PCR reported 0.583 on the `aggressive` arm over a subset whose clips
+    contain no generator-created gap long enough for any arm to fire on. The only
+    admissible value was near 0. Pulling that thread found that source-intrinsic silences
+    were undescribed in the sidecar, and every PCR figure in the run was wrong.
+  - A TTL fixture claimed negative latencies are never clipped and passed with clipping
+    applied, because its only negative was the *minimum* and p50/p90/p99 never touch the
+    minimum. The impossible-value question — "what would this test report if clipping were
+    on?" — exposed that the pass was unrelated to the property named.
+  Do this before reporting a number, not after someone queries it.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
   the coverage gate, and a bench smoke test. If it fails, fix it; do not describe the
   failure and move on.

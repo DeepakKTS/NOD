@@ -467,3 +467,48 @@ that they do not overlap demonstrates subtraction. The PCR axis carries whatever
 information the chart has, because it depends on the corpus and on the regime labelling
 rather than on the configured gate. Any claim that the arms *differ* belongs to the live
 run at Phase 4 (BENCH_SPEC §4, INV-9).
+
+## ADR-018 — The truth sidecar must describe silences it did not create
+2026-09-17 · Status: accepted
+Context: `corpus.build` recorded only the gaps the *generator* inserted. Source speech
+contains its own inter-word pauses — up to 250 ms in the seed segments — and those were
+absent from the sidecar, so `regime_at` fell through to its `complete` fallback and scored
+them as post-complete. A pause in the middle of an utterance was therefore governed by
+`min_turn_silence` rather than `max_turn_silence`, and on `aggressive` (minimum 160 ms) it
+fired a boundary that PCR then counted as a premature cutoff of an utterance the speaker
+was still inside. Every PCR and FRAG figure in the run was wrong.
+
+| arm | PCR before | PCR after | FRAG before | FRAG after | certain-only PCR |
+|---|---|---|---|---|---|
+| `aggressive` | 0.825 | **0.700** | 2.417 | 1.967 | 0.583 → **0.000** |
+| `balanced` | 0.575 | **0.350** | 1.658 | 1.350 | 0.194 → **0.000** |
+| `conservative` | 0.158 | **0.008** | 1.158 | 1.008 | 0.000 → 0.000 |
+
+Decision: `corpus.build` detects silences already present in the source and records them as
+`origin="source_intrinsic"`, `preceding="fragment"`, `certainty="ambiguous"` — fragment
+because the speaker is by construction mid-utterance, ambiguous for the same reason `pause`
+is, since a natural pause can fall where a clause ends and the detector reads level, not
+meaning. The `complete` fallback in `regime_at` stays, because a silence genuinely outside
+any described gap is the end of the clip; what changes is that far fewer silences are now
+undescribed.
+Consequence: PCR fell by 12.5, 22.5 and 15.0 points. **The error ran in the flattering
+direction**: the headline `balanced` baseline was overstated by 22.5 points, so the room a
+controller has to improve on it looked half again as large as it is. `certain_only`
+collapsed from 0.583/0.194 to 0.000 across all three arms, confirming ADR-017's warning
+that agreement in that scope is not corroboration — at n=15 it discriminates nothing.
+
+**Third flattering-direction error this phase**, which is a pattern rather than a
+coincidence and is recorded as one:
+1. A search summary attributed the `conservative` quick-start triple (0.4 / 800 / 3600) to
+   the `aggressive` arm. An `aggressive` baseline waiting 800/3600 ms would have inflated
+   its own premature-cutoff rate and made every adaptive result look better by comparison
+   (BENCH_SPEC §3).
+2. The default percentile definition (linear interpolation) reports p90 as 82 ms where
+   nearest-rank reports 90 ms on the same nine samples — understating the tail that the
+   latency claim is about (BENCH_SPEC §5).
+3. This one.
+None was deliberate and each had an ordinary cause. What they share is direction: every
+one, uncaught, would have made Nod look better. That asymmetry is the signal — errors with
+no stake in the outcome scatter, and these did not. Treat a convenient result as
+provisional until the mechanism behind it has been checked, and give a number that favours
+the project more scrutiny than one that does not.
