@@ -23,8 +23,19 @@ Stops one pathological silence from poisoning the estimator (CONTROL_SPEC.md
 §2.1, EC-14).
 """
 
-MIN_GAPS_FOR_WARM: Final = 8
-"""Gaps required before the quantiles may be consulted (CONTROL_SPEC.md §2.1)."""
+MIN_GAPS_FOR_WARM: Final = 24
+"""Gaps required before the quantiles may be consulted (CONTROL_SPEC.md §2.1).
+
+**Was 8 until ADR-022.** At 8 gaps P² knows very little: on the digit-reading
+pause shape, 74.5 % median relative error and 1107 ms median absolute, which the
+§4 law turns into 1772 ms of `max_turn_silence` error at the *median* rather than
+in the tail. 24 is derived in ADR-022 against one hysteresis band at the hesitant
+operating point (398 ms); 16 was measured at 788 ms and rejected.
+
+Raising this alone is not sufficient and is not meant to be — ADR-022's companion
+change is `arbiter.WIDEN_STEP`, because no threshold on this estimator is safe
+enough to trust an unbounded widening.
+"""
 
 GAP_RING_CAPACITY: Final = 256
 """`G` in the complexity table of ARCHITECTURE.md §4. Samples."""
@@ -801,10 +812,21 @@ class Profiler:
             invent a value, so the placeholder cannot leak past this method.
         """
         has_gaps = self._n_gaps > 0
+        g_p50 = self._g_p50.value if has_gaps else 0.0
+        g_p90 = self._g_p90.value if has_gaps else 0.0
+        # ADR-023. The two estimators are independent, so their errors are
+        # independent and the order can invert — measured at 0.14 % of streams,
+        # worst 146 ms. An inverted profile describes no speaker, and §4's
+        # invariant repair would not catch it: that repair prevents
+        # `max_ms < min_ms`, a statement about outputs, and would lift `max_ms`
+        # to `min_ms + 200` leaving a window that looks lawful and was computed
+        # from nonsense, with no trace. Monotone in `g_p90`, so §9 property 4
+        # survives; one comparison, so INV-2 does not notice.
+        g_p90 = max(g_p90, g_p50)
         return SpeakerFeatures(
             n_gaps=self._n_gaps,
-            g_p50_ms=self._g_p50.value if has_gaps else 0.0,
-            g_p90_ms=self._g_p90.value if has_gaps else 0.0,
+            g_p50_ms=g_p50,
+            g_p90_ms=g_p90,
             speech_rate=self._speech_rate,
             disfluency=self._disfluency,
             jitter=self._jitter,
