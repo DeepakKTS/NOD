@@ -60,6 +60,7 @@ CONTROL_TESTS: Final = (
     "tests/property/test_budget.py",
 )
 POLICY_TESTS: Final = ("tests/unit/test_policy.py",)
+PROXY_TESTS: Final = ("tests/unit/test_proxy.py",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -552,10 +553,115 @@ def _policy_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _proxy_mutations() -> tuple[Mutation, ...]:
+    """`proxy.py`'s two first-tier paths, and only those.
+
+    CLAUDE.md §5 puts `send_patch_upstream` and `run_controller`'s `SAFE` path in
+    the non-negotiable tier and the rest of the module in the accepted-thinner
+    one. The reason is the failure direction: a broken audio pump is a silent
+    call and a broken rotation is a dropped session, and nobody ships either by
+    accident. These two fail *invisibly and in the flattering direction* — a
+    patch computed, traced and never applied, or a controller quietly holding
+    last-known-good, both produce a run that looks like `nod` and behaves like
+    `balanced`, so the arm gets measured under the wrong label.
+
+    No mutations for `pump_audio_up`, `pump_events_down`, `rotate` or `aclose`.
+    That is the tier decision, taken deliberately rather than by omission.
+    """
+    src = "src/nod_core/proxy.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, PROXY_TESTS)
+
+    return (
+        # send_patch_upstream: did the patch reach the socket, with its values?
+        mutation(
+            "send: never call update_configuration",
+            "                await self._upstream.update_configuration(payload)",
+            "                pass",
+        ),
+        mutation(
+            "send: send an empty payload",
+            "        if not payload:\n            return",
+            "        payload = {}",
+        ),
+        mutation(
+            "send: ignore the host override when building the payload (EC-33)",
+            "            if field in patch_fields and field not in held",
+            "            if field in patch_fields",
+        ),
+        mutation(
+            "send: advance config_in_force before the send is confirmed",
+            "            self._patches_sent += 1\n            self._current = pending.config",
+            "            self._patches_sent += 1",
+        ),
+        mutation(
+            "send: do not count the patch against the session rate cap",
+            "            self._patches_sent += 1",
+            "            pass",
+        ),
+        # EC-32: one retry, then observe.
+        mutation(
+            "EC-32: no retry at all",
+            "        for attempt in (1, 2):",
+            "        for attempt in (1,):",
+        ),
+        mutation(
+            "EC-32: retry forever instead of degrading",
+            "                if attempt == 2:",
+            "                if False:",
+        ),
+        mutation(
+            "EC-32: degrade to off rather than observe",
+            "                    self._mode = NodMode.OBSERVE",
+            "                    self._mode = NodMode.OFF",
+        ),
+        mutation(
+            "EC-32: a rejection is not traced",
+            '                self._trace.emit(\n                    "config_rejected",',
+            '                self._trace.emit(\n                    "nothing_happened",',
+        ),
+        # run_controller's SAFE path: EC-31 and INV-8, and loudly.
+        mutation(
+            "EC-31: do not enter SAFE on a controller exception",
+            "            self._arbiter.note_error(exc)",
+            "            pass",
+        ),
+        mutation(
+            "EC-31: entering SAFE is silent",
+            '            self._trace.emit(\n                "controller_error",',
+            '            self._trace.emit(\n                "nothing_happened",',
+        ),
+        mutation(
+            "EC-31: the proxy does not count the error",
+            "            self._controller_errors += 1",
+            "            pass",
+        ),
+        mutation(
+            "EC-31: let a transport failure escape send_patch_upstream",
+            "            try:\n                await self._upstream.update_configuration(payload)\n            except Exception as exc:",
+            "            try:\n                await self._upstream.update_configuration(payload)\n            except KeyError as exc:",
+        ),
+        # observe mode must decide and trace but send nothing.
+        mutation(
+            "observe: send patches anyway (ARCHITECTURE §7)",
+            "        if patch is None or self._mode is not NodMode.ADAPT:\n            return",
+            "        if patch is None:\n            return",
+        ),
+        # ADR-021's soft side at this boundary.
+        mutation(
+            "ADR-021: do not clamp a per-connection ceiling",
+            "        self._ceiling_ms = max(ceiling_ms, CEILING_FLOOR_MS)",
+            "        self._ceiling_ms = ceiling_ms",
+        ),
+    )
+
+
 CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "profiler": _profiler_mutations(),
     "arbiter": _arbiter_mutations(),
     "policy": _policy_mutations(),
+    "proxy": _proxy_mutations(),
     "selftest": _self_test_mutations(),
 }
 """Mutations per module, first tier only (CLAUDE.md §5)."""
