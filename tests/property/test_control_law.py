@@ -459,7 +459,16 @@ def test_narrowing_never_exceeds_one_step_per_turn(
     patch = _engine(state).decide(state)
     if patch is None:
         return
-    for field in ("min_turn_silence_ms", "max_turn_silence_ms"):
+    fields: tuple[str, ...] = ("min_turn_silence_ms", "max_turn_silence_ms")
+    if state.expected_answer == "boolean":
+        # ADR-024's one explicit exception, written down rather than left to be
+        # discovered. The boolean floor is a correctness bound and is exempt from
+        # this guard, so `min_turn_silence` may narrow past `NARROW_STEP` on a
+        # boolean turn. `max_turn_silence` is untouched by the floor and stays
+        # bounded — the carve-out is narrow in exactly the place that matters,
+        # because the mid-sentence regime ADR-011 cares about lives on `max`.
+        fields = ("max_turn_silence_ms",)
+    for field in fields:
         old = getattr(state.current, field)
         new = getattr(patch.config, field)
         if new >= old:
@@ -678,26 +687,12 @@ def test_a_boolean_turn_never_leaves_min_above_the_floor_cap(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "UNRESOLVED §5-vs-§5 conflict, found by Gate 3's impossible-value sweep and "
-        "not resolved here. The boolean floor guard says `min_ms` never exceeds 400 "
-        "on a boolean turn; asymmetric decay caps a narrowing at NARROW_STEP = 12 % "
-        "of the reference. From a reference of 900 ms the cap is 7 turns away, so a "
-        "boolean turn inherits whatever the previous caller-state left in force and "
-        "is not snappy for most of a short call. Measured: 6889 of 49233 emitted "
-        "patches leave a boolean turn above the cap. Needs an ADR — see the "
-        "docstring for both readings."
-    ),
-)
 @PROPERTY_SETTINGS
 @given(
     state=strategies.arbiter_inputs(
         expected_answer=st.just("boolean"),
         # The half of the domain §9 property 8 excludes: a slow config already in
-        # force, so satisfying the cap requires a narrowing.
+        # force, so satisfying the cap requires narrowing past the decay limit.
         current=strategies.turn_configs(
             min_ms=st.integers(
                 min_value=arbiter.BOOLEAN_MIN_MS_CAP + 1, max_value=arbiter.MIN_MS_CEIL
@@ -709,40 +704,36 @@ def test_a_boolean_turn_never_leaves_min_above_the_floor_cap(
 def test_a_boolean_turn_is_capped_even_from_a_slow_reference(
     state: arbiter.ArbiterInput,
 ) -> None:
-    """§5's boolean floor against §5's asymmetric decay. **Unresolved.**
+    """§5's boolean floor, from the half of the domain §9 property 8 excludes.
 
-    §9 property 8 passes, and it passes because its domain draws
-    `current.min_turn_silence_ms` at or below the cap — a restriction written at
-    Gate 1 with its reason recorded, precisely because this conflict was visible
-    then and had no ADR. This test is the other half of that domain, and it
-    fails. Gate 3's impossible-value sweep put a number on it: **6889 of 49233
-    emitted patches leave a boolean turn with `min_turn_silence_ms` above 400.**
+    **Resolved by ADR-024 as reading (a): the cap is absolute.** This test was
+    `xfail(strict=True)` through Gate 3 and passes as of ADR-024; the marker did
+    its job by turning the fix into a loud XPASS that had to be read.
 
-    The arithmetic. From a reference of 900 ms, reaching the 400 ms cap at
-    `NARROW_STEP = 12 %` per turn takes `ln(900/400) / -ln(0.88) = 6.35`, so
-    **7 turns**. §5's stated reason for the guard is "yes/no must stay snappy".
-    Seven turns is not snappy, and a hesitant caller who has widened the window
-    and is then asked a yes/no question is exactly who meets this.
+    What it found. §9 property 8 passes over `current.min_turn_silence_ms <= 400`
+    — a restriction written at Gate 1 with its reason recorded, precisely because
+    this conflict was visible then and had no ADR. Over the other half, Gate 3's
+    impossible-value sweep measured **6889 of 49233 emitted patches leaving a
+    boolean turn above the cap**. The arithmetic: from a reference of 900 ms,
+    `ln(900/400) / -ln(0.88) = 6.35`, so **7 turns** at `NARROW_STEP`. Most
+    boolean turns are answered sooner, so a guard needing seven turns does
+    nothing on the calls it exists for — not a weaker guarantee, the absence of
+    one wearing the guarantee's name.
 
-    Two readings, and this file does not choose between them (CLAUDE.md §5):
+    ADR-024's principle, which is what makes the exemption narrow rather than
+    ad hoc: the boolean floor is a **correctness bound**, not a control move, and
+    the two §5 guards it is exempt from — asymmetric decay and hysteresis — both
+    exist to damp control *churn*. A rate limiter on control output has no
+    business throttling a bound that was never a control decision.
 
-    (a) **The cap is absolute and exempt from decay.** §5's reason is about the
-        value in force, so the guard outranks the decay limit on this one field.
-        Cost: a single boolean turn can collapse `min_ms` by more than
-        `NARROW_STEP`, so §9 property 6's bound acquires an exception and has to
-        say so — an unqualified property with a carve-out is how vacuous tests
-        start.
-    (b) **The cap is on the law's target and decay applies.** The guard describes
-        what the law may ask for, not what is in force. Cost: §5's "never
-        exceeds 400" is false as written and needs rewording, and the snappiness
-        §5 promises arrives up to seven turns late.
-
-    (a) matches §5's stated reason and (b) matches §5's stated mechanism, which is
-    why it needs an ADR rather than a judgement call in an implementation.
-
-    `strict=True` and `raises=AssertionError`: this must fail for the stated
-    reason and no other, and the moment an ADR resolves it the strict marker turns
-    the pass into a failure that has to be read.
+    **The rate cap is deliberately not exempt**, and that is the residual this
+    test does not cover: after `MAX_PATCHES` in a session, or on a turn that has
+    already patched, the cap cannot be applied. Exempting it would break the
+    one-patch-per-turn invariant §9 property 5 depends on, and §5 gives the rate
+    cap a different purpose — it bounds cost and blast radius rather than damping
+    churn. The capability gate is likewise not exempt: if the probe never proved
+    `min_turn_silence` live, the cap cannot be sent, which is fail-closed and
+    correct.
     """
     patch = _engine(state).decide(state)
     effective = state.current if patch is None else patch.config

@@ -248,6 +248,22 @@ def control_law(
     )
 
 
+def _boolean_floor(config: TurnConfig) -> TurnConfig:
+    """Cap `min_turn_silence` for a `boolean` turn. `O(1)`. §5, ADR-024.
+
+    Args:
+        config: A configuration for a turn the host declared `boolean`.
+
+    Returns:
+        The same configuration with `min_turn_silence_ms` at or below
+        `BOOLEAN_MIN_MS_CAP`.
+    """
+    return replace(
+        config,
+        min_turn_silence_ms=min(config.min_turn_silence_ms, BOOLEAN_MIN_MS_CAP),
+    )
+
+
 def _repair(config: TurnConfig) -> TurnConfig:
     """Re-apply §4's clamps and invariant gap to an already-built config. `O(1)`.
 
@@ -377,16 +393,16 @@ class Arbiter:
             ceiling_ms=ceiling_ms,
         )
 
-        # §5 floor guard, applied to the target before hysteresis so that a
-        # boolean turn is never *asked* for a slow minimum. It cannot live in
-        # `control_law`, whose signature carries no `ExpectedAnswer`: the law
-        # sees only the compiled multipliers, and `boolean`'s 0.7 widens a small
-        # number rather than capping a large one.
-        if state.expected_answer == "boolean":
-            target = replace(
-                target,
-                min_turn_silence_ms=min(target.min_turn_silence_ms, BOOLEAN_MIN_MS_CAP),
-            )
+        # §5 floor guard. Applied to the target so hysteresis measures the value
+        # that will actually be emitted, and applied *again* after decay because
+        # ADR-024 exempts it from the decay limit.
+        #
+        # It cannot live in `control_law`, whose signature carries no
+        # `ExpectedAnswer`: the law sees only the compiled multipliers, and
+        # `boolean`'s 0.7 widens a small number rather than capping a large one.
+        capped = state.expected_answer == "boolean"
+        if capped:
+            target = _boolean_floor(target)
 
         reference = self._emitted if self._emitted is not None else state.current
         sendable = self._capabilities.updatable_fields - state.host_override_fields
@@ -406,10 +422,42 @@ class Arbiter:
             return None
         if state.patches_sent >= MAX_PATCHES:
             return None
-        if not self._moved_enough(target, reference, sendable):
+        # ADR-024 again, and for the same reason: hysteresis is the other churn
+        # damper §5 names ("prevents socket chatter"), so it does not gate a
+        # correctness bound either. Without this the cap is suppressed whenever
+        # the reference sits just above it — a 420 ms reference against a 400 ms
+        # cap is a 4.8 % move, well inside the 15 % band, so no patch is emitted
+        # and the caller is left un-capped. The decay exemption alone does not
+        # reach that case, because there is no patch for it to shape.
+        overdue = (
+            capped
+            and "min_turn_silence" in sendable
+            and reference.min_turn_silence_ms > BOOLEAN_MIN_MS_CAP
+        )
+        if not overdue and not self._moved_enough(target, reference, sendable):
             return None
 
         proposed, changed = self._decayed(target, reference, state.current, sendable)
+        if capped and "min_turn_silence" in sendable:
+            # ADR-024: absolute and exempt from decay. From a 900 ms reference the
+            # decay limit is 7 turns away from the cap, and most boolean turns are
+            # answered sooner, so a decayed floor is not a weaker guarantee — it is
+            # the absence of one wearing the guarantee's name.
+            #
+            # The principle, because it will be needed again: this is a
+            # **correctness bound**, not a control move. Asymmetric decay exists to
+            # damp control churn, and a rate limiter on control output has no
+            # business throttling a bound that was never a control decision. §4's
+            # clamps, the invariant gap and the latency ceiling are the same kind of
+            # thing, and none of them is decayed either.
+            # No `changed` bookkeeping is needed here, and that took a mutation
+            # run to establish rather than an argument: the floor is applied to
+            # the target above, so `wanted <= BOOLEAN_MIN_MS_CAP` always, so any
+            # reference above the cap is a narrowing and `_decayed` has already
+            # listed the field. A branch adding it was dead code, and the
+            # mutation that deleted the branch survived — which is what dead code
+            # looks like from the outside.
+            proposed = _boolean_floor(proposed)
         proposed = _repair(proposed)
         # Defence in depth, and honestly labelled: I could not construct an input
         # that reaches this. `_moved_enough` only returns True for a sendable
@@ -617,6 +665,17 @@ class Arbiter:
     def state(self) -> ControllerState:
         """The current state machine position. `O(1)`."""
         return self._state
+
+    @property
+    def capabilities(self) -> Capabilities:
+        """What the probe found for this session. `O(1)`.
+
+        The proxy needs it to build an `ArbiterInput`, and it is the arbiter's
+        because the capability gate is the arbiter's guard. Exposed read-only
+        rather than duplicated on the proxy: two copies of a probe result is how
+        a session ends up sending a knob one of them thinks is live.
+        """
+        return self._capabilities
 
     @property
     def errors(self) -> int:

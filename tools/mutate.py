@@ -392,7 +392,7 @@ def _arbiter_mutations() -> tuple[Mutation, ...]:
         # §5 hysteresis, on the target (ADR-020)
         mutation(
             "hysteresis: emit unconditionally",
-            "        if not self._moved_enough(target, reference, sendable):\n            return None",
+            "        if not overdue and not self._moved_enough(target, reference, sendable):\n            return None",
             "        pass",
         ),
         mutation(
@@ -451,8 +451,20 @@ def _arbiter_mutations() -> tuple[Mutation, ...]:
         # §5 boolean floor
         mutation(
             "boolean floor: drop the cap",
-            '        if state.expected_answer == "boolean":',
-            "        if False:",
+            '        capped = state.expected_answer == "boolean"',
+            "        capped = False",
+        ),
+        # ADR-024's two exemptions. A guard whose exception is untested is the
+        # exception silently not existing.
+        mutation(
+            "ADR-024: re-subject the floor to hysteresis",
+            '        overdue = (\n            capped\n            and "min_turn_silence" in sendable\n            and reference.min_turn_silence_ms > BOOLEAN_MIN_MS_CAP\n        )',
+            "        overdue = False",
+        ),
+        mutation(
+            "ADR-024: drop the post-decay floor",
+            "            proposed = _boolean_floor(proposed)",
+            "            pass",
         ),
         # §6 state machine
         mutation(

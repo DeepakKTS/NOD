@@ -779,3 +779,65 @@ def test_a_gap_inside_the_window_is_not_an_early_endpoint() -> None:
     controller.decide(warm)
     assert controller.should_force_endpoint(warm, 1200) is False
     assert controller.should_force_endpoint(warm, 1300) is True
+
+
+def test_the_boolean_floor_is_not_gated_by_hysteresis() -> None:
+    """ADR-024's second exemption, on the only case that isolates it.
+
+    Added because a mutation setting `overdue = False` survived the §9 property:
+    that property draws a wide range of speaker features, so almost every example
+    has `max_turn_silence` moving far enough to clear hysteresis on its own, and
+    the decay exemption then applies the floor anyway. The hysteresis exemption
+    only matters when **nothing else moved enough**, which a broad domain almost
+    never draws. A property test over a wide domain and a unit test over one
+    constructed point are not substitutes.
+
+    Constructed so that neither field clears the band. `g_p50 = 400` gives a
+    target `min` of 360 against a reference of 420 — a move of 60 against a band
+    of `0.15 x 420 = 63`. `g_p90 = 600` gives a target `max` of 1210 against a
+    reference of 1210, a move of zero. So `_moved_enough` is False on both fields,
+    and without the exemption the caller is left at 420 ms on a yes/no question
+    for the rest of the call.
+    """
+    controller = engine()
+    reference = config(minimum=420, maximum=1210)
+    # The premise of the fixture, asserted rather than assumed.
+    assert abs(360 - 420) < arbiter.HYST_FRACTION * 420
+    assert engine().decide(state(current=reference, expected="free")) is None
+
+    patch = controller.decide(state(current=reference, expected="boolean"))
+    assert patch is not None, (
+        "hysteresis suppressed the boolean floor; ADR-024 exempts a correctness "
+        "bound from a churn damper"
+    )
+    assert patch.config.min_turn_silence_ms <= arbiter.BOOLEAN_MIN_MS_CAP
+    assert "min_turn_silence" in patch.changed, (
+        "the floor moved min_turn_silence but the patch does not name it, so "
+        "send_patch_upstream would not put it on the socket"
+    )
+
+
+def test_the_boolean_floor_does_not_touch_max_turn_silence() -> None:
+    """ADR-024's exemption is narrow in the place that matters.
+
+    `max_turn_silence` is the incomplete-utterance regime ADR-011 exists for, so
+    a yes/no prompt must not collapse the room a caller has to pause mid-sentence.
+    The floor governs `min` only, and `max` keeps its ordinary decay bound.
+    """
+    controller = engine()
+    reference = config(minimum=900, maximum=3000)
+    patch = controller.decide(
+        state(
+            speaker=features(g_p50=0.0, g_p90=0.0),
+            current=reference,
+            expected="boolean",
+        )
+    )
+    assert patch is not None
+    assert patch.config.min_turn_silence_ms == arbiter.BOOLEAN_MIN_MS_CAP
+    assert patch.config.max_turn_silence_ms == int(
+        3000 * (1.0 - arbiter.NARROW_STEP)
+    ), (
+        "max_turn_silence was not bounded by NARROW_STEP on a boolean turn; the "
+        "ADR-024 exemption has leaked past min_turn_silence"
+    )
