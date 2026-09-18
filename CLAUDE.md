@@ -177,6 +177,11 @@ lines. That file is long-term memory; this file is the standing contract.
   not theorised: it made a passing assertion fail against a file that was correct both on
   disk and in git, and it can produce false greens as easily as false reds. Delete the
   bytecode on both write and restore, and set `PYTHONDONTWRITEBYTECODE` for the subprocess.
+  **It also corrupted measurements taken in the same window**, not only tests: every
+  separability figure in the D1 report was computed with `DEFAULT_VAD` at 0.5 from the
+  stale cache rather than the documented 0.4, and had to be recomputed at Gate E. After
+  fixing a stale-cache incident, re-derive anything measured while it was live — a number
+  produced during the window is as suspect as a test run during it.
 - **Before trusting a metric, ask what value it could not possibly take.** Given how the
   metric is defined and what the input contains, name a value that is impossible or
   near-impossible — then confirm the metric does not report it. This is not mutation

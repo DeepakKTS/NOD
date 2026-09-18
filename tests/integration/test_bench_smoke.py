@@ -10,6 +10,7 @@ API key (BENCH_SPEC.md §7).
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
 
 import pytest
 
@@ -40,12 +41,38 @@ def test_bench_module_imports(name: str) -> None:
 @pytest.mark.smoke
 @pytest.mark.parametrize("name", CLI_MODULES)
 def test_bench_cli_entry_point_exists(name: str) -> None:
-    """Each `python -m nod_bench.<mod>` target has a `main`."""
+    """Each `python -m nod_bench.<mod>` target has a callable `main`."""
     module = importlib.import_module(name)
-    main = module.main
-    assert callable(main)
-    with pytest.raises(NotImplementedError):
-        main([])
+    assert callable(module.main)
+
+
+@pytest.mark.smoke
+def test_the_replay_cli_refuses_a_missing_corpus(tmp_path: Path) -> None:
+    """`make bench` on a clean clone, where no corpus has been built.
+
+    It must fail with an explanation and a non-zero code, not a traceback and
+    not a silent empty chart. This replaces the stub tripwire that asserted
+    `main` raised `NotImplementedError`, which failed the moment Gate E
+    implemented it — which is what it was for.
+
+    `tmp_path` matters: calling `main([])` with defaults would run a real bench
+    and write into `bench/runs`, so the test would mutate the repository it is
+    checking.
+    """
+    from nod_bench.replay import main
+
+    code = main(
+        ["--fake", "--corpus", str(tmp_path / "absent"), "--out", str(tmp_path)]
+    )
+    assert code == 2
+
+
+@pytest.mark.smoke
+def test_the_replay_cli_refuses_a_live_run(tmp_path: Path) -> None:
+    """BENCH_SPEC §4 reserves live runs for Phase 4; this driver is offline."""
+    from nod_bench.replay import main
+
+    assert main(["--live", "--out", str(tmp_path)]) == 2
 
 
 @pytest.mark.smoke

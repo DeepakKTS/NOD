@@ -14,14 +14,19 @@ from __future__ import annotations
 import math
 import sys
 from collections.abc import Sequence
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
 from nod_bench.perturb import Gap
-from nod_bench.replay import RunResult
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle, annotations only
+    # `replay` imports `ClipObservation` from here, so importing it at runtime
+    # would close a cycle. Only the not-yet-implemented aggregates annotate it,
+    # and `from __future__ import annotations` keeps those as strings.
+    from nod_bench.replay import RunResult
 
 DECIDE_BUDGET_MS: Final = 5.0
 """DEC must stay under this. Guards INV-2. Milliseconds."""

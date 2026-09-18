@@ -480,9 +480,16 @@ was still inside. Every PCR and FRAG figure in the run was wrong.
 
 | arm | PCR before | PCR after | FRAG before | FRAG after | certain-only PCR |
 |---|---|---|---|---|---|
-| `aggressive` | 0.825 | **0.700** | 2.417 | 1.967 | 0.583 → **0.000** |
-| `balanced` | 0.575 | **0.350** | 1.658 | 1.350 | 0.194 → **0.000** |
-| `conservative` | 0.158 | **0.008** | 1.158 | 1.008 | 0.000 → 0.000 |
+| `aggressive` | 0.825 | **0.642** | 2.408 | 1.792 | 0.583 → **0.000** |
+| `balanced` | 0.550 | **0.317** | 1.633 | 1.317 | 0.167 → **0.000** |
+| `conservative` | 0.150 | **0.000** | 1.150 | 1.000 | 0.000 → 0.000 |
+
+*(Corrected 2026-09-17 at Gate E. The figures first published here were computed while a
+stale `.pyc` was supplying `DEFAULT_VAD = 0.5` instead of the documented 0.4 — the same
+cache hazard recorded in CLAUDE.md §5. A higher VAD threshold raises the silence floor, so
+silence accumulated sooner, boundaries fired earlier, and PCR came out high in every row.
+The whole table is recomputed at 0.4. The correction moved PCR by 3 to 6 points and did not
+change the conclusion.)*
 
 Decision: `corpus.build` detects silences already present in the source and records them as
 `origin="source_intrinsic"`, `preceding="fragment"`, `certainty="ambiguous"` — fragment
@@ -491,8 +498,8 @@ is, since a natural pause can fall where a clause ends and the detector reads le
 meaning. The `complete` fallback in `regime_at` stays, because a silence genuinely outside
 any described gap is the end of the clip; what changes is that far fewer silences are now
 undescribed.
-Consequence: PCR fell by 12.5, 22.5 and 15.0 points. **The error ran in the flattering
-direction**: the headline `balanced` baseline was overstated by 22.5 points, so the room a
+Consequence: PCR fell by 18.3, 23.3 and 15.0 points. **The error ran in the flattering
+direction**: the headline `balanced` baseline was overstated by 23.3 points, so the room a
 controller has to improve on it looked half again as large as it is. `certain_only`
 collapsed from 0.583/0.194 to 0.000 across all three arms, confirming ADR-017's warning
 that agreement in that scope is not corroboration — at n=15 it discriminates nothing.
@@ -535,3 +542,27 @@ Priority order, so this is not re-derived later:
 
 Until (3), no PCR figure from this corpus should be reported with a significance claim
 attached.
+
+## ADR-019 — Error bars are bootstrapped over clips, never over repeats
+2026-09-17 · Status: accepted
+Context: BENCH_SPEC §4 says every (clip, arm) pair runs `N = 5` and reports median and IQR.
+That is right for a live upstream, which is non-deterministic. Against `FakeAssemblyAI` it
+is not: the simulator is deterministic, so five repeats are byte-identical and their IQR is
+exactly zero. A chart drawn that way would show zero-width bars, and a zero-width bar reads
+as precision. It is the same defect class as the D1 p-values, which were computed over a
+deterministic monotone model and reported significance that measured only determinism.
+Decision: on the simulated path, repeats are **1**, and the interval is a **non-parametric
+bootstrap over clips**: resample the clip set with replacement, `B = 10000` replicates,
+report the **2.5th and 97.5th percentiles** of the replicate distribution. Clips are
+resampled **jointly across arms** within a replicate, so the paired structure survives and
+an arm-to-arm difference can be bootstrapped the same way. Seeded, so the chart is
+reproducible.
+The chart must say what the bars are **in its own label**, not in a caption a screenshot
+loses: they are sampling uncertainty over which clips the generator happened to produce.
+Consequence: the interval answers "if the generator had produced a different 120 clips,
+how much would this move?" — which is a real question with a real answer. It does **not**
+answer "how repeatable is this measurement", because that variance is zero by construction,
+and it does not cover the uncertainty that dominates: every clip comes from one synthetic
+voice, so the bootstrap resamples 120 draws from one prosody model and cannot see that
+limitation at all (ADR-018). The bars are therefore a **lower bound on total uncertainty**
+and must be read as one. Widening them is not the fix; real speech is.
