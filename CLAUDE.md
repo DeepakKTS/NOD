@@ -174,11 +174,26 @@ lines. That file is long-term memory; this file is the standing contract.
     coincidence it is currently enjoying.** Assert the relation, do not derive it:
     deriving makes them agree forever, which is wrong when one side has already been
     frozen into committed data. It has to fail loudly and make someone decide.
-  All four shapes are the same defect wearing different clothes — a check that cannot
+  - **A red `make check` reached a push, for the second time.** The gate was run as
+    `make check > log; echo $?; grep ... && git commit && git push` — the exit code was
+    *printed* and never *acted on*, and `grep` succeeded, so the `&&` chain carried on into
+    a commit. The first occurrence, at the start of the project, was the same shape: a
+    `grep` return code standing in for the gate's. Fixing the instance twice did not fix
+    it, so the mechanism changed instead. **Run `make gate`, never `make check` piped into
+    anything.** It redirects rather than pipes, tests the status explicitly, prints
+    `gate: FAILED` with the tail of the log, and exits non-zero — so chaining a commit
+    after it is safe, because the chain now stops.
+    Found while fixing it: `.SHELLFLAGS := -eu -o pipefail -c` in the Makefile **has never
+    once taken effect on this machine**. macOS ships GNU make 3.81 and `.SHELLFLAGS`
+    arrived in 3.82, so the line is read and ignored — `false | true` succeeds and the
+    recipe continues. A pipefail guard that cannot fire, sitting in the build file for the
+    whole project, which is why `gate` now protects itself instead of relying on it.
+  All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.
-  And an agreement between constants that exists only in prose. Before trusting any of
-  them, ask what would have to change for this to fail, and confirm that it does.
+  An agreement between constants that exists only in prose. And a shell
+  flag the build tool silently ignores. Before trusting any of them, ask what would have to
+  change for this to fail, and confirm that it does — by making it fail, once, on purpose.
   If a mutation leaves a test green, say so and add the test that goes red. Do not
   report coverage the suite does not have. Mechanise this: assert the source hash actually
   changed before running the suite, so a patch that fails to apply is a loud error rather
