@@ -235,6 +235,21 @@ lines. That file is long-term memory; this file is the standing contract.
   stale cache rather than the documented 0.4, and had to be recomputed at Gate E. After
   fixing a stale-cache incident, re-derive anything measured while it was live — a number
   produced during the window is as suspect as a test run during it.
+- **Two decisions taken in the same sitting can silently void one another.** ADR-022 raised
+  the warm threshold from 8 to 24; ADR-023 added a repair for an inversion measured at 0.14 %
+  over `n ∈ [8, 400]`. The inversion turned out to be almost entirely a small-`n` phenomenon
+  — 0.120 % at `n ∈ [8, 23]` and **0 of 20 000** at `n ∈ [24, 400]` — so the first ADR
+  largely removed the condition the second repairs. Both were derived in the same hour,
+  neither mentions the other, and **the only symptom was a guard whose property test could no
+  longer fail**: the condition stopped arising in the test's domain, so it passed with the
+  repair deleted. Without the mutation run it would have looked like coverage.
+  Neither ADR was wrong and the repair was worth keeping (ADR-025 restates why). What was
+  wrong was the sequencing: each was measured against the constants in force *before the
+  other landed*. The check, when two ADRs land together: **ask whether either changes the
+  conditions the other was derived under** — and if it does, re-measure rather than reason,
+  because the figures in the older one are now about a regime that no longer exists. This is
+  the stale-cache lesson above at the level of decisions rather than bytecode: a number
+  produced before a change is as suspect as one produced during a broken window.
 - **Before trusting a metric, ask what value it could not possibly take.** Given how the
   metric is defined and what the input contains, name a value that is impossible or
   near-impossible — then confirm the metric does not report it. This is not mutation

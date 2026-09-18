@@ -979,3 +979,48 @@ the host declared the turn `boolean`, and a host declaring the next answer is on
 better evidence about that turn than the profile built from previous ones.
 `max_turn_silence` is untouched, so the mid-sentence regime ADR-011 cares about keeps its
 full width — the exemption is narrow in exactly the place that matters.
+
+## ADR-025 — ADR-023's repair guards the cold path, not the warm one
+2026-09-18 · Status: accepted · amends the justification of ADR-023, not its decision
+Context: ADR-023 clamps `g_p90` up to `g_p50` in `features()`, justified by a measured
+inversion rate of **0.14 %, worst 146 ms**, over gap streams of `n ∈ [8, 400]`. ADR-022
+landed in the same sitting and raised `MIN_GAPS_FOR_WARM` from 8 to 24. Re-measured at
+Gate 3:
+
+| `n` range | inversion rate | worst inversion |
+|---|---|---|
+| `[8, 23]` | 0.120 % | 317 ms |
+| `[8, 40]` | 0.050 % | 347 ms |
+| `[8, 400]` | 0.015 % | 288 ms |
+| **`[24, 400]`** | **0 of 20 000** | — |
+
+The inversion is almost entirely a small-`n` phenomenon. So the range ADR-023 measured is
+largely the range ADR-022 removed from the warm path, and **ADR-023's stated justification no
+longer holds**: the rate it cites is a rate over sample counts at which the quantiles are
+now never consulted by §4.
+Decision: **the repair stays; its justification is replaced.** The new one: `features()` is
+called on **every** turn, including while the profiler is cold, because §4 needs a
+`SpeakerFeatures` record in order to take its cold branch. `n_gaps < 24` is precisely the
+cold regime, by definition — so the repair guards the path where the inversion actually
+occurs at 0.120 %, and the warm path where it is unmeasurable gets it for free.
+
+Read the other way round, the two ADRs turn out to be complementary rather than redundant:
+ADR-022 stops the *law* consuming an unreliable estimate, and ADR-023 stops the *profiler*
+reporting an incoherent one. They act on the same measurement at different points, and
+neither makes the other unnecessary.
+
+Three things are recorded because they would otherwise be re-derived:
+- **0 of 20 000 is an upper bound, not a proof.** It bounds the rate at roughly 1.5 × 10⁻⁴ at
+  95 % confidence, not at zero, and the estimators remain structurally uncoupled (ADR-002).
+- **The repair became unfalsifiable before it became better justified.** Its property test
+  draws realistic turn streams, and after ADR-022 the condition never arose in that domain,
+  so the test passed with the repair removed — CLAUDE.md §5's test that cannot go red, and
+  the only symptom either ADR produced. It now has a deterministic sibling that hands
+  `restore` an inverted `ProfilerState`.
+- **This is a new justification for unchanged code**, which is a thing an ADR log has to be
+  able to say. The alternative — silently keeping code whose stated reason has expired — is
+  how a codebase accumulates guards nobody can defend and nobody dares delete.
+Consequence: no code changes. ADR-023's decision stands; its Context paragraph should be read
+with this one. Cost of keeping the repair now that the warm-path rate is unmeasurable: one
+comparison per `features()` call, `O(1)`, which INV-2 does not notice at a measured 4.4 µs
+mean for the whole decision path.
