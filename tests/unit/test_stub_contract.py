@@ -12,25 +12,29 @@ a real contract.
 As each stub is implemented, delete its entry here and replace it with the test
 that exercises the behaviour.
 
-**`profiler.py`'s eleven entries were deleted at Phase 2 Gate 2**, replaced by
+**`profiler.py`'s eleven entries went at Gate 2**, replaced by
 `tests/unit/test_profiler.py` (the ingest path and its edge cases by id) and
 `tests/property/test_profiler_quantiles.py` (the two estimators, differentially
 and structurally). `ProfilerState` never had an entry: it is a real frozen
 dataclass, not a stub, and `PROFILER_STATE` below is still built from it.
 
-The coverage this file was holding up had to be replaced, not merely removed. The
-delta is in the Gate 2 report.
+**`policy.py`'s three and `arbiter.py`'s six went at Gate 3**, replaced by
+`tests/unit/test_policy.py`, `tests/unit/test_arbiter.py` (§4's two gates and
+every §5 guard with the polarity reversed) and `tests/property/test_control_law.py`
+(CONTROL_SPEC §9). What remains here is `proxy.py`, which Gate 4 owns.
+
+The coverage this file was holding up had to be replaced, not merely removed. Each
+gate's delta is in its report.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Coroutine
-from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
-from nod_core import arbiter, capabilities, policy, profiler, proxy
+from nod_core import arbiter, capabilities, profiler, proxy
 from nod_core.types import (
     Capabilities,
     ConfidenceField,
@@ -93,35 +97,6 @@ PROFILER_STATE = profiler.ProfilerState(
 )
 
 SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = (
-    (
-        "policy.CompiledPolicy.hint_for",
-        lambda: _uninitialised(policy.CompiledPolicy).hint_for("boolean"),
-    ),
-    (
-        "policy.compile_policy",
-        lambda: policy.compile_policy(_uninitialised(policy.PolicyFile)),
-    ),
-    ("policy.load_policy", lambda: policy.load_policy(Path("policy.yaml"))),
-    (
-        "arbiter.control_law",
-        lambda: arbiter.control_law(FEATURES, HINT, cold=False, ceiling_ms=2600),
-    ),
-    ("arbiter.Arbiter.__init__", lambda: arbiter.Arbiter(capabilities=CAPS)),
-    (
-        "arbiter.Arbiter.decide",
-        lambda: _uninitialised(arbiter.Arbiter).decide(ARBITER_INPUT),
-    ),
-    (
-        "arbiter.Arbiter.should_force_endpoint",
-        lambda: _uninitialised(arbiter.Arbiter).should_force_endpoint(
-            ARBITER_INPUT, 900
-        ),
-    ),
-    (
-        "arbiter.Arbiter.note_error",
-        lambda: _uninitialised(arbiter.Arbiter).note_error(RuntimeError("x")),
-    ),
-    ("arbiter.Arbiter.state", lambda: _uninitialised(arbiter.Arbiter).state),
     (
         "proxy.SessionProxy.__init__",
         lambda: proxy.SessionProxy(
