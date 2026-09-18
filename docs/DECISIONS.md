@@ -58,15 +58,19 @@ A different model is a different measurement and is **not merged** into the verd
 | `min_turn_silence` | **no gating observed — UNPROVEN** | 3431 vs 3364 ms, 67 ms apart against spreads of 420 and 100 ms. Same cause: every boundary landed at the pinned `max_turn_silence` of 3000 ms, so the minimum was never the binding constraint |
 | `max_turn_silence` | **connect-time effect observed** | the 600 ms arm ends the turn at 902 ms; the 3000 ms arm produces no boundary. Mid-stream was not run on this model, so this is not a claim about `UpdateConfiguration` there |
 
-**None of the pro rows is INERT.** The automated classifier returns `inert` for the first
-two and `static_only` for the third; both are artifacts and are not the recorded answer.
-`inert` is wrong because it asserts the model ignores a field, which the traces contradict —
-the stimulus never gave either field an opportunity, which is the UNPROVEN case by
-ADR-014's own reasoning, and the classifier cannot see that `max_turn_silence` bound first.
-`static_only` is wrong because pro is planned connect-time only, so the absence of
-mid-stream cells is by design, not a finding. Fixing the classifier to detect a
-bound-elsewhere stimulus is out of scope here and is not needed by the control law, which
-runs on `universal-streaming-english`.
+**None of the pro rows is INERT**, and as of Gate A the classifier agrees. It used to
+return `inert` for the first two, which asserts the model ignores a field on an experiment
+that never ran. `verdict_for` now takes `other_gate_ms` and returns UNPROVEN when every
+boundary in both arms lands at or beyond another pinned silence gate — here
+`max_turn_silence` at 3000 ms, which ended every pro turn. Re-classifying
+`data/traces-p0-final` reproduces both rows above exactly.
+
+One artifact remains and is **not** the recorded answer: `max_turn_silence` on pro
+classifies `static_only`, because pro is planned connect-time only and `verdict_for`
+reads the absence of mid-stream cells as a failure to demonstrate a mid-stream loop. That
+is by design of the matrix, not a finding about the model. Distinguishing "mid-stream was
+not run" from "mid-stream did not work" needs the plan, not the observations, and is left
+alone deliberately.
 
 Also recorded: `SpeechStarted`, an undocumented frame type, 22 occurrences, `pro` only,
 never on `universal-streaming-english` (see `KNOWN_FRAME_TYPES`).
@@ -370,10 +374,40 @@ sweep-grade, each forced by ADR-001:
 The simulated/live distinction is **structural, not editorial**: every artifact the
 simulator produces carries `simulated` in its filename and as a field in the run manifest.
 Prose labelling is not enough for a chart that leaves the repo.
-The committed trace keeps four jobs, and the first is load-bearing: **calibration**. A test
-feeds the simulator the same clip at min=100/max=3000 and asserts the boundary lands near
-the 304 ms the real service produced (`data/traces-p0-final`). Without it the simulator is
-an assertion; with it, it is falsifiable. The other three are console replay mode
+The committed trace keeps four jobs, and the first is load-bearing: **calibration**.
+
+The simulator is deterministic, so its own run-to-run spread is zero and is the wrong
+reference class for a tolerance. Calibration is therefore **multi-point**, against five
+measured cells rather than one (`data/traces-p0-final`):
+
+| cell | configured | measured boundary |
+|---|---|---|
+| `min_turn_silence` connect, low | 100 ms | 306 ms |
+| `min_turn_silence` connect, high | 2000 ms | 2175 ms |
+| `min_turn_silence` mid, low | 100 ms | 304 ms |
+| `min_turn_silence` mid, high | 2000 ms | 2172 ms |
+| `max_turn_silence` fragment regime | 600 ms | 817 ms |
+
+Two bounds, and the second is the one that matters:
+- **Per point: ±40 ms.** Justified from the service's own repeat spread on these cells —
+  24 ms worst on the calibrated `min` cell, 29 ms worst across all `min` cells, 39 ms on
+  the `max` cell — plus headroom. It is also well inside ADR-014's 100 ms actionability
+  floor, so a passing simulator agrees with the service to less than the smallest
+  difference the project would act on, and far inside the 160/400/1280/3600 ms spacing of
+  the arms, so a simulator that could reorder two arms cannot pass.
+- **Mean signed error across the five points: within ±15 ms of zero.** A single point, or
+  five points bounded only in absolute value, cannot distinguish *correct* from
+  *consistently early*: a simulator firing 35 ms early everywhere passes every per-point
+  check and biases every TTL number in the same direction. The signed bound catches the
+  bias that the absolute bound is blind to. ±15 ms is roughly a third of the per-point
+  tolerance, which is the most slack a systematic offset can take before it starts to
+  matter against the 100 ms floor.
+
+The `max_turn_silence` point is included deliberately: the first four share a regime, and
+a simulator that modelled only the complete-utterance gate would pass all of them while
+being wrong about the regime Nod exists for.
+
+Without this the simulator is an assertion; with it, it is falsifiable. The other three are console replay mode
 (PRD F-10, EC-45), transport fixtures under INV-7, and realistic input-side material.
 Consequence: the fake produces the *shape* — a tradeoff curve, a Pareto chart, CI
 determinism — and never a published number. A simulated chart presented as measured is the

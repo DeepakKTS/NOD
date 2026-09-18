@@ -92,6 +92,13 @@ per-caller controller does not have to.
   and adaptive pacing that adjusts to each speaker over a call. **Nod is not the first
   adaptive endpointer.** It is an open one on the streaming STT path, with the policy
   written down and the numbers published.
+- **The baseline is the vendor's own default, not one we picked.** The headline
+  `balanced` arm is AssemblyAI's published `balanced` quick-start preset, which is also
+  their documented global default — what an integrator who configures nothing actually
+  ships. All three static arms are transcribed from their documentation and cited in
+  BENCH_SPEC §3. Nod's own starting values (`base_min` 400 ms, `base_max` 1280 ms) are
+  that same preset, so the control law starts where the vendor starts and any improvement
+  is measured from their number rather than ours.
 - Turn-taking evaluation has real published work behind it, including Full-Duplex-Bench
   v3, EVA-Bench, IHBench and τ-Voice. Metric definitions here borrow from them and say so.
 - What Nod adds is the closed loop. Those benchmarks measure models offline and stop,

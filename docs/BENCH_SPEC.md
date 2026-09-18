@@ -72,6 +72,16 @@ the two pages agree exactly. `balanced` is also the documented global default
 (with `vad_threshold` 0.4), which is why it is the headline baseline — it is what an
 integrator who changes nothing actually ships.
 
+**A rejected source, recorded because sourcing decisions should be auditable.** The first
+web search returned a summary asserting an `aggressive` quick-start of
+`end_of_turn_confidence_threshold` 0.4, `min_turn_silence` **800**, `max_turn_silence`
+**3600**. That is the `conservative` triple mislabelled: aggressive endpointing means
+*shorter* silences, so the summary was internally backwards. It was discarded in favour of
+the two primary pages above. Worth naming because of the direction of the error — an
+`aggressive` arm given 800/3600 ms would wait far longer than the real one, inflating its
+premature-cutoff advantage and making every adaptive result look better by comparison. A
+sourcing mistake that flatters the thing being measured is the one to write down.
+
 Cross-check worth recording: CONTROL_SPEC §4's `base_min = 400` / `base_max = 1280` are the
 `balanced` preset exactly, so the control law starts from the vendor's own default rather
 than from a number we picked, and `CONTROL_PINNED` in the probe is the same triple.
