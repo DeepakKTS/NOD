@@ -88,12 +88,51 @@ detection, or any published number — those come from `make bench` over real au
 
 
 ## ADR-002 — Streaming quantiles
-2026-09-15 · Status: accepted
+2026-09-15 · Status: accepted — **agreement claim scoped 2026-09-18 at Phase 2 Gate 2**
 Context: pause quantiles update per word and the decision path is budgeted at 5 ms p99.
 Decision: P² estimator as primary, exact ring-buffer behind `NOD_EXACT_QUANTILES` for
 validation; the bench asserts they agree within 5 %.
 Consequence: `O(1)` per sample and constant memory, at the cost of an approximation that
 must be re-validated whenever the corpora change.
+
+**Amendment, 2026-09-18 — what the 5 % is a claim about.** As written, "they agree within
+5 %" reads as a property of the estimator. It is not one, and Gate 2 measured that rather
+than reasoning about it. **P² has no a priori error bound.** Its value error depends on the
+sample density near the target quantile: where the density is low, a one-position marker
+move crosses a large value gap, and the error in milliseconds is large with nothing wrong
+in the algorithm. Any relative tolerance is therefore an empirical statement about a
+population.
+
+Restated as a `hypothesis` property over arbitrary gap streams, the claim is **false**: at
+`n >= 256`, **58 of 300 drawn streams broke `max(1 ms, 5 %)`, worst case 13.73 %** — a p50
+estimate of 1969 ms against an exact 2282 ms. Rank error, the density-independent metric
+(what fraction of samples actually fall below the estimate), is no better: **45.6 percentage
+points at `n = 9`**, and still 0.45 on a 95/5 spiky stream at `n = 256`. The error also
+depends strongly on `n`, which the original claim does not mention at all — on the
+digit-reading shape at `q = 0.90`, median relative error runs 74.5 % at `n = 8`, 36.9 % at
+16, 17.9 % at 24, 11.3 % at 32 and 1.4 % at 256 (full table in ADR-022).
+
+So the claim is scoped: **the 5 % holds for the median over realistic pause shapes at
+sufficient `n`, on the corpora — not as a general property and not as a worst case.** That
+is what `test_p2_holds_adr_002s_tolerance_on_realistic_pause_streams` asserts, on the median
+with the tail reported rather than bounded, and the structural properties that *are*
+distribution-free are asserted separately: the estimate never leaves the observed range,
+the two agree exactly below five samples, a constant stream is reported exactly, and an
+empty estimator raises rather than returning `0.0`.
+
+One consequence worth taking seriously rather than filing: a bound that only holds at large
+`n` is a bound that does not hold where the controller starts. ADR-022 is that consequence.
+
+**Second amendment — the ring-capacity caveat this ADR's own instruction walks into.**
+"The bench asserts they agree" is unqualified, and a differential test longer than
+`GAP_RING_CAPACITY` **tests nothing**. `ExactQuantile` retains the last 256 samples while
+P² summarises every sample it has seen, so past the ring the two are estimating **different
+populations** and a disagreement is correct behaviour rather than drift. A comparison run
+over a long call would therefore report growing "error" that is entirely the ring forgetting,
+and a real regression could hide inside it. Every differential assertion must either stay
+inside the ring or give the exact estimator capacity for the whole stream;
+`test_the_two_estimators_stop_being_comparable_past_the_ring` pins the distinction, and
+`seen` exists on both estimators to separate ingested from retained.
 
 ## ADR-003 — Realtime STT path, not the Voice Agent API
 2026-09-15 · Status: accepted
