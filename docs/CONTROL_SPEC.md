@@ -211,16 +211,38 @@ person whose long gap is not a finished turn.
 
 ## 5. Guards
 
-| Guard | Rule | Reason |
-|---|---|---|
-| **Hysteresis** | emit only if any field moves more than `HYST = 15 %` of its current value. **What the 15 % is measured against, and where this guard sits relative to the decay guard below, are fixed by ADR-020 — read it before implementing either.** | prevents socket chatter |
-| **Rate cap** | at most 1 patch per turn, at most `MAX_PATCHES = 24` per session | bounds cost and blast radius |
-| **Asymmetric decay** | widening applies at most `WIDEN_STEP = 25 %` per turn, narrowing at most `NARROW_STEP = 12 %`. **Widening was immediate and unbounded until ADR-022**, which is how one spurious early estimate parked `max_ms` at the ceiling for 19 turns — ADR-020's ratchet by another route. The asymmetry survives at 2.08×. **12 % is also below the 15 % above, so the order of the two guards decides whether narrowing can be emitted at all; ADR-020 settles it, and settles what §4 must re-run afterwards.** | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
-| **Ceiling** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS`. **§4 applies this after the invariant repair, so a low enough `ceiling_ms` would undo it; ADR-021 settles that at the configuration boundary rather than in this table or in §4.** | **Unenforced pending a measured overhead.** `ENDPOINT_OVERHEAD_MS` is still 0, so the subtraction does nothing and the guard holds only arithmetically: the boundary arrives some way *after* the configured gate, so a `max_ms` clamped exactly to `ceiling_ms` overshoots the ceiling on every turn. The P1 matrix measured that lag as consistently positive and well outside the noise across every plain silence-gate cell. Until `make bench` supplies the value (INV-9 — it is not written here), do not rely on this guard to keep a fluent caller from waiting |
-| **Floor on boolean turns** | on `boolean`, `min_ms` never exceeds 400 | yes/no must stay snappy |
-| **Freeze on instability** | if 3 patches in 5 turns all reverse direction, freeze the speaker axis for 10 turns and emit `controller_frozen` | detects oscillation instead of thrashing |
-| **Host override** | if the host application sent its own `UpdateConfiguration` in the last 5 s, Nod does not touch the fields the host set | the host owns its own decisions |
-| **Capability gate** | only a field the probe marked `LIVE` is ever sent | `STATIC_ONLY`, `INERT` and `UNPROVEN` all fail closed; `end_of_turn_confidence_threshold` is currently `INERT` (ADR-001) |
+| Guard | Kind (ADR-024) | Rule | Reason |
+|---|---|---|---|
+| **Hysteresis** | churn damper | emit only if any field moves more than `HYST = 15 %` of its current value. **What the 15 % is measured against, and where this guard sits relative to the decay guard below, are fixed by ADR-020 — read it before implementing either.** | prevents socket chatter |
+| **Rate cap** | neither — cost bound | at most 1 patch per turn, at most `MAX_PATCHES = 24` per session | bounds cost and blast radius |
+| **Asymmetric decay** | churn damper | widening applies at most `WIDEN_STEP = 25 %` per turn, narrowing at most `NARROW_STEP = 12 %`. **Widening was immediate and unbounded until ADR-022**, which is how one spurious early estimate parked `max_ms` at the ceiling for 19 turns — ADR-020's ratchet by another route. The asymmetry survives at 2.08×. **12 % is also below the 15 % above, so the order of the two guards decides whether narrowing can be emitted at all; ADR-020 settles it, and settles what §4 must re-run afterwards.** | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
+| **Ceiling** | **correctness bound** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS`. **§4 applies this after the invariant repair, so a low enough `ceiling_ms` would undo it; ADR-021 settles that at the configuration boundary rather than in this table or in §4.** | **Unenforced pending a measured overhead.** `ENDPOINT_OVERHEAD_MS` is still 0, so the subtraction does nothing and the guard holds only arithmetically: the boundary arrives some way *after* the configured gate, so a `max_ms` clamped exactly to `ceiling_ms` overshoots the ceiling on every turn. The P1 matrix measured that lag as consistently positive and well outside the noise across every plain silence-gate cell. Until `make bench` supplies the value (INV-9 — it is not written here), do not rely on this guard to keep a fluent caller from waiting |
+| **Floor on boolean turns** | **correctness bound** | on `boolean`, `min_ms` never exceeds 400 | yes/no must stay snappy |
+| **Freeze on instability** | churn damper | if 3 patches in 5 turns all reverse direction, freeze the speaker axis for 10 turns and emit `controller_frozen` | detects oscillation instead of thrashing |
+| **Host override** | neither — ownership | if the host application sent its own `UpdateConfiguration` in the last 5 s, Nod does not touch the fields the host set | the host owns its own decisions |
+| **Capability gate** | neither — capability | only a field the probe marked `LIVE` is ever sent | `STATIC_ONLY`, `INERT` and `UNPROVEN` all fail closed; `end_of_turn_confidence_threshold` is currently `INERT` (ADR-001) |
+
+**The `Kind` column is ADR-024's**, and it is load-bearing rather than
+descriptive. A **correctness bound** is a statement about what the configuration
+may *be*; a **churn damper** is a limit on how often or how fast it may *move*.
+ADR-024 settled the boolean floor against asymmetric decay on exactly that
+distinction: a rate limiter that exists to damp control churn has no business
+throttling a bound that was never a control decision. So the four bounds — the
+§4 clamps, the §4 invariant gap, the latency ceiling and the boolean floor — are
+never subject to the two dampers, hysteresis and asymmetric decay, and the
+implementation exempts the boolean floor from both.
+
+Three guards are neither, and saying so is the point of the column rather than a
+gap in it. The rate cap bounds **cost and blast radius**, which is why it is not
+exempted for the boolean floor even though the two dampers are — exempting it
+would break §9 property 5's one-patch-per-turn invariant. The host override is
+about **ownership** and the capability gate about **what the service honours**;
+neither is a claim about the right value nor a limit on movement, and both
+correctly suppress a correctness bound, fail-closed.
+
+**Classify any guard added to this table before placing it.** An unclassified
+guard is one whose interaction with every other guard here is undecided, which is
+the state §5 was in until ADR-024.
 
 ## 6. State machine
 
