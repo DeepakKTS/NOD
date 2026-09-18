@@ -105,6 +105,18 @@ per-caller controller does not have to.
   nearest-rank reports 90, interpolation reports 82 — and interpolation reports a latency
   that no turn actually took. The difference always flatters the tail, so the definition
   that does not was chosen, and it travels in every run manifest alongside the numbers.
+- **PCR is reported two ways, and only one of them is a measurement.** Every clip carries
+  a ground-truth label for each silence saying whether it follows a complete utterance or a
+  fragment. Some of those labels are grounded in where the generator cut rather than in
+  what the sentence means, and those are marked ambiguous. The headline PCR scores every
+  gap; the second figure scores only the unambiguous ones, and exists to show how much of
+  the headline rests on that proxy. **The second figure is a disclosure, not a parallel
+  result.** It is computed over roughly an eighth of the corpus, and reaching a usable
+  sample size in that scope would take **4,608 utterances from 154 source clips — 38× the
+  current corpus**, which is not a realistic target. So it is far too underpowered to
+  contradict the headline: if the two agree that is close to meaningless, and if they
+  diverge that is worth attention. Read them as a number and its caveat, never as two
+  measurements.
 - Turn-taking evaluation has real published work behind it, including Full-Duplex-Bench
   v3, EVA-Bench, IHBench and τ-Voice. Metric definitions here borrow from them and say so.
 - What Nod adds is the closed loop. Those benchmarks measure models offline and stop,

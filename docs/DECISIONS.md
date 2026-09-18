@@ -512,3 +512,26 @@ one, uncaught, would have made Nod look better. That asymmetry is the signal —
 no stake in the outcome scatter, and these did not. Treat a convenient result as
 provisional until the mechanism behind it has been checked, and give a number that favours
 the project more scrutiny than one that does not.
+
+**Addendum: the corpus cannot be made sound by making it bigger.** Recorded here rather
+than in ADR-017 because it is a statement about ground truth, not about the simulator.
+Reaching the power target needs 20–28 source clips against today's 4, and `corpus.build`
+scales to that without redesign (16 ms per clip, so 840 clips is about 13 seconds). The
+`say` pipeline does not. Every clip would come from one voice, Samantha at 160 wpm, so
+**every inter-word pause in the corpus is drawn from a single TTS prosody model**. PCR is a
+rate over exactly those pauses. Scaling the pipeline therefore multiplies statistical `n`
+while adding none of the variation the metric depends on: 840 clips from one voice are not
+840 independent observations of how people pause, and the power calculation assumes they
+are. **It moves the p-values and not the validity.** A significance number computed over
+them is a statement about one synthesiser's prosody, not about speakers.
+
+Priority order, so this is not re-derived later:
+1. **Multiple voices.** `VOICE_CANDIDATES` already lists five. Near-zero cost, and the only
+   change here that adds prosodic variation rather than repetition.
+2. **More segments**, 20–28. Buys the statistical floor and nothing else; worth doing, but
+   worth doing second and worth describing as what it is.
+3. **Real speech.** The only fix for independence. Track C, or a licensed corpus for Track
+   A. Everything above is mitigation.
+
+Until (3), no PCR figure from this corpus should be reported with a significance claim
+attached.
