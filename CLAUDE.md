@@ -198,6 +198,25 @@ lines. That file is long-term memory; this file is the standing contract.
   report coverage the suite does not have. Mechanise this: assert the source hash actually
   changed before running the suite, so a patch that fails to apply is a loud error rather
   than a green run — noticing by suspicion does not scale.
+  **And check the harness's other direction.** An unmatched mutation anchor reported as a
+  survivor is the same class of failure pointing the opposite way: instead of hiding a
+  defect it **manufactures** one. The mutation never ran, the suite was never given
+  anything to catch, and the harness reports a hole in the tests that does not exist. The
+  cost is not just a wasted fix — it is that a survivor list containing phantoms trains you
+  to distrust the real entries on it, and the real ones are the whole output of the
+  exercise. Observed at Phase 2 Gate 2: one "survivor" was an anchor string matching two
+  `value` properties instead of one, so it was skipped rather than tested, and it sat in the
+  report next to three genuine gaps. **So the harness must report an anchor-match failure
+  distinctly from a survivor and exit non-zero on it**: a mutation that cannot be applied is
+  a harness error, not a test result, and the two must never print the same way.
+  Note where that requirement currently has nowhere to live. The mutation harness has been
+  written from scratch into a scratch directory at every gate, which is both how the anchor
+  bug arose and why fixing it did not stay fixed — the fix was deleted with the job. A
+  requirement on an artifact that no commit contains is exactly the unbacked claim this
+  section is about, so **`make mutate` is owed**: one committed harness carrying the
+  source-hash assertion, the `__pycache__` purge, `PYTHONDONTWRITEBYTECODE` and the anchor
+  check, with its mutation list per module. Until it exists, re-derive all four at each gate
+  and assume nothing carried over.
 - **Purge `__pycache__` around any mutation run.** CPython validates a `.pyc` on
   `(source mtime, source size)`. A mutation that preserves byte length — `0.4` to `0.5` —
   and is restored inside the one-second mtime granularity leaves both fields matching the
