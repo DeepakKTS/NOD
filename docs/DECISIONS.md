@@ -348,6 +348,22 @@ editorial (ADR-017), because a chart leaving the repo has to carry its own prove
 BENCH_SPEC governs because it is the measurement contract and ROADMAP is a schedule: when a
 schedule and a contract disagree about what a number means, the contract wins.
 
+**Three instances now, and the pattern is worth naming.** Each was two internally coherent
+documents specifying incompatible things, and each surfaced only when something had to
+consume both at once — never from re-reading either one.
+1. BENCH_SPEC §4 ("CI runs the fake; the published table is generated from live runs")
+   against ROADMAP's Phase 1 exit ("offline, on a clean clone"). Found when Gate C asked
+   what `FakeAssemblyAI` concretely had to produce. Resolved above.
+2. CONTROL_SPEC §9's "both axes must move" property against ADR-011's single-axis law.
+   Found when the property test was written; §9 item 9 replaced it.
+3. BENCH_SPEC §2's `correct` illustration, which splices words ("change my, no, cancel
+   my"), against `perturb.apply`'s contract that no perturbation changes speech content,
+   only its timing. Found when Gate A implemented `correct` and had to satisfy both. The
+   contract governs, as in (1): `correct` is a restart built from the clip's own audio,
+   and the divergence from the illustration is recorded at the implementation.
+The lesson is procedural rather than editorial — a spec review would not have caught any of
+them, because each document is right on its own. They are found by building the consumer.
+
 ## ADR-017 — `FakeAssemblyAI` is a simulator, not a replayer
 2026-09-17 · Status: accepted
 Context: a replay of a recorded event stream reproduces the boundaries recorded under the
