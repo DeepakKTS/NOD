@@ -920,3 +920,62 @@ has to change job — it currently asserts the inversion *is* reachable, and aft
 the estimators can still invert while `features()` can no longer report it, so it becomes a
 test that the repair fires rather than a test that it is needed. Its own docstring already
 says so.
+
+## ADR-024 — The boolean floor is absolute and exempt from asymmetric decay
+2026-09-18 · Status: accepted
+Context: CONTROL_SPEC §5 states two guards that cannot both hold. The floor guard says
+"on `boolean`, `min_ms` never exceeds 400", reason: "yes/no must stay snappy". Asymmetric
+decay caps a narrowing at `NARROW_STEP = 12 %` of the reference per turn. From a reference of
+900 ms — `MIN_MS_CEIL`, and exactly where a hesitant caller's profile puts it — reaching the
+cap takes `ln(900/400) / -ln(0.88) = 6.35`, so **7 turns**.
+
+Found at Phase 2 Gate 3 by the impossible-value check, not by reading §5: asked what a
+`ConfigPatch` could not contain, one of the thirteen named answers was "a boolean turn left
+above the cap", and it occurred **6 889 times in 49 233 emitted patches**. §9 property 8
+passes throughout, because its domain was restricted at Gate 1 to
+`current.min_turn_silence_ms <= 400` with this conflict recorded as the reason.
+Decision: **reading (a). The cap is absolute and exempt from decay.** On a `boolean` turn,
+`min_turn_silence` is set to at most `BOOLEAN_MIN_MS_CAP` in one turn regardless of how far
+that is from the reference. §9 property 6's narrowing bound acquires one **narrow, explicit
+exception**, named in the property itself rather than left to be discovered.
+
+Reasoning: §5 gives this guard a purpose, and under decay it does not serve it. Most boolean
+turns are answered inside seven turns of the prompt — that is what makes them boolean — so a
+guard that needs seven turns to take effect does nothing on the calls it exists for. It is
+not a weaker version of the guarantee; it is the absence of one, wearing the guarantee's
+name.
+
+Reading (b) — the cap applies to the law's target and decay shapes the emitted value — keeps
+the mechanism uniform, and that is a real virtue: one rule for every field is easier to
+reason about and harder to get wrong. But it buys that uniformity by making the guard's own
+sentence false. "`min_ms` never exceeds 400" would have to be reworded to "the law never
+asks for more than 400", which is a claim about an intermediate value nobody experiences.
+Between a spec that is internally consistent and says something untrue about the product,
+and a spec with one stated exception that says something true, the second is the better
+trade.
+
+**The exception has a principle, and it is worth stating because it will be needed again.**
+The boolean floor is a **correctness bound**, not a control move. Asymmetric decay exists to
+damp *control churn* — to stop the controller's own oscillation from reaching the caller —
+and a rate limiter on control output has no business throttling a bound that was never a
+control decision in the first place. The same test separates the other §5 guards: the
+clamps, the invariant gap and the latency ceiling are all correctness bounds and none of
+them is decayed either; hysteresis and the rate cap are churn dampers and both are. §5's
+table does not make this distinction, and every future guard added to it should be classified
+before it is placed.
+Consequence: **for Gate 3's test suite, which lands with this ADR.**
+`test_a_boolean_turn_is_capped_even_from_a_slow_reference` converts from `xfail(strict=True)`
+to a passing test, and `make mutate` gains a mutation that removes the exemption — a guard
+whose exception is untested is the exception silently not existing.
+§9 property 6 now reads "narrowing never exceeds `NARROW_STEP` in one turn, except the
+boolean floor". An unqualified property with an unwritten carve-out is how a vacuous test
+starts, so the carve-out is written: the property skips `min_turn_silence` on a `boolean`
+turn and continues to bound `max_turn_silence`, which the floor does not touch.
+What this costs, stated plainly: a caller who has earned a 900 ms minimum and is then asked
+a yes/no question has it cut to 400 in one turn, which is a 56 % narrowing and more than four
+decay steps. If they are still mid-sentence when the prompt changes, they are more exposed to
+a cutoff on that one turn than the decay guard would have left them. That is accepted because
+the host declared the turn `boolean`, and a host declaring the next answer is one word is
+better evidence about that turn than the profile built from previous ones.
+`max_turn_silence` is untouched, so the mid-sentence regime ADR-011 cares about keeps its
+full width — the exemption is narrow in exactly the place that matters.
