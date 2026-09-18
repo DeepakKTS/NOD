@@ -750,3 +750,93 @@ Consequence: a deployment can no longer express "never wait more than one second
 a startup error rather than a controller that quietly violates its own invariant. That is
 the intended trade. §9 property 2 becomes true unconditionally over the valid domain, and
 §9 property 3 stays skipped and vacuous on its own terms until the overhead is measured.
+
+## ADR-022 — The warm threshold rises to 24; widening is capped like narrowing
+2026-09-18 · Status: accepted
+Context: CONTROL_SPEC §2.1 declares the profiler warm at `n_gaps >= 8` and §5 makes
+widening immediate while capping narrowing at `NARROW_STEP = 12 %` per turn. Gate 2 measured
+what P² actually knows at that threshold, on the digit-reading pause shape Nod exists to
+serve, `q = 0.90`, 4 000 trials per row:
+
+| `n` | median rel. error | p75 rel. error | median abs. error | median error in `max_ms` |
+|---|---|---|---|---|
+| 8 | 74.5 % | 83.3 % | 1107 ms | **1772 ms** |
+| 16 | 36.9 % | 54.1 % | 492 ms | **788 ms** |
+| 20 | 19.2 % | 42.8 % | 211 ms | 338 ms |
+| 24 | 17.9 % | 35.4 % | 226 ms | 361 ms |
+| 32 | 11.3 % | 24.7 % | 153 ms | 244 ms |
+| 40 | 6.6 % | 15.5 % | 94 ms | 151 ms |
+
+**Correcting a figure from the Gate 2 report**: it gave 35 % median / 118 % max / 1279 ms at
+`n = 8`. Those are the `n = 16` numbers. At `n = 8` the error is *worse* — 74.5 % at the
+**median**, not the tail, and 1107 ms of median absolute error. The premise this ADR rests
+on is therefore stronger than the one it was raised with.
+
+The two guards compound. Widening is immediate and unbounded, so a single spurious estimate
+lands `max_ms` wherever the law puts it in one turn — from `BASE_MAX_MS` 1280, an `n = 8`
+median error of 1772 ms reaches `MAX_MS_CEIL` at once. Recovery is then capped at 12 % a
+turn: **19 turns from 4000 back to 400.** One bad early gap therefore parks the controller
+at the ceiling for most of a call. That is ADR-020's ratchet reached by another route, and
+the guard §5 built to *bound* a stumble is what makes the stumble persist.
+
+Decision: two changes, both derived below, neither a round number chosen for looking tidy.
+
+**1. `MIN_GAPS_FOR_WARM` 8 → 24.** Criterion: the *median* g_p90 error at the threshold,
+multiplied through `MAX_MS_FROM_P90_GAIN`, must not exceed one hysteresis band at the
+hesitant operating point — so a typical early estimate cannot even emit a spurious patch.
+At `g_p90 = 1500` the law gives `max_ms = 1.6 × 1500 + 250 = 2650`, and one band is
+`0.15 × 2650 = 398 ms`. Against the table: `n = 8` gives 1772 ms (fail), `n = 16` gives
+788 ms (**fail**), `n = 20` gives 338 ms (pass), `n = 24` gives 361 ms (pass).
+
+**The proposed 16–24 band is therefore half-supported and 16 is not viable**: at 788 ms it
+is nearly twice the band. 20 and 24 both clear it; 24 is taken for the margin, and because
+neither is distinguishable under §4's "adaptation begins at roughly turn three" — a turn
+carries roughly 4 to 14 gaps, so 24 is two to six turns.
+
+**2. `WIDEN_STEP = 0.25`, capping widening as ADR-020 caps narrowing.** No threshold on this
+estimator alone is safe, which is why the threshold is not where the fix lives: `n = 256` is
+unreachable inside a short call, and even `n = 64` still admits 574 ms of absolute error in
+the tail. A cap bounds the damage per turn whatever the estimate says. Derived against three
+quantities at once:
+
+| `W` | turns to serve a hesitant caller | turns to undo one spurious turn | turns to reach the ceiling | `W / NARROW_STEP` |
+|---|---|---|---|---|
+| 0.12 (symmetric) | 7 | 1 | 11 | 1.00 |
+| 0.20 | 4 | 2 | 7 | 1.67 |
+| **0.25** | **4** | **2** | **6** | **2.08** |
+| 0.30 | 3 | 3 | 5 | 2.50 |
+| 0.50 | 2 | 4 | 3 | 4.17 |
+| today | 1 | 19 | 1 | — |
+
+Symmetric 12 % is **rejected**: seven turns to serve a genuinely hesitant caller means seven
+turns of cutting them off mid-sentence, which is the harm the project exists to prevent, and
+trading the ratchet for that is not a trade. 0.50 is rejected at the other end: three
+consecutive turns to the ceiling is barely a bound. 0.25 serves a real need in four turns,
+undoes one spurious turn in two, and needs six consecutive wrong turns to reach the ceiling
+— by which point §5's freeze-on-instability and the 24-patch rate cap have both had
+several opportunities. It stays 2.08× `NARROW_STEP`, so §5's asymmetry survives as an
+asymmetry rather than being flattened into symmetry.
+
+**Record the error direction, because it is the fourth of its kind.** Early spurious
+widening inflates pause tolerance: the agent waits longer, so it cuts fewer callers off, so
+**PCR improves** — while every caller waits longer and TTL degrades. PCR is the headline
+axis of the Pareto chart. So this defect, uncaught, would have made the controller look
+better on the metric the claim is about while making the product worse for the person on the
+phone. ADR-018 records three flattering-direction errors in Phase 1 and names the asymmetry
+as the signal; those were all in the *measurement*, and this one is in the *controller*,
+which is a new place for the pattern to live and a worse one.
+Consequence: **for Gate 3, and not implemented here.** `MIN_GAPS_FOR_WARM` moves in
+`profiler.py`; `WIDEN_STEP` is new in `arbiter.py` and the ADR-020 decay step becomes
+two-sided. Two things do **not** change: `NARROW_STEP` stays 0.12, and §4's law is untouched
+— this is guard machinery inside `decide()`.
+Two debts are recorded rather than left implicit. **CONTROL_SPEC §5 still says "widening
+applies immediately" and §2.1 still says 8**, so both contradict this ADR until amended;
+that is the ADR-016 shape and it needs the same cross-reference treatment ADR-020 and
+ADR-021 got. And `test_a_narrowing_is_reachable_at_all` has a widening twin owed: a capped
+widening must still be *reachable*, or `WIDEN_STEP` is a constant that suppresses the thing
+it was meant to bound, exactly as 12 % against 15 % was.
+A cost, stated plainly: raising the threshold to 24 leaves a hesitant caller on the static
+`balanced` window for two to six turns rather than one to two, and they may be cut off
+during them. That is accepted because the alternative is adapting on an estimate whose
+median is wrong by 74 %, and because a capped widening means the controller reaches them in
+four turns once it starts rather than overshooting to the ceiling in one.
