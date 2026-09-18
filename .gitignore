@@ -52,3 +52,6 @@ out/
 
 # `make gate` scratch log
 .gate.log
+
+# hypothesis example database; a local cache of falsifying examples
+.hypothesis/
