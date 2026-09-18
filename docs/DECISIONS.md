@@ -840,3 +840,44 @@ A cost, stated plainly: raising the threshold to 24 leaves a hesitant caller on 
 during them. That is accepted because the alternative is adapting on an estimate whose
 median is wrong by 74 %, and because a capped widening means the controller reaches them in
 four turns once it starts rather than overshooting to the ceiling in one.
+
+## ADR-023 — `features()` repairs an inverted pause profile
+2026-09-18 · Status: accepted
+Context: `g_p90 < g_p50` cannot be true of any real sample set — they are two quantiles of
+one population. CONTROL_SPEC §2.1 says "maintain P² estimators for `g_p50` and `g_p90`",
+two estimators, and says nothing about coupling them. Nothing does: they approximate
+independently, so their errors are independent and the order can invert. Gate 2 found it by
+asking what value the pair could not take, then checking — over 20 000 random gap streams
+the inversion occurred **28 times, 0.14 %, worst inversion 146 ms**.
+Decision: clamp in `Profiler.features()`, reporting `g_p90 = max(g_p90, g_p50)`.
+Rare is not the same as harmless. An inverted profile lets the control law reason from a
+state that describes no speaker, and §4's invariant repair does not catch it: that repair
+prevents `max_ms < min_ms`, which is a statement about the *outputs*, and says nothing about
+whether the *inputs* were coherent. A law fed `g_p90 < g_p50` produces a `max_ms` below the
+`min_ms` its own `g_p50` implies, the repair lifts it to `min_ms + 200`, and the result is a
+window that looks lawful and was computed from nonsense — with no trace, because the repair
+tidied the evidence away.
+Clamping is chosen over coupling the estimators for three reasons. It is **monotone-safe**:
+`max(g_p90, g_p50)` is non-decreasing in `g_p90`, so §9 property 4's monotonicity survives,
+and `g_p50` reaches `max_ms` only through a floor it could already have reached via the
+invariant repair. It is **inside the budget** (INV-2): one comparison, `O(1)`, no
+allocation. And coupling the two estimators is **a change to ADR-002's design** — it would
+mean P² markers that constrain each other across instances, which is not the published
+algorithm and would put the exact-ring validation path on a different footing from the
+production one, making the differential test compare two things that differ by more than
+approximation.
+Consequence: three things are now on the record. **§9's properties have never been evaluated
+on an inverted state** — `tests/property/strategies.py` excluded it from the domain — so
+nothing is known about how the law behaves there beyond the repair's floor. **That
+exclusion's stated justification was wrong**: it read "a state violating this is one the
+profiler cannot emit", and the profiler can. And **after this repair the justification
+becomes true by construction** rather than by assumption, which is the cleanest possible
+resolution — the domain restriction stops being a bet about the implementation and starts
+being a consequence of it.
+For Gate 3, and not implemented here: the clamp in `features()`, and the docstring in
+`strategies.speaker_features()` moving from "measured, and this justification is too strong"
+to "guaranteed by ADR-023". `test_two_independent_estimators_can_report_p90_below_p50` then
+has to change job — it currently asserts the inversion *is* reachable, and after the repair
+the estimators can still invert while `features()` can no longer report it, so it becomes a
+test that the repair fires rather than a test that it is needed. Its own docstring already
+says so.
