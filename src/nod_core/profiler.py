@@ -52,9 +52,12 @@ AGENT_GRACE_MS: Final = 300
 """Cut condition 3: agent audio below this does not disqualify a cut. Milliseconds."""
 
 # Cut condition 5 was dropped (CONTROL_SPEC.md §2.5, ADR-011). It admitted a
-# candidate cut when the ended turn's confidence was below 0.85; P1 measured 67 of
-# 75 real boundaries (89 %) below that, median 0.352, so it admitted nine turns in
-# ten and discriminated nothing. Conditions 1 to 4 carry the label.
+# candidate cut when the ended turn's confidence was below 0.85; the 69-session P1
+# matrix measured 184 real boundaries and 144 of them (78 %) fall below that,
+# median 0.443, so it admitted four turns in five and discriminated nothing.
+# Conditions 1 to 4 carry the label. (These supersede the 67-of-75 at median 0.352
+# quoted here before the clean matrix; the sample is larger and spans both regimes,
+# and the conclusion is unchanged.)
 
 CUT_WINDOW: Final = 5
 """Cuts are counted over this many recent turns (CONTROL_SPEC.md §2.5)."""
