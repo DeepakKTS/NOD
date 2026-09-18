@@ -165,6 +165,20 @@ lines. That file is long-term memory; this file is the standing contract.
     value of that constant, so shrinking the tail below the widest arm gate survived it.
     Assert against the *requirement* (`conservative`'s 3600 ms gate), never against the
     constant under test.
+  - `corpus.INTRINSIC_FLOOR_DBFS` was documented as "the simulator's silence floor at the
+    default `vad_threshold`" and written as the literal `-44.0`, while `fake_assemblyai`
+    reached the same number from three other constants. They agreed, and nothing checked
+    that they agreed: changing `DEFAULT_VAD` would have left intrinsic-gap detection
+    calibrated to the old threshold with every test still green. **Two constants that
+    agree by meaning and not by code are not a fact the codebase knows — they are a
+    coincidence it is currently enjoying.** Assert the relation, do not derive it:
+    deriving makes them agree forever, which is wrong when one side has already been
+    frozen into committed data. It has to fail loudly and make someone decide.
+  All four shapes are the same defect wearing different clothes — a check that cannot
+  fail. A test that cannot go red. An invariant vacuous under the constants actually in
+  force. A tool that reported false greens because it never confirmed its own edit landed.
+  And an agreement between constants that exists only in prose. Before trusting any of
+  them, ask what would have to change for this to fail, and confirm that it does.
   If a mutation leaves a test green, say so and add the test that goes red. Do not
   report coverage the suite does not have. Mechanise this: assert the source hash actually
   changed before running the suite, so a patch that fails to apply is a loud error rather
