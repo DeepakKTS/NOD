@@ -15,9 +15,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BeforeValidator, SecretStr
+from pydantic import BeforeValidator, Field, SecretStr
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from nod_core.arbiter import CEILING_FLOOR_MS, DEFAULT_CEILING_MS
 from nod_core.types import NodMode
 
 
@@ -102,8 +103,31 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     nod_max_sessions: int = 64
     """Sessions per worker."""
 
-    nod_ceiling_ms: int = 2600
-    """Default latency ceiling, milliseconds."""
+    nod_ceiling_ms: int = Field(default=DEFAULT_CEILING_MS, ge=CEILING_FLOOR_MS)
+    """Default latency ceiling, milliseconds.
+
+    **Derived, not copied.** The default was the bare literal `2600` while
+    `arbiter.DEFAULT_CEILING_MS` held the same number and every other consumer —
+    `nod_server.ws`, the budget test, the property strategies — read the constant.
+    Nothing checked the two agreed, so moving the constant would have left this
+    default at the old value silently. That is the shape CLAUDE.md §5 records for
+    `corpus.INTRINSIC_FLOOR_DBFS` against `fake_assemblyai.DEFAULT_VAD`: two
+    constants agreeing by meaning and not by code.
+
+    §5 prescribes *asserting* the relation there and *deriving* it here, and the
+    difference is not inconsistency. `INTRINSIC_FLOOR_DBFS` had already been frozen
+    into committed corpus sidecars, so deriving would have silently recalibrated
+    ground truth to a new threshold and made the disagreement unaskable — it had to
+    fail loudly and make someone decide. Nothing is frozen here: this default is
+    read at process start and persisted nowhere, so one source of truth is simply
+    correct and a second copy buys nothing but drift.
+
+    `ge=CEILING_FLOOR_MS` is ADR-021's lower bound: a ceiling under 1100 ms cannot
+    satisfy §4's invariant repair, and pydantic raises at startup rather than
+    letting every turn of every call quietly violate it. Rejection is right at this
+    boundary because configuration is not a call; INV-8's "fail soft in a call"
+    governs the per-connection override in `SessionProxy`, which clamps instead.
+    """
 
     nod_preset: str = "balanced"
 

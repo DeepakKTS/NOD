@@ -79,6 +79,20 @@ INVARIANT_GAP_MS: Final = 200
 DEFAULT_CEILING_MS: Final = 2600
 """Default latency ceiling. Per-deployment via `NOD_CEILING_MS`. Milliseconds."""
 
+CEILING_FLOOR_MS: Final = MIN_MS_CEIL + INVARIANT_GAP_MS
+"""Lowest valid `ceiling_ms`. 1100 ms. Milliseconds (ADR-021).
+
+§4 applies the latency ceiling *after* the invariant repair, so a ceiling below
+this would undo it: `min_ms` clamps up to `MIN_MS_CEIL`, the repair lifts `max_ms`
+to `min_ms + INVARIANT_GAP_MS`, and a smaller ceiling then pulls it back under.
+ADR-021 resolves that by making such a ceiling an invalid *configuration* rather
+than by re-ordering §4 — a law that applies a ceiling and then knowingly raises
+`max_ms` back above it violates the ceiling on purpose, every turn, silently.
+
+Derived rather than written as 1100 so it follows the clamps it comes from.
+`Settings` enforces it at startup and §9 property 2 is stated over it.
+"""
+
 EARLY_ENDPOINT_GP90_MULT: Final = 1.8
 """Confident early endpoint fires above `max(max_ms, g_p90 * this)`."""
 
