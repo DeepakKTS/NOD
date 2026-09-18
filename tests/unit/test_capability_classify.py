@@ -189,8 +189,8 @@ def test_classify_builds_the_record_and_fails_closed() -> None:
     static = four_cells(EARLY, NEVER, NEVER, NEVER)
     caps = classify(
         [
-            ("max_turn_silence", live, SHIFT_MS, 1),
-            ("min_turn_silence", static, SHIFT_MS, 1),
+            ("max_turn_silence", live, SHIFT_MS, 1, None),
+            ("min_turn_silence", static, SHIFT_MS, 1, None),
         ],
         control=cell("control", (600.0,), confidences=(0.4, 0.8), on_partials=True),
         force_endpoint=KnobVerdict.UNPROVEN,
@@ -495,3 +495,61 @@ def test_boundaries_that_do_not_move_are_still_inert() -> None:
     connect_high = (347.0, 357.0, 342.0)
     obs = four_cells(connect_low, connect_high, connect_low, connect_high)
     assert verdict_for(obs, expected_shift_ms=2800.0, direction=1) is KnobVerdict.INERT
+
+
+def test_a_knob_that_never_bound_is_unproven_not_inert() -> None:
+    """ADR-001's `universal-3-5-pro` rows, from `data/traces-p0-final`.
+
+    Both `min_turn_silence` arms (100 and 2000 ms) produced boundaries at 3431
+    and 3364 ms with `max_turn_silence` pinned at 3000. The minimum never bound,
+    so the 67 ms between the arms is noise around a boundary another gate set —
+    not the knob moving backwards. Calling that INERT asserts the model ignores
+    a field, on an experiment that never ran.
+    """
+    low = (3641.0, 3221.0)
+    high = (3414.0, 3314.0)
+    obs = four_cells(low, high, low, high)
+
+    assert (
+        verdict_for(obs, expected_shift_ms=1900.0, direction=1) is KnobVerdict.INERT
+    ), "without the pinned gate the classifier cannot know, and says INERT"
+    assert (
+        verdict_for(obs, expected_shift_ms=1900.0, direction=1, other_gate_ms=3000.0)
+        is KnobVerdict.UNPROVEN
+    )
+
+
+def test_a_knob_that_did_bind_is_still_judged_on_its_own_merits() -> None:
+    """The rule must not launder a real INERT into UNPROVEN.
+
+    `end_of_turn_confidence_threshold` on `universal-streaming-english`: arms at
+    the documented endpoints landed 353 and 347 ms with `max_turn_silence`
+    pinned at 3000. Nothing reached that gate, so it explains nothing, and the
+    verdict stays INERT.
+    """
+    low = (353.0, 378.0, 353.0)
+    high = (347.0, 357.0, 342.0)
+    obs = four_cells(low, high, low, high)
+    assert (
+        verdict_for(obs, expected_shift_ms=2800.0, direction=1, other_gate_ms=3000.0)
+        is KnobVerdict.INERT
+    )
+
+
+def test_a_live_knob_is_untouched_by_the_rule() -> None:
+    """`vad_threshold` pins `max_turn_silence` at 800 and its boundaries exceed it.
+
+    Those boundaries are past the pinned gate, but the arms are properly
+    separated and correctly directed, so the direction branch is never reached
+    and the rule never applies.
+    """
+    obs = four_cells(
+        (1371.0, 1371.0, 1349.0),
+        (967.0, 988.0, 946.0),
+        (1374.0, 1346.0, 1364.0),
+        (951.0, 929.0, 949.0),
+    )
+    assert (
+        verdict_for(obs, expected_shift_ms=800.0, direction=-1, other_gate_ms=800.0)
+        is KnobVerdict.LIVE
+    )

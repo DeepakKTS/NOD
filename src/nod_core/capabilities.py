@@ -227,6 +227,36 @@ def _separated(low: Sequence[float], high: Sequence[float]) -> bool:
     return gap >= IQR_MULTIPLE * spread and gap >= MIN_SEPARATION_MS
 
 
+def _bound_elsewhere(
+    low: Sequence[float], high: Sequence[float], other_gate_ms: float | None
+) -> bool:
+    """Whether a *different* gate ended the turn in both arms. Pure. `O(n log n)`.
+
+    The knob under test can only be shown inert if the stimulus gave it an
+    opportunity to act. When every boundary lands at or beyond another silence
+    gate that was pinned for these cells, that gate ended the turn first and the
+    knob was never the binding constraint — so the arms say nothing about it.
+
+    Measured case: on `universal-3-5-pro` both `min_turn_silence` arms (100 and
+    2000 ms) produced boundaries at 3431 and 3364 ms with `max_turn_silence`
+    pinned at 3000. The minimum never bound, and the 67 ms between the arms is
+    noise around a boundary someone else set, not the knob moving backwards.
+
+    Args:
+        low: Boundary measurements from the low arm.
+        high: Boundary measurements from the high arm.
+        other_gate_ms: The other silence gate pinned for these cells, if any.
+
+    Returns:
+        Whether both arms were ended by that other gate.
+    """
+    if other_gate_ms is None or not low or not high:
+        return False
+    if any(math.isinf(v) for v in (*low, *high)):
+        return False
+    return _median(low) >= other_gate_ms and _median(high) >= other_gate_ms
+
+
 def _directed(low: Sequence[float], high: Sequence[float], direction: int) -> bool:
     """Whether the boundary moved the way the stimulus predicts. `O(n log n)`."""
     low_median = _median(low)
@@ -283,6 +313,7 @@ def verdict_for(
     *,
     expected_shift_ms: float,
     direction: int,
+    other_gate_ms: float | None = None,
 ) -> KnobVerdict:
     """Reduce one knob's four cells to a verdict. Pure. `O(n log n)`.
 
@@ -297,6 +328,9 @@ def verdict_for(
             milliseconds. Not the knob's own delta: a confidence threshold's
             delta is dimensionless and would make the tolerances meaningless.
         direction: `+1` if a lower arm value should yield an earlier boundary.
+        other_gate_ms: The other silence gate pinned for these cells. When every
+            boundary lands at or beyond it, that gate bound first and the
+            verdict is `UNPROVEN` rather than `INERT`.
 
     Returns:
         The verdict. Anything short of proof is `UNPROVEN`, never `LIVE`. An arm
@@ -325,6 +359,10 @@ def verdict_for(
         return KnobVerdict.UNPROVEN
 
     if not _directed(connect_low, connect_high, direction):
+        if _bound_elsewhere(connect_low, connect_high, other_gate_ms):
+            # A different gate ended every turn, so the stimulus never gave this
+            # knob an opportunity. Absence of data, not evidence of absence.
+            return KnobVerdict.UNPROVEN
         # Boundaries did occur and did not move with the knob, or moved against
         # it. This is the only shape that earns INERT: a positive claim that the
         # model ignores the field.
@@ -370,7 +408,7 @@ def confidence_field(observations: Sequence[CellObservation]) -> ConfidenceField
 
 
 def classify(
-    by_field: Sequence[tuple[str, Sequence[CellObservation], float, int]],
+    by_field: Sequence[tuple[str, Sequence[CellObservation], float, int, float | None]],
     *,
     control: Sequence[CellObservation],
     force_endpoint: KnobVerdict,
@@ -380,7 +418,8 @@ def classify(
 
     Args:
         by_field: One entry per knob: name, its observations, the expected
-            boundary shift in milliseconds, and the expected direction.
+            boundary shift in milliseconds, the expected direction, and the
+            other silence gate pinned for its cells (or `None`).
         control: Observations from the knob-free control sessions.
         force_endpoint: The separately measured `ForceEndpoint` verdict.
         has_word_timings: Whether `words[].start`/`.end` arrived at all.
@@ -391,9 +430,14 @@ def classify(
     knobs = tuple(
         (
             field,
-            verdict_for(observations, expected_shift_ms=shift_ms, direction=direction),
+            verdict_for(
+                observations,
+                expected_shift_ms=shift_ms,
+                direction=direction,
+                other_gate_ms=other_gate_ms,
+            ),
         )
-        for field, observations, shift_ms, direction in by_field
+        for field, observations, shift_ms, direction, other_gate_ms in by_field
     )
     return Capabilities(
         knobs=knobs,

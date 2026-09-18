@@ -784,6 +784,21 @@ async def run_session(
     return observation
 
 
+def _other_gate_ms(stimulus: KnobStimulus) -> float | None:
+    """The pinned silence gate that could end a turn before this knob does.
+
+    `max_turn_silence` is the acoustic fallback and always ends a turn
+    eventually, so for every other knob it is the gate that can bind first. For
+    `max_turn_silence` itself there is nothing behind it, hence `None`.
+
+    Pure. `O(1)`.
+    """
+    if stimulus.field == "max_turn_silence":
+        return None
+    pinned = stimulus.pinned.get("max_turn_silence")
+    return None if pinned is None else float(pinned)
+
+
 def summarise(result: RunResult) -> Capabilities:
     """Reduce every measurement to the capability record. Pure. `O(n log n)`."""
     by_field = [
@@ -792,6 +807,7 @@ def summarise(result: RunResult) -> Capabilities:
             result.observations.get(stimulus.field, []),
             float(stimulus.expected_shift_ms),
             stimulus.direction,
+            _other_gate_ms(stimulus),
         )
         for stimulus in STIMULI
     ]
