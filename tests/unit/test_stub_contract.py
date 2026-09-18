@@ -11,6 +11,15 @@ a real contract.
 
 As each stub is implemented, delete its entry here and replace it with the test
 that exercises the behaviour.
+
+**`profiler.py`'s eleven entries were deleted at Phase 2 Gate 2**, replaced by
+`tests/unit/test_profiler.py` (the ingest path and its edge cases by id) and
+`tests/property/test_profiler_quantiles.py` (the two estimators, differentially
+and structurally). `ProfilerState` never had an entry: it is a real frozen
+dataclass, not a stub, and `PROFILER_STATE` below is still built from it.
+
+The coverage this file was holding up had to be replaced, not merely removed. The
+delta is in the Gate 2 report.
 """
 
 from __future__ import annotations
@@ -27,10 +36,8 @@ from nod_core.types import (
     ConfidenceField,
     KnobVerdict,
     SpeakerFeatures,
-    Turn,
     TurnConfig,
     WindowHint,
-    Word,
 )
 
 
@@ -39,14 +46,6 @@ def _uninitialised[T](cls: type[T]) -> T:
     return object.__new__(cls)
 
 
-WORD = Word(text="hello", start_ms=0, end_ms=200, confidence=0.9, is_final=True)
-TURN = Turn(
-    turn_order=1,
-    end_of_turn=True,
-    end_of_turn_confidence=0.7,
-    transcript="hello",
-    words=(WORD,),
-)
 FEATURES = SpeakerFeatures(
     n_gaps=10,
     g_p50_ms=220.0,
@@ -94,35 +93,6 @@ PROFILER_STATE = profiler.ProfilerState(
 )
 
 SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = (
-    ("profiler.P2Quantile.__init__", lambda: profiler.P2Quantile(0.5)),
-    (
-        "profiler.P2Quantile.update",
-        lambda: _uninitialised(profiler.P2Quantile).update(1.0),
-    ),
-    ("profiler.P2Quantile.value", lambda: _uninitialised(profiler.P2Quantile).value),
-    ("profiler.ExactQuantile.__init__", lambda: profiler.ExactQuantile(0.9)),
-    (
-        "profiler.ExactQuantile.update",
-        lambda: _uninitialised(profiler.ExactQuantile).update(1.0),
-    ),
-    (
-        "profiler.ExactQuantile.value",
-        lambda: _uninitialised(profiler.ExactQuantile).value,
-    ),
-    ("profiler.Profiler.__init__", profiler.Profiler),
-    (
-        "profiler.Profiler.observe_turn",
-        lambda: _uninitialised(profiler.Profiler).observe_turn(TURN),
-    ),
-    (
-        "profiler.Profiler.features",
-        lambda: _uninitialised(profiler.Profiler).features(),
-    ),
-    (
-        "profiler.Profiler.snapshot",
-        lambda: _uninitialised(profiler.Profiler).snapshot(),
-    ),
-    ("profiler.Profiler.restore", lambda: profiler.Profiler.restore(PROFILER_STATE)),
     (
         "policy.CompiledPolicy.hint_for",
         lambda: _uninitialised(policy.CompiledPolicy).hint_for("boolean"),
