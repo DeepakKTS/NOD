@@ -209,14 +209,19 @@ lines. That file is long-term memory; this file is the standing contract.
   report next to three genuine gaps. **So the harness must report an anchor-match failure
   distinctly from a survivor and exit non-zero on it**: a mutation that cannot be applied is
   a harness error, not a test result, and the two must never print the same way.
-  Note where that requirement currently has nowhere to live. The mutation harness has been
-  written from scratch into a scratch directory at every gate, which is both how the anchor
-  bug arose and why fixing it did not stay fixed — the fix was deleted with the job. A
-  requirement on an artifact that no commit contains is exactly the unbacked claim this
-  section is about, so **`make mutate` is owed**: one committed harness carrying the
-  source-hash assertion, the `__pycache__` purge, `PYTHONDONTWRITEBYTECODE` and the anchor
-  check, with its mutation list per module. Until it exists, re-derive all four at each gate
-  and assume nothing carried over.
+  **Use `make mutate`.** It carries all four guards — the source-hash assertion, the
+  `__pycache__` purge on write and restore, `PYTHONDONTWRITEBYTECODE` for the subprocess,
+  and the anchor check — with its mutation list per module in `tools/mutate.py`. Exit codes
+  are the interface: 0 all killed, 1 survivors, **2 a mutation could not be applied**, which
+  dominates because a run containing one cannot be concluded from. Do not hand-roll a
+  harness beside it; the first four gates each rebuilt one into a scratch directory, which is
+  both how the anchor defect arose and why fixing it did not stay fixed — the fix was deleted
+  with the job.
+  `make mutate-selftest` is the harness checking itself, and it exists because a harness
+  whose own failure modes are untested is this same defect one level up. It runs two
+  deliberate failures — a comment edit no test can notice, and an anchor matching zero times
+  — and requires exit 2 with the two printed in **different sections**. Add a module's
+  mutations to `CATALOGUE` rather than to a script of your own.
 - **Purge `__pycache__` around any mutation run.** CPython validates a `.pyc` on
   `(source mtime, source size)`. A mutation that preserves byte length — `0.4` to `0.5` —
   and is restored inside the one-second mtime granularity leaves both fields matching the

@@ -99,7 +99,7 @@ packages = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests", "tools"]
 
 [tool.ruff.lint]
 select = [
@@ -139,6 +139,11 @@ mypy-init-return = true
 # deliberately; there is no event loop left to starve at that point.
 "tests/**" = ["S101", "D", "ANN", "PLR2004", "ASYNC240"]
 "src/nod_bench/**" = ["T20"]  # docs/PROMPTS.md P2/P3: the bench CLIs print reports
+# The mutation harness is a CLI whose output *is* its product (T20), and its
+# mutation anchors are verbatim lines of the modules it edits — wrapping one to
+# 88 columns would stop it matching, which is the anchor defect CLAUDE.md §5
+# records, introduced by the formatter (E501).
+"tools/**" = ["T20", "E501"]
 "src/**/__init__.py" = ["D104"]
 
 [tool.ruff.format]
@@ -152,7 +157,7 @@ docstring-code-format = true
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-files = ["src", "tests"]
+files = ["src", "tests", "tools"]
 strict = true
 warn_unreachable = true
 warn_unused_configs = true

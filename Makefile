@@ -26,10 +26,11 @@ RUN := $(UV) run
 # installed from `make install` and hid this completely.
 RUN_BENCH := $(UV) run --extra bench
 PYTHON_VERSION := 3.12
-PATHS := src tests
+PATHS := src tests tools
 
 .PHONY: help install fmt lint types test bench-smoke check gate seed-tests run \
-        demo probe probe-fake bench bench-live bench-clean metrics report audit clean
+        demo probe probe-fake bench bench-live bench-clean metrics report audit clean \
+        mutate mutate-selftest
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
@@ -85,6 +86,21 @@ gate: ## The gate, with its exit code preserved. Use this, not `make check | gre
 	@echo
 	@grep -E 'passed|Required test coverage' .gate.log | tail -3
 	@echo "gate: PASSED"
+
+mutate: ## Mutation run over the first-tier modules (CLAUDE.md §5). MODULE=profiler
+	$(RUN) python tools/mutate.py $(MODULE)
+
+mutate-selftest: ## Prove the harness can report both of its own failure modes
+	@# Expects exit 2: one deliberate survivor and one deliberate unmatched
+	@# anchor, which must print in different sections. A harness whose own
+	@# failure modes are untested is the CLAUDE.md §5 defect one level up.
+	@$(RUN) python tools/mutate.py selftest; \
+		status=$$?; \
+		if [ $$status -ne 2 ]; then \
+			echo "mutate-selftest: FAILED — expected exit 2, got $$status"; \
+			exit 1; \
+		fi; \
+		echo "mutate-selftest: PASSED (exit 2, as required)"
 
 seed-tests: ## Run the `say`-shelling tests, excluded from the default suite
 	$(RUN) pytest -m say -p no:cacheprovider
