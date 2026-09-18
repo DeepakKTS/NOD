@@ -61,8 +61,20 @@ Inter-word gap `g_i = words[i].start - words[i-1].end`, computed only over final
 words within a turn. Gaps are clamped to `[0, 6000]` ms before ingestion to stop one
 pathological silence from poisoning the estimator.
 
-Maintain P² estimators for `g_p50` and `g_p90`. Require `n_gaps >= 8` before either is
+Maintain P² estimators for `g_p50` and `g_p90`. Require `n_gaps >= 24` before either is
 consulted; below that, the profiler reports `cold`.
+
+**Was 8 until ADR-022**, which measured what P² knows at that count: on the digit-reading
+pause shape, 74.5 % median relative error and 1107 ms median absolute, which the §4 law
+turns into 1772 ms of `max_turn_silence` error at the *median* rather than in the tail. 24 is
+derived there against one hysteresis band at the hesitant operating point; 16 was measured
+and rejected. Read ADR-022 before moving this number — it also explains why no threshold on
+this estimator alone is sufficient, and why the companion fix is the §5 step cap.
+
+Also from ADR-023: `features()` reports `g_p90 = max(g_p90, g_p50)`. The two estimators are
+independent, so their errors are independent and the order can invert — measured at 0.14 %
+of streams, worst 146 ms. An inverted profile describes no speaker, and §4's invariant repair
+would hide it rather than catch it.
 
 ### 2.2 Speech rate
 `rate = finalised_words / voiced_ms * 1000`, where `voiced_ms = Σ(word.end - word.start)`.
@@ -186,7 +198,8 @@ max_ms  = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)
 consults it, so a model that honours the field can be re-enabled by a future ADR without
 re-litigating this law (ADR-011).
 
-If the profiler is `cold` (`n_gaps < 8`), the speaker axis is skipped entirely and only
+If the profiler is `cold` (`n_gaps` below §2.1's threshold), the speaker axis is skipped
+entirely and only
 the context axis applies to the base values. Adaptation begins at roughly turn three.
 
 ### Confident early endpoint
@@ -202,7 +215,7 @@ person whose long gap is not a finished turn.
 |---|---|---|
 | **Hysteresis** | emit only if any field moves more than `HYST = 15 %` of its current value. **What the 15 % is measured against, and where this guard sits relative to the decay guard below, are fixed by ADR-020 — read it before implementing either.** | prevents socket chatter |
 | **Rate cap** | at most 1 patch per turn, at most `MAX_PATCHES = 24` per session | bounds cost and blast radius |
-| **Asymmetric decay** | widening applies immediately; narrowing applies at most `NARROW_STEP = 12 %` per turn. **12 % is below the 15 % above, so the order of the two guards decides whether narrowing can be emitted at all; ADR-020 settles it, and settles what §4 must re-run afterwards.** | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
+| **Asymmetric decay** | widening applies at most `WIDEN_STEP = 25 %` per turn, narrowing at most `NARROW_STEP = 12 %`. **Widening was immediate and unbounded until ADR-022**, which is how one spurious early estimate parked `max_ms` at the ceiling for 19 turns — ADR-020's ratchet by another route. The asymmetry survives at 2.08×. **12 % is also below the 15 % above, so the order of the two guards decides whether narrowing can be emitted at all; ADR-020 settles it, and settles what §4 must re-run afterwards.** | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
 | **Ceiling** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS`. **§4 applies this after the invariant repair, so a low enough `ceiling_ms` would undo it; ADR-021 settles that at the configuration boundary rather than in this table or in §4.** | **Unenforced pending a measured overhead.** `ENDPOINT_OVERHEAD_MS` is still 0, so the subtraction does nothing and the guard holds only arithmetically: the boundary arrives some way *after* the configured gate, so a `max_ms` clamped exactly to `ceiling_ms` overshoots the ceiling on every turn. The P1 matrix measured that lag as consistently positive and well outside the noise across every plain silence-gate cell. Until `make bench` supplies the value (INV-9 — it is not written here), do not rely on this guard to keep a fluent caller from waiting |
 | **Floor on boolean turns** | on `boolean`, `min_ms` never exceeds 400 | yes/no must stay snappy |
 | **Freeze on instability** | if 3 patches in 5 turns all reverse direction, freeze the speaker axis for 10 turns and emit `controller_frozen` | detects oscillation instead of thrashing |
