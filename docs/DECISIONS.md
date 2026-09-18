@@ -1091,3 +1091,64 @@ Two costs, both accepted:
   seeing a flattering result is not a decision.
 CONTROL_SPEC §8 and CLAUDE.md §7 should be read with this: "tune against `make bench`" means
 against the **live** bench of BENCH_SPEC §4, never against the simulated path of ADR-016.
+
+## ADR-027 — `MAX_PATCHES` cannot fire, and the decision waits for a live count
+2026-09-18 · Status: accepted — deferred resolution, recorded so it is not re-derived
+Context: CONTROL_SPEC §5's rate cap is "at most 1 patch per turn, at most
+`MAX_PATCHES = 24` per session", reason "bounds cost and blast radius". The per-turn half is
+load-bearing and does real work — §9 property 5 depends on it (ADR-020). The session half
+has never been observed to bind. Measured at Gate 5, with Gate 4's argument as the
+independent second reason:
+
+| workload | warm at | patches over the session | cap |
+|---|---|---|---|
+| Track A clip, ×120 | never | **0** | 24 |
+| synthetic, monotone drift 200→2500 ms, 120 turns | turn 5 | 8 | 24 |
+| synthetic, **oscillating** 150↔2500 ms, 120 turns | turn 5 | 7 | 24 |
+| synthetic, random 100–3000 ms, 120 turns | turn 5 | 4 | 24 |
+
+**Eight is the maximum observed, one third of the cap, over 120 turns** — far longer than
+any real call. The oscillating row is the one that settles it: it is the profile that
+*should* be worst for patch count, and it produces fewer patches than the monotone drift.
+
+**Two guards compound to make a third unreachable**, which is the finding worth recording
+rather than the number:
+- **Hysteresis** (§5, 15 %) suppresses everything once the window has converged on the
+  law's target. That is Gate 4's independent reason, reached by argument before this
+  measurement existed: over 199 turns of a monotone profile only 4 patches are ever
+  emitted, which is why Gate 4's first attempt at a rate-cap test was vacuous.
+- **Freeze on instability** (§5, 3 reversals in 5 turns) damps exactly the oscillation that
+  would otherwise generate patches fast enough to reach the cap. The guard designed to stop
+  thrashing also removes the only workload that could exercise the cap.
+Neither guard is wrong and neither was designed with this in mind. The cap is simply
+downstream of both, and nothing between them leaves it anything to do.
+
+**This is CLAUDE.md §5's defect class** — a check that cannot fail, here a guard that cannot
+fire — and it is the fifth shape that section catalogues: not a test that stays green, not a
+vacuous invariant, but a *runtime* guard rendered unreachable by two other guards that each
+work correctly. Worth naming because the mechanism is new to this repository: the previous
+instances were all about a check's own construction, and this one is about its position in a
+chain.
+Decision: **nothing changes in Phase 2, and the resolution is deferred to Phase 4's live
+patch count.** Three reasons, in order of weight:
+1. **The evidence is simulated.** ADR-026 forbids moving a constant on simulated output, and
+   this is a constant about cost and blast radius on a real socket — the one kind of
+   question a deterministic model with no network is least able to answer.
+2. **The failure mode is benign in the direction it fails.** A cap that never binds costs
+   nothing; a cap set too low silently stops a controller adapting mid-call, which is the
+   product failing at the thing it exists for. Of the two errors, the current one is the
+   one to be making while the evidence is thin.
+3. **A guard that cannot fire is still documentation** of an intended bound, and deleting it
+   would remove the statement along with the dead code. If Phase 4 confirms it cannot fire
+   live either, the right move is probably to keep it and say so in §5 rather than to
+   delete it — a guard annotated "never observed to bind, kept as a stated bound" is honest,
+   where an absent guard says nothing.
+What Phase 4 must actually collect, so this is not re-derived: **the patch count per session
+across the `N = 5` live runs**, and the count for the longest session in the set. If the
+maximum is still well under 24, amend §5 to record the cap as a stated bound rather than an
+active guard. If it approaches 24, the cap is live and this ADR is superseded by the
+measurement.
+Consequence: `MAX_PATCHES` stays 24 and untested against its own boundary — there is no test
+asserting the cap binds, because no input reaches it. `tests/unit/test_arbiter.py` tests the
+cap by *supplying* `patches_sent` at the boundary, which tests the arbiter's arithmetic and
+not the cap's reachability, and its docstring should not be read as more than that.
