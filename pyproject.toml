@@ -182,8 +182,11 @@ disallow_any_explicit = false
 # Untyped third-party imports: see ADR-006 in docs/DECISIONS.md. librosa,
 # soundfile, scipy and assemblyai ship no inline types, so each needs an
 # `ignore_missing_imports` override added at the phase that first imports it.
-# Declaring the overrides now trips warn_unused_configs, so they are deferred
-# rather than carried as dead config.
+# Declaring one before anything imports it trips warn_unused_configs, so they
+# arrive one at a time rather than as a block of dead config.
+[[tool.mypy.overrides]]
+module = ["soundfile", "librosa", "librosa.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
 # pytest — CLAUDE.md §3 Tests, INV-7

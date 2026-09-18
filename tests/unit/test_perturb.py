@@ -18,6 +18,7 @@ from nod_bench.perturb import (
     REPEAT_GAP_MS,
     REPEAT_WORD_MS,
     Audio,
+    PerturbationKind,
     TruthSpan,
     apply,
     burst,
@@ -225,9 +226,23 @@ def test_a_split_point_outside_the_clip_is_refused() -> None:
         pause(source, SR, at_ms=5000, len_ms=400)
 
 
-def test_noise_is_still_a_stub_and_says_so() -> None:
-    """Gate A implemented five of the six; `noise` is not one of them."""
-    from nod_bench.perturb import noise
+def test_all_six_perturbations_are_implemented() -> None:
+    """`noise` landed in D1; this replaces the tripwire that tracked it.
 
-    with pytest.raises(NotImplementedError):
-        noise(_tone(1000), SR, snr_db=20.0, rng=np.random.default_rng(1))
+    The stub test it replaces did its job: it failed the moment `noise` was
+    implemented, rather than letting an obsolete claim sit in the suite.
+    """
+    from nod_bench.perturb import apply
+
+    rng = np.random.default_rng(1)
+    cases: list[tuple[PerturbationKind, dict[str, float]]] = [
+        ("pause", {"at_ms": 500, "len_ms": 400}),
+        ("repeat", {"at_ms": 500, "times": 1}),
+        ("prolong", {"at_ms": 500, "factor": 1.5}),
+        ("correct", {"at_ms": 500, "template": 0}),
+        ("burst", {"bursts": 2}),
+        ("noise", {"snr_db": 20.0}),
+    ]
+    for kind, params in cases:
+        out, _ = apply(_tone(2000), SR, kind, rng=rng, **params)
+        assert len(out) > 0, kind

@@ -423,6 +423,23 @@ The `max_turn_silence` point is included deliberately: the first four share a re
 a simulator that modelled only the complete-utterance gate would pass all of them while
 being wrong about the regime Nod exists for.
 
+**The overhead is not a scalar, and the bound above inherits that.** Calibration measured
+the implied overhead per cell as 206, 175, 204, 172 and 217 ms — a 45 ms spread, which is
+comparable to the service's own per-cell repeat spread (24–39 ms) and so is as likely to be
+measurement noise as structure. Two consequences:
+- `make bench` must report `ENDPOINT_OVERHEAD_MS` as **a value and a spread**, not a single
+  number. A scalar would assert a constancy the measurement does not show, and the control
+  law subtracts this from its ceiling (CONTROL_SPEC §4), so a spread that is real is a
+  spread the ceiling has to absorb.
+- The ±40 ms per-point bound must then be **revisited against that measured spread**, not
+  inherited from this ADR. It was derived from repeat spread before the residual structure
+  was visible.
+One constant currently explains all five points to within 23.0 ms, leaving **17 ms of
+headroom** under the 40 ms bound. That is why a 35 ms uniform bias cannot be isolated by
+these five points: it trips the per-point bound as well as the signed one, so the
+demonstration that the signed bound catches what the absolute bound misses has to be run at
+16 ms. A tighter per-point bound, or more calibration cells, would widen that window.
+
 Without this the simulator is an assertion; with it, it is falsifiable. The other three are console replay mode
 (PRD F-10, EC-45), transport fixtures under INV-7, and realistic input-side material.
 Consequence: the fake produces the *shape* — a tradeoff curve, a Pareto chart, CI

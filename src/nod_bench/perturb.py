@@ -7,6 +7,7 @@ rather than judged. The generator is seeded and deterministic — the same seed 
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Final, Literal, assert_never
 
@@ -439,6 +440,26 @@ def noise(
 ) -> tuple[Audio, TruthSpan]:
     """Add stationary background noise at a set signal-to-noise ratio.
 
+    Emits **no gaps**, and that is a claim about this function only: it changes
+    no timing, so it creates no silence and relabels nothing.
+
+    It does, however, undermine gap labels made by *other* perturbations, which
+    is why it must be composed carefully rather than layered freely. A `Gap` is
+    grounded in construction — where the generator cut — and remains true no
+    matter how loud the bed is. What noise breaks is the *bridge* from that
+    label to the model's behaviour: `Gap.preceding` predicts which gate binds
+    only while the model still perceives the silence as silence. A noise bed at
+    or above the VAD floor is not silence to the endpointer, so the gate never
+    engages and the label predicts a boundary that cannot happen.
+
+    That failure is a property of the pair `(snr_db, vad_threshold)`, not of the
+    gap, so it is deliberately **not** folded into `Gap.certainty`: marking gaps
+    ambiguous here would conflate "we cut somewhere a clause might end" with
+    "the bed is louder than the floor", which have different causes and
+    different fixes. `NOISE_SNR_DB_SWEEP` stays at 30/20/12 dB, all well above
+    the silence floor, so the bed stays below it — but a future sweep that goes
+    lower must re-derive the labels rather than inherit them.
+
     Args:
         audio: Source samples.
         sr: Sample rate.
@@ -446,9 +467,27 @@ def noise(
         rng: Seeded generator.
 
     Returns:
-        The perturbed audio and its truth span.
+        The perturbed audio and its truth span. `gaps` is always empty.
     """
-    raise NotImplementedError
+    if len(audio) == 0:
+        msg = "cannot add noise to an empty clip"
+        raise ValueError(msg)
+    signal_power = float(np.mean(audio.astype(np.float64) ** 2))
+    if signal_power <= 0.0:
+        msg = "cannot set an SNR against silence"
+        raise ValueError(msg)
+
+    target_power = signal_power / (10.0 ** (snr_db / 10.0))
+    bed = rng.standard_normal(len(audio))
+    bed *= math.sqrt(target_power / float(np.mean(bed**2)))
+    out = (audio.astype(np.float64) + bed).astype(np.float32)
+
+    return out, TruthSpan(
+        start_ms=0,
+        end_ms=_ms(len(out), sr),
+        perturbation={"type": "noise", "snr_db": snr_db},
+        gaps=(),
+    )
 
 
 def apply(

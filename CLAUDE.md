@@ -152,10 +152,31 @@ lines. That file is long-term memory; this file is the standing contract.
     the property claimed. The fixture now has a negative *median*, where clipping moves
     p50 from -100 to 0. A test can exercise the right function on the right data and still
     assert nothing about the thing it is named for.
+  - The Gate C instruction said to calibrate the simulator by fitting its overhead to the
+    measured points. Doing that would have forced the mean signed error to zero **by
+    construction**, so the assertion guarding against a uniform bias could never fail — the
+    same defect as the vacuous invariant above, arrived at from the opposite direction. A
+    stated constant leaves a real residual and a real test. Note where this one came from:
+    the instruction originated **outside the code**, so the check applies to instructions
+    too. An instruction that makes a test unfalsifiable is worth the same objection as a
+    test that cannot go red, and is harder to notice because it arrives with authority.
+  - `test_every_clip_ships_a_sidecar_and_a_tail` compared the generated tail against
+    `TAIL_SILENCE_MS`, the very constant that produced it. That assertion passes for any
+    value of that constant, so shrinking the tail below the widest arm gate survived it.
+    Assert against the *requirement* (`conservative`'s 3600 ms gate), never against the
+    constant under test.
   If a mutation leaves a test green, say so and add the test that goes red. Do not
   report coverage the suite does not have. Mechanise this: assert the source hash actually
   changed before running the suite, so a patch that fails to apply is a loud error rather
   than a green run — noticing by suspicion does not scale.
+- **Purge `__pycache__` around any mutation run.** CPython validates a `.pyc` on
+  `(source mtime, source size)`. A mutation that preserves byte length — `0.4` to `0.5` —
+  and is restored inside the one-second mtime granularity leaves both fields matching the
+  restored source while the cached bytecode is still the mutant. Python then trusts the
+  cache and every later run in that session silently imports the mutant. This was observed,
+  not theorised: it made a passing assertion fail against a file that was correct both on
+  disk and in git, and it can produce false greens as easily as false reds. Delete the
+  bytecode on both write and restore, and set `PYTHONDONTWRITEBYTECODE` for the subprocess.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
   the coverage gate, and a bench smoke test. If it fails, fix it; do not describe the
   failure and move on.
