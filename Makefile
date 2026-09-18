@@ -9,6 +9,15 @@ SHELL := bash
 
 UV := uv
 RUN := $(UV) run
+
+# soundfile, librosa and scipy live in the `bench` extra (CLAUDE.md §3: audio is
+# bench-only, and DEPLOYMENT §3 keeps it out of the runtime image). A bare
+# `uv run` installs the base dependencies only, so any target importing
+# nod_bench.corpus, .perturb or .replay must ask for the extra explicitly.
+# Found by cloning the pushed branch and running `make bench` in it, which
+# failed on `No module named 'soundfile'` — the working tree had the extra
+# installed from `make install` and hid this completely.
+RUN_BENCH := $(UV) run --extra bench
 PYTHON_VERSION := 3.12
 PATHS := src tests
 
@@ -54,25 +63,25 @@ demo: ## Reference intake agent plus console, via docker compose
 	docker compose up --build
 
 probe: ## Capability probe against the real API; needs ASSEMBLYAI_API_KEY and SEED
-	$(RUN) python -m nod_bench.probe --seed-wav $(SEED)
+	$(RUN_BENCH) python -m nod_bench.probe --seed-wav $(SEED)
 
 probe-fake: ## Capability probe against the in-memory upstream, zero API spend
-	$(RUN) python -m nod_bench.probe --fake --quick
+	$(RUN_BENCH) python -m nod_bench.probe --fake --quick
 
 bench: ## Full benchmark offline against FakeAssemblyAI, no API key needed
-	$(RUN) python -m nod_bench.replay --fake --out bench/runs
+	$(RUN_BENCH) python -m nod_bench.replay --fake --out bench/runs
 
 bench-live: ## Full benchmark against the real API; needs ASSEMBLYAI_API_KEY
-	$(RUN) python -m nod_bench.replay --live --repeats 5 --out bench/runs
+	$(RUN_BENCH) python -m nod_bench.replay --live --repeats 5 --out bench/runs
 
 bench-clean: ## Drop the bench result cache
 	rm -rf .nodcache
 
 metrics: ## Recompute every metric from committed traces, zero API spend
-	$(RUN) python -m nod_bench.metrics --runs bench/runs
+	$(RUN_BENCH) python -m nod_bench.metrics --runs bench/runs
 
 report: ## Render the self-contained HTML report card
-	$(RUN) python -m nod_bench.report --runs bench/runs --out bench/report.html
+	$(RUN_BENCH) python -m nod_bench.report --runs bench/runs --out bench/report.html
 
 audit: ## Check dependencies for known vulnerabilities
 	$(RUN) pip-audit --strict
