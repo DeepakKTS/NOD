@@ -27,7 +27,6 @@ one, the project changes rather than proceeding on faith.
   chosen model, and whether `end_of_turn_confidence` appears in events. Record the answer
   in `docs/DECISIONS.md` as ADR-001.
 - Record Track C audio: 10 calls, fluent and deliberately hesitant.
-
 **Exit:** a JSONL trace of a real session exists, and a one-page note states exactly
 which knobs moved and which did not.
 
@@ -142,14 +141,46 @@ proceed anyway:
    the *measurement*, and the ROADMAP already routes published numbers through the live run
    at Phase 4 (ADR-016).
 
-**What this deviation does not buy.** Phase 2's exit criterion is a chart, and a chart
-needs the corpus the sweep is specified over. So Track C is not deferred past Phase 2's
-exit — it is deferred past Phase 2's *implementation*. The `nod` arm cannot be honestly
-placed on the Pareto chart over Track A alone, because the arms are specified over Track A
-*and* Track C and a hesitant caller is the population the controller exists for. Measuring
+**What this deviation does not buy — rewritten 18 Sep, after Gate 5 measured it.**
+
+This paragraph used to say Track C was needed for the chart's *coverage*: that measuring
 only fluent synthetic speech would test the controller everywhere except where it matters,
 and would run in the flattering direction (ADR-018) by omitting the clips most likely to
-expose a cut. **Track C must land before Gate 2's chart, not before Gate 1's tests.**
+expose a cut. All of that is still true and all of it understated the problem by a wide
+margin.
+
+**Gate 5 ran the arms. Track C is needed for the chart to have any controlled arm on it at
+all.** Measured, not argued:
+
+- Nod is a **per-session** adapter. Track A is a corpus of **per-utterance** clips: 120
+  clips of 7.7–12.3 seconds, each producing one or two turns.
+- Inter-word gaps per clip: **min 1, median 3, max 9**. The warm threshold is **24**
+  (ADR-022). **0 of 120 clips reach it** — and at the pre-ADR-022 threshold of 8, 1 of 120
+  did, so this is the corpus and not the constant.
+- So the profiler never warms, §4 returns its base values, hysteresis suppresses every
+  patch, and **all three nod arms are byte-identical to `balanced`** — 0 patches on every
+  clip, PCR 0.317, TTL p90 426 ms, FRAG 1.317, the same numbers to the last digit.
+- The context axis is degenerate for a second, independent reason: Track A carries no
+  declared `expected_answer`, so `hint_for(None)` returns the policy default and
+  `nod-nospeaker` — context axis only — has no input whatsoever.
+
+The identity with `balanced` is the evidence the wiring is *correct*; the corpus is the
+reason there is nothing to show. A per-session adapter measured on single-utterance clips
+has nothing to adapt from.
+
+**So Phase 2's exit is blocked on multi-turn material, not on coverage breadth.** It is not
+that the chart would be narrow without Track C — it is that the chart has three arms on it
+that are the baseline under another name. Either Track C lands with the shape §0's bullet
+now requires, or the corpus gains multi-turn sessions with declared answer classes, which
+would be a new Track and a new ADR rather than a tweak.
+
+One piece of good news from the same measurement: on a synthetic multi-turn session the
+profiler warms at **turn 5** — six words a turn gives five gaps a turn, since gaps never
+span a turn boundary (§2.1), so `5 × 5 = 25 ≥ 24`. The threshold is comfortably reachable
+inside a real call. A ten-second clip simply is not a call.
+
+**Track C must land before Phase 2's exit, and Gate 1's and Gate 2's tests did not need
+it** — which is what the deviation bought and all it bought.
 
 - `profiler.py`: P² quantiles, speech rate, disfluency density, Welford jitter (weight 0,
   ADR-011), cut detection with the four surviving conditions.
