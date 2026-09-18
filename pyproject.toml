@@ -211,6 +211,12 @@ filterwarnings = [
     # re-attributes the warning to its caller, so a module filter never fires.
     # Narrow enough that our own deprecations still fail the build.
     "ignore:The `(n_fft|hop_length)` parameter is deprecated:FutureWarning",
+    # numba, compiling librosa's phase vocoder, warns on an intermediate cast.
+    # Order-dependent: numba JITs lazily, so it surfaces only once something
+    # else has warmed the registry, which made it a flake rather than a
+    # failure. `prolong`'s own test asserts the output is finite, so this
+    # cannot hide a real NaN.
+    "ignore:invalid value encountered in cast:RuntimeWarning",
 ]
 markers = [
     "live: requires network and ASSEMBLYAI_API_KEY; excluded from CI (INV-7)",

@@ -33,7 +33,12 @@ SILENCE_FLOOR_DBFS: Final = -60.0
 VAD_RANGE_DB: Final = 40.0
 """How far `vad_threshold = 1` raises the silence floor, in decibels."""
 
-DEFAULT_VAD: Final = 0.5
+DEFAULT_VAD: Final = 0.4
+"""AssemblyAI's documented default, accessed 2026-09-17 (BENCH_SPEC §3).
+
+Was 0.5, which matched nothing published. A fake carrying a default the service
+does not have is a fake that disagrees with it for free.
+"""
 DEFAULT_MIN_SILENCE_MS: Final = 400
 DEFAULT_MAX_SILENCE_MS: Final = 1280
 DEFAULT_CONF_THRESHOLD: Final = 0.40

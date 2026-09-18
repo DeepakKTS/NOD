@@ -127,6 +127,11 @@ def test_prolong_lengthens_without_inserting_silence() -> None:
 
     assert _ms(out) > 2000
     assert truth.gaps == (), "a stretch creates no silence, so it creates no gap"
+    # librosa's phase vocoder warns from inside numba about an intermediate
+    # cast, and that warning is filtered in pyproject. Assert the output is
+    # actually finite so the filter cannot hide a real NaN.
+    assert np.all(np.isfinite(out)), "the stretch produced non-finite samples"
+    assert float(np.max(np.abs(out))) <= 1.0
     stretched = _ms(out) - 2000
     assert stretched == pytest.approx(PROLONG_SEGMENT_MS * 1.5, abs=60)
 

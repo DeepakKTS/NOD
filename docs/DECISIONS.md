@@ -429,3 +429,24 @@ Consequence: the fake produces the *shape* — a tradeoff curve, a Pareto chart,
 determinism — and never a published number. A simulated chart presented as measured is the
 marketing number CLAUDE §7 and §8 forbid, and the filename is what stops that happening by
 accident.
+
+**Two scopes, one headline.** `all-gaps` is the reported scope. `certain_only` is a
+*disclosed divergence*, not a parallel result, and the two must never be presented as
+alternative readings a reader may pick between. The reason is statistical rather than
+editorial: only `repeat` produces certainly-labelled gaps, so on the declared sweeps
+`certain_only` covers roughly three of every twenty-seven generated clips. It therefore
+supports a materially coarser effect size than the headline — on the order of Δ = 0.10
+where the full scope reaches Δ = 0.05. **Agreement between the two is consequently not
+corroboration.** The restricted scope is too underpowered to contradict the headline, so it
+agreeing means very little and it disagreeing means a great deal. Report both with their
+denominators, and read a divergence as a signal while reading agreement as silence.
+
+**What the simulated Pareto chart is allowed to claim.** That the tradeoff between
+premature cutoff and latency has *this shape under our model of the endpointer* — not that
+these three arms differ, and not by how much. The separation of the arms on the TTL axis is
+close to arithmetic: the simulator is deterministic, its spread is zero by construction,
+and the arms are configured 240 to 2320 ms apart, so they cannot overlap. Demonstrating
+that they do not overlap demonstrates subtraction. The PCR axis carries whatever real
+information the chart has, because it depends on the corpus and on the regime labelling
+rather than on the configured gate. Any claim that the arms *differ* belongs to the live
+run at Phase 4 (BENCH_SPEC §4, INV-9).

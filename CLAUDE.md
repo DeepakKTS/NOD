@@ -146,8 +146,16 @@ lines. That file is long-term memory; this file is the standing contract.
     invariant that cannot be violated under the current constants is a test that
     cannot go red. Check the arithmetic of an invariant against the values the
     constants actually hold, not against the values they are meant to hold one day.
+  - `test_ttl_measures_from_true_utterance_end_and_keeps_negatives` claimed negative
+    latencies are never clipped, and passed with clipping applied. Its only negative was
+    the *minimum*, and p50/p90/p99 never touch the minimum, so the pass was unrelated to
+    the property claimed. The fixture now has a negative *median*, where clipping moves
+    p50 from -100 to 0. A test can exercise the right function on the right data and still
+    assert nothing about the thing it is named for.
   If a mutation leaves a test green, say so and add the test that goes red. Do not
-  report coverage the suite does not have.
+  report coverage the suite does not have. Mechanise this: assert the source hash actually
+  changed before running the suite, so a patch that fails to apply is a loud error rather
+  than a green run — noticing by suspicion does not scale.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
   the coverage gate, and a bench smoke test. If it fails, fix it; do not describe the
   failure and move on.

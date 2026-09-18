@@ -99,6 +99,12 @@ per-caller controller does not have to.
   BENCH_SPEC §3. Nod's own starting values (`base_min` 400 ms, `base_max` 1280 ms) are
   that same preset, so the control law starts where the vendor starts and any improvement
   is measured from their number rather than ours.
+- **The percentile definition is stated, and it is the conservative one.** Latency
+  percentiles are nearest-rank (`rank = ceil(q · n)`), not the linear interpolation most
+  libraries default to. Over nine samples of 10–90 ms the two disagree by 8 ms at p90 —
+  nearest-rank reports 90, interpolation reports 82 — and interpolation reports a latency
+  that no turn actually took. The difference always flatters the tail, so the definition
+  that does not was chosen, and it travels in every run manifest alongside the numbers.
 - Turn-taking evaluation has real published work behind it, including Full-Duplex-Bench
   v3, EVA-Bench, IHBench and τ-Voice. Metric definitions here borrow from them and say so.
 - What Nod adds is the closed loop. Those benchmarks measure models offline and stop,

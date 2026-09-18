@@ -151,6 +151,31 @@ class Quantiles(BaseModel):
     p99: float
 
 
+SIMULATED_TAG: Final = "simulated"
+LIVE_TAG: Final = "live"
+"""Artifact provenance tags (ADR-016, ADR-017).
+
+Structural, not editorial. A chart leaves the repository as a file and is read
+as an image; prose in a caption does not survive a screenshot, and a filename
+does. Every artifact carries one of these, and `RunManifest.simulated` carries
+the same fact in the data.
+"""
+
+
+def artifact_name(stem: str, *, simulated: bool, suffix: str) -> str:
+    """Name one run artifact so it declares its own provenance. Pure. `O(1)`.
+
+    Args:
+        stem: Base name, for example `pareto`.
+        simulated: Whether a simulator produced it.
+        suffix: Extension without the dot, for example `svg`.
+
+    Returns:
+        `"<stem>.<simulated|live>.<suffix>"`.
+    """
+    return f"{stem}.{SIMULATED_TAG if simulated else LIVE_TAG}.{suffix}"
+
+
 class ArmConfig(BaseModel):
     """One static arm's turn-detection settings, with where they came from."""
 

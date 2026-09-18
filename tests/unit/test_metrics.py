@@ -15,13 +15,16 @@ import pytest
 from pydantic import ValidationError
 
 from nod_bench.metrics import (
+    LIVE_TAG,
     QUANTILE_METHOD,
+    SIMULATED_TAG,
     ArmConfig,
     ClipObservation,
     ProxyDivergence,
     Quantiles,
     RunManifest,
     ScoredUtterance,
+    artifact_name,
     frag,
     pcr,
     quantile,
@@ -417,3 +420,38 @@ def test_the_manifest_records_the_quantile_method() -> None:
     manifest = RunManifest.model_validate(MANIFEST_FIELDS)
     assert manifest.quantile_method == "nearest-rank, inclusive"
     assert math.isclose(quantile([1.0, 2.0, 3.0], 0.9), 3.0)
+
+
+# ---------------------------------------------------------------------------
+# Structural provenance labelling (ADR-016, ADR-017)
+# ---------------------------------------------------------------------------
+
+
+def test_a_simulated_artifact_is_labelled_in_its_filename() -> None:
+    """Prose in a caption does not survive a screenshot; a filename does."""
+    assert artifact_name("pareto", simulated=True, suffix="svg") == (
+        "pareto.simulated.svg"
+    )
+    assert artifact_name("results", simulated=True, suffix="json") == (
+        "results.simulated.json"
+    )
+
+
+def test_a_live_artifact_says_so_too() -> None:
+    """Absence of the word `simulated` must not be how live is indicated."""
+    assert artifact_name("pareto", simulated=False, suffix="svg") == "pareto.live.svg"
+
+
+@pytest.mark.parametrize("simulated", [True, False])
+def test_every_artifact_name_carries_a_provenance_tag(simulated: bool) -> None:
+    name = artifact_name("chart", simulated=simulated, suffix="png")
+    assert SIMULATED_TAG in name or LIVE_TAG in name
+
+
+def test_the_manifest_and_the_filename_cannot_disagree() -> None:
+    """The same fact in both places, so neither can be read without the other."""
+    for simulated in (True, False):
+        fields = {**MANIFEST_FIELDS, "simulated": simulated}
+        manifest = RunManifest.model_validate(fields)
+        name = artifact_name("pareto", simulated=manifest.simulated, suffix="svg")
+        assert (SIMULATED_TAG in name) is manifest.simulated
