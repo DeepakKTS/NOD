@@ -8,7 +8,7 @@ rather than judged. The generator is seeded and deterministic — the same seed 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Final, Literal
+from typing import Final, Literal, assert_never
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,16 +42,134 @@ type PerturbationKind = Literal[
 
 type Audio = NDArray[np.float32]
 
+REPEAT_WORD_MS: Final = 320
+"""`repeat`: how much audio at `at_ms` counts as "the word". Milliseconds."""
 
-class TruthSpan(BaseModel):
-    """One utterance in a `.truth.json` sidecar (BENCH_SPEC.md §2)."""
+REPEAT_GAP_MS: Final = 120
+"""`repeat`: silence between copies. Short enough to sit under every arm's
+`min_turn_silence`, so a disfluency is not silently also a pause probe."""
+
+PROLONG_SEGMENT_MS: Final = 240
+"""`prolong`: length of the segment stretched. Milliseconds."""
+
+CORRECT_TEMPLATES: Final = (
+    (260, 400, 0),
+    (320, 560, 180),
+    (180, 800, 0),
+)
+"""`correct`: `(gap before the restart, restarted length, gap after)`. Milliseconds.
+
+Three structural templates, not three scripts. BENCH_SPEC §2 illustrates this
+perturbation as splicing words ("change my, no, cancel my"), but `apply`'s
+contract is that no perturbation changes speech content, only its timing, so a
+correction here is a **restart**: the speaker breaks off and re-utters what they
+just said. That is built from the clip's own audio and introduces no vocabulary
+the source did not have.
+"""
+
+BURST_GAP_MS_RANGE: Final = (200, 900)
+"""`burst`: uneven gap lengths are drawn from this closed range. Milliseconds."""
+
+BURST_EDGE_MS: Final = 300
+"""`burst`: no split within this distance of either end, so every burst has audio."""
+
+
+type Regime = Literal["complete", "fragment"]
+"""Which endpointing gate governs the silence that follows (ADR-001, EC-50).
+
+After a **complete** utterance the model's semantic gate fires and
+`min_turn_silence` decides when. After a **fragment** it keeps waiting and
+`max_turn_silence` is the only thing that ends the turn.
+"""
+
+type Certainty = Literal["certain", "ambiguous"]
+"""Whether `Gap.preceding` is also true semantically, not just structurally."""
+
+
+class Gap(BaseModel):
+    """One silence in a generated clip, and which gate governs it.
+
+    **`preceding` is the field `FakeAssemblyAI` reads** to choose a gate
+    (ADR-017). It is the reason this model exists: the simulator cannot judge
+    semantic completeness from audio, and must not, because a fake that guessed
+    would make the benchmark measure the guess.
+
+    `preceding` is grounded in *construction*, not in syntax: `fragment` means
+    the generator cut inside a source utterance, `complete` means it cut at the
+    end of one. That is a proxy for what the real model does, which is judge the
+    transcript semantically, and the two can disagree — a cut at a word boundary
+    can land exactly where a clause happens to end. `certainty` marks where that
+    divergence is possible, so a consumer can report metrics with and without
+    the doubtful gaps instead of inheriting a convention it cannot see.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     start_ms: int
     end_ms: int
-    text: str
+    origin: str
+    """The perturbation that created this silence, or `utterance_end`."""
+
+    preceding: Regime
+    certainty: Certainty
+    basis: str
+    """Why this gap carries this label, in one phrase, for a human reader."""
+
+
+class TruthSpan(BaseModel):
+    """One utterance in a `.truth.json` sidecar (BENCH_SPEC.md §2).
+
+    `gaps` is an addition for ADR-017: PCR and FRAG need utterance boundaries,
+    but the simulator needs every *silence* and its regime, which the utterance
+    list alone does not carry — a `burst` puts two or three of them inside a
+    single utterance.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    start_ms: int
+    end_ms: int
     perturbation: Mapping[str, str | int | float]
+    gaps: tuple[Gap, ...] = ()
+    text: str = ""
+    """Filled by `corpus.build` from the source manifest.
+
+    Defaulted because a perturbation function is handed samples, not a
+    transcript, and inventing one here would put a guess into ground truth.
+    """
+
+
+def _samples(ms: float, sr: int) -> int:
+    """Milliseconds to whole samples. `O(1)`."""
+    return round(ms * sr / 1000.0)
+
+
+def _ms(samples: int, sr: int) -> int:
+    """Whole samples to milliseconds. `O(1)`."""
+    return round(samples * 1000.0 / sr)
+
+
+def _silence(ms: float, sr: int) -> Audio:
+    """Digital silence. `O(n)`."""
+    return np.zeros(_samples(ms, sr), dtype=np.float32)
+
+
+def _join(*parts: Audio) -> Audio:
+    """Concatenate, preserving float32. `O(n)`."""
+    return np.concatenate(parts).astype(np.float32, copy=False)
+
+
+def _require_inside(audio: Audio, sr: int, at_ms: int) -> int:
+    """Validate a split point and return it in samples. `O(1)`.
+
+    Raises:
+        ValueError: The point is not strictly inside the audio.
+    """
+    cut = _samples(at_ms, sr)
+    if not 0 < cut < len(audio):
+        msg = f"at_ms={at_ms} is not inside a clip of {_ms(len(audio), sr)} ms"
+        raise ValueError(msg)
+    return cut
 
 
 def pause(audio: Audio, sr: int, *, at_ms: int, len_ms: int) -> tuple[Audio, TruthSpan]:
@@ -66,7 +184,26 @@ def pause(audio: Audio, sr: int, *, at_ms: int, len_ms: int) -> tuple[Audio, Tru
     Returns:
         The perturbed audio and its truth span.
     """
-    raise NotImplementedError
+    cut = _require_inside(audio, sr, at_ms)
+    out = _join(audio[:cut], _silence(len_ms, sr), audio[cut:])
+    gap = Gap(
+        start_ms=at_ms,
+        end_ms=at_ms + len_ms,
+        origin="pause",
+        preceding="fragment",
+        certainty="ambiguous",
+        basis=(
+            "cut at a word boundary inside one source utterance; structurally a "
+            "fragment, but a word boundary can coincide with a clause end, which "
+            "the model would read as complete"
+        ),
+    )
+    return out, TruthSpan(
+        start_ms=0,
+        end_ms=_ms(len(out), sr),
+        perturbation={"type": "pause", "at_ms": at_ms, "len_ms": len_ms},
+        gaps=(gap,),
+    )
 
 
 def repeat(audio: Audio, sr: int, *, at_ms: int, times: int) -> tuple[Audio, TruthSpan]:
@@ -81,7 +218,42 @@ def repeat(audio: Audio, sr: int, *, at_ms: int, times: int) -> tuple[Audio, Tru
     Returns:
         The perturbed audio and its truth span.
     """
-    raise NotImplementedError
+    cut = _require_inside(audio, sr, at_ms)
+    word = audio[cut : cut + _samples(REPEAT_WORD_MS, sr)]
+    if len(word) == 0:
+        msg = f"at_ms={at_ms} leaves no audio to duplicate"
+        raise ValueError(msg)
+
+    parts: list[Audio] = [audio[:cut]]
+    gaps: list[Gap] = []
+    cursor = at_ms
+    for _ in range(times):
+        parts.extend((word, _silence(REPEAT_GAP_MS, sr)))
+        spoken = _ms(len(word), sr)
+        gaps.append(
+            Gap(
+                start_ms=cursor + spoken,
+                end_ms=cursor + spoken + REPEAT_GAP_MS,
+                origin="repeat",
+                preceding="fragment",
+                certainty="certain",
+                basis=(
+                    "a duplicated word mid-utterance; the speaker is audibly "
+                    "still in the same utterance and the gap is shorter than "
+                    "any arm's min_turn_silence"
+                ),
+            )
+        )
+        cursor += spoken + REPEAT_GAP_MS
+    parts.append(audio[cut:])
+
+    out = _join(*parts)
+    return out, TruthSpan(
+        start_ms=0,
+        end_ms=_ms(len(out), sr),
+        perturbation={"type": "repeat", "at_ms": at_ms, "times": times},
+        gaps=tuple(gaps),
+    )
 
 
 def prolong(
@@ -102,7 +274,23 @@ def prolong(
     Returns:
         The perturbed audio and its truth span.
     """
-    raise NotImplementedError
+    import librosa
+
+    cut = _require_inside(audio, sr, at_ms)
+    end = min(cut + _samples(PROLONG_SEGMENT_MS, sr), len(audio))
+    segment = audio[cut:end]
+    if len(segment) == 0:
+        msg = f"at_ms={at_ms} leaves no audio to stretch"
+        raise ValueError(msg)
+
+    stretched = librosa.effects.time_stretch(segment, rate=1.0 / factor)
+    out = _join(audio[:cut], stretched.astype(np.float32), audio[end:])
+    return out, TruthSpan(
+        start_ms=0,
+        end_ms=_ms(len(out), sr),
+        perturbation={"type": "prolong", "at_ms": at_ms, "factor": factor},
+        gaps=(),
+    )
 
 
 def correct(
@@ -123,7 +311,50 @@ def correct(
     Returns:
         The perturbed audio and its truth span.
     """
-    raise NotImplementedError
+    if not 0 <= template < len(CORRECT_TEMPLATES):
+        msg = f"template={template} is not one of {len(CORRECT_TEMPLATES)}"
+        raise ValueError(msg)
+    pre_gap_ms, restart_ms, post_gap_ms = CORRECT_TEMPLATES[template]
+    cut = _require_inside(audio, sr, at_ms)
+
+    restart = audio[max(0, cut - _samples(restart_ms, sr)) : cut]
+    basis = (
+        "the speaker broke off and re-uttered; structurally a fragment, but the "
+        "break can land after a clause the model would score as complete"
+    )
+    gaps = [
+        Gap(
+            start_ms=at_ms,
+            end_ms=at_ms + pre_gap_ms,
+            origin="correct",
+            preceding="fragment",
+            certainty="ambiguous",
+            basis=basis,
+        )
+    ]
+    parts: list[Audio] = [audio[:cut], _silence(pre_gap_ms, sr), restart]
+    after = at_ms + pre_gap_ms + _ms(len(restart), sr)
+    if post_gap_ms:
+        parts.append(_silence(post_gap_ms, sr))
+        gaps.append(
+            Gap(
+                start_ms=after,
+                end_ms=after + post_gap_ms,
+                origin="correct",
+                preceding="fragment",
+                certainty="ambiguous",
+                basis=basis,
+            )
+        )
+    parts.append(audio[cut:])
+
+    out = _join(*parts)
+    return out, TruthSpan(
+        start_ms=0,
+        end_ms=_ms(len(out), sr),
+        perturbation={"type": "correct", "at_ms": at_ms, "template": template},
+        gaps=tuple(gaps),
+    )
 
 
 def burst(
@@ -144,7 +375,59 @@ def burst(
     Returns:
         The perturbed audio and its truth span.
     """
-    raise NotImplementedError
+    if not 2 <= bursts <= 4:
+        msg = f"bursts={bursts} is outside 2 to 4"
+        raise ValueError(msg)
+    total_ms = _ms(len(audio), sr)
+    if total_ms <= 2 * BURST_EDGE_MS:
+        msg = f"a {total_ms} ms clip is too short to split into bursts"
+        raise ValueError(msg)
+
+    low, high = BURST_EDGE_MS, total_ms - BURST_EDGE_MS
+    cuts = sorted(
+        int(x) for x in rng.integers(low, high, size=bursts - 1, endpoint=False)
+    )
+    lengths = [
+        int(x)
+        for x in rng.integers(
+            BURST_GAP_MS_RANGE[0], BURST_GAP_MS_RANGE[1], size=bursts - 1, endpoint=True
+        )
+    ]
+
+    parts: list[Audio] = []
+    gaps: list[Gap] = []
+    previous, shift = 0, 0
+    for cut_ms, gap_ms in zip(cuts, lengths, strict=True):
+        parts.extend(
+            (
+                audio[_samples(previous, sr) : _samples(cut_ms, sr)],
+                _silence(gap_ms, sr),
+            )
+        )
+        gaps.append(
+            Gap(
+                start_ms=cut_ms + shift,
+                end_ms=cut_ms + shift + gap_ms,
+                origin="burst",
+                preceding="fragment",
+                certainty="ambiguous",
+                basis=(
+                    "an utterance split at a drawn offset; structurally a "
+                    "fragment, but the offset is not aligned to clause "
+                    "boundaries and may land on one"
+                ),
+            )
+        )
+        previous, shift = cut_ms, shift + gap_ms
+    parts.append(audio[_samples(previous, sr) :])
+
+    out = _join(*parts)
+    return out, TruthSpan(
+        start_ms=0,
+        end_ms=_ms(len(out), sr),
+        perturbation={"type": "burst", "bursts": bursts},
+        gaps=tuple(gaps),
+    )
 
 
 def noise(
@@ -190,4 +473,24 @@ def apply(
     Returns:
         The perturbed audio and its truth span.
     """
-    raise NotImplementedError
+    if kind == "pause":
+        return pause(
+            audio, sr, at_ms=int(params["at_ms"]), len_ms=int(params["len_ms"])
+        )
+    if kind == "repeat":
+        return repeat(audio, sr, at_ms=int(params["at_ms"]), times=int(params["times"]))
+    if kind == "prolong":
+        return prolong(
+            audio, sr, at_ms=int(params["at_ms"]), factor=float(params["factor"])
+        )
+    if kind == "correct":
+        return correct(
+            audio, sr, at_ms=int(params["at_ms"]), template=int(params["template"])
+        )
+    if kind == "burst":
+        return burst(audio, sr, bursts=int(params["bursts"]), rng=rng)
+    if kind == "noise":
+        return noise(audio, sr, snr_db=float(params["snr_db"]), rng=rng)
+    # Exhaustive over `PerturbationKind`; mypy proves this unreachable, and will
+    # stop proving it the moment a kind is added without a branch here.
+    assert_never(kind)

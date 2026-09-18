@@ -203,7 +203,15 @@ addopts = """\
 """
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # librosa 1.0 warns from inside its own phase vocoder about a `hop_length`
+    # parameter we never pass and cannot stop it passing to itself. Matched on
+    # the message rather than the module: librosa warns with stacklevel=2, which
+    # re-attributes the warning to its caller, so a module filter never fires.
+    # Narrow enough that our own deprecations still fail the build.
+    "ignore:The `(n_fft|hop_length)` parameter is deprecated:FutureWarning",
+]
 markers = [
     "live: requires network and ASSEMBLYAI_API_KEY; excluded from CI (INV-7)",
     "smoke: the bench leg of `make check`",
