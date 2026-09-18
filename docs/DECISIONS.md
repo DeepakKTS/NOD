@@ -1152,3 +1152,57 @@ Consequence: `MAX_PATCHES` stays 24 and untested against its own boundary — th
 asserting the cap binds, because no input reaches it. `tests/unit/test_arbiter.py` tests the
 cap by *supplying* `patches_sent` at the boundary, which tests the arbiter's arithmetic and
 not the cap's reachability, and its docstring should not be read as more than that.
+
+## ADR-028 — The bench reconstructs turns from gaps, so disfluency is unmeasured
+2026-09-18 · Status: accepted
+Context: `FakeAssemblyAI` emits boundaries, not word timings, and the profiler's only input
+is timings — `g_i = words[i].start - words[i-1].end` (CONTROL_SPEC §2.1). So
+`nod_bench.replay._turn_from_gaps` synthesises the `Turn` stream the upstream would have
+sent, from the truth sidecar: a `Gap` runs from the end of one word to the start of the
+next, so a run of gaps *is* a word sequence with words between them.
+
+That reconstruction is faithful on exactly one axis and silent on the rest, and the silence
+is total rather than partial:
+
+| §2 feature | reconstructed? | why |
+|---|---|---|
+| `g_p50`, `g_p90` (§2.1) | **yes, at true duration** | every generator-inserted gap reaches the estimator exactly |
+| `speech_rate` (§2.2) | partially | word durations are synthetic, so the rate is an artifact of the reconstruction |
+| adjacent repeats (§2.3) | **no** | tokens are `w0, w1, w2…`, never equal to their predecessor |
+| filler set (§2.3) | **no** | no token is ever in `FILLER_TOKENS` |
+| duration outliers (§2.3) | **no** | every word is the same synthetic length |
+| `recent_cuts` (§2.5) | **no** | cut detection needs agent audio, which the bench has none of |
+
+So `disfluency` and `recent_cuts` are **0.0 on every clip of every run**, and both are terms
+in §4's `max_turn_silence` expression — the primary control surface (ADR-011). The bench
+therefore exercises the **pause axis alone**, and would do so even on a corpus where the
+profiler warms.
+Decision: record this as a **floor on what the controller can demonstrate on the bench**,
+not as a defect to fix inside the harness. Reconstructing plausible disfluent tokens would
+mean the harness inventing the feature it then measures, which is precisely what ADR-017
+refuses for the regime labelling and refuses for the same reason: a benchmark that supplies
+its own input to a feature measures the supply.
+
+**This persists on Track C unless the recordings are transcribed rather than
+reconstructed.** That is the operative consequence and it is easy to miss, because Track C
+fixes the *other* two problems — it is multi-turn, so the profiler warms, and it is scripted,
+so the context axis has input (ROADMAP §0). It does not fix this one. Real audio through the
+real service returns real `words[].text`, and §2.3's three features then work; real audio
+replayed through the *simulator* still arrives as gaps and still scores 0. So a Track C run
+on the simulated path measures the pause axis alone, and only the Phase 4 live runs exercise
+the disfluency term at all.
+Consequence: three things follow and are recorded so a later reader does not infer more from
+the bench than it shows.
+- **Any simulated figure understates the controller**, in the one direction that matters:
+  `disfluency` and `recent_cuts` only ever *widen* `max_turn_silence` (§4 coefficients 0.45
+  and 0.15, both positive), so a run with them pinned at 0 gives the controller less room
+  than the law would. This is the rare case of a measurement error that runs *against* the
+  project rather than for it, which is worth stating plainly given ADR-018's tally of four
+  errors that ran the other way.
+- **The ablations are narrower than their names.** `nod-nocontext` is described as "speaker
+  axis only"; on the simulated path it is "pause quantiles only", which is a strict subset.
+  BENCH_SPEC §3's names are kept, and the report must say which.
+- **§9 and the unit tests are unaffected.** They drive `decide` and `observe_turn` directly
+  with constructed features and real tokens, so the disfluency path is fully covered there
+  (`tests/unit/test_profiler.py`). What is untested is the *composition* of real disfluency
+  features with a real corpus, and that needs the live path.
