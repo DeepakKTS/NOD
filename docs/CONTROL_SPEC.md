@@ -200,10 +200,10 @@ person whose long gap is not a finished turn.
 
 | Guard | Rule | Reason |
 |---|---|---|
-| **Hysteresis** | emit only if any field moves more than `HYST = 15 %` of its current value | prevents socket chatter |
+| **Hysteresis** | emit only if any field moves more than `HYST = 15 %` of its current value. **What the 15 % is measured against, and where this guard sits relative to the decay guard below, are fixed by ADR-020 — read it before implementing either.** | prevents socket chatter |
 | **Rate cap** | at most 1 patch per turn, at most `MAX_PATCHES = 24` per session | bounds cost and blast radius |
-| **Asymmetric decay** | widening applies immediately; narrowing applies at most `NARROW_STEP = 12 %` per turn | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
-| **Ceiling** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS` | **Unenforced pending a measured overhead.** `ENDPOINT_OVERHEAD_MS` is still 0, so the subtraction does nothing and the guard holds only arithmetically: the boundary arrives some way *after* the configured gate, so a `max_ms` clamped exactly to `ceiling_ms` overshoots the ceiling on every turn. The P1 matrix measured that lag as consistently positive and well outside the noise across every plain silence-gate cell. Until `make bench` supplies the value (INV-9 — it is not written here), do not rely on this guard to keep a fluent caller from waiting |
+| **Asymmetric decay** | widening applies immediately; narrowing applies at most `NARROW_STEP = 12 %` per turn. **12 % is below the 15 % above, so the order of the two guards decides whether narrowing can be emitted at all; ADR-020 settles it, and settles what §4 must re-run afterwards.** | one stumble must not make the agent permanently slow, and one crisp answer must not immediately re-expose the caller to cutting |
+| **Ceiling** | `max_ms` never exceeds `ceiling_ms - ENDPOINT_OVERHEAD_MS`. **§4 applies this after the invariant repair, so a low enough `ceiling_ms` would undo it; ADR-021 settles that at the configuration boundary rather than in this table or in §4.** | **Unenforced pending a measured overhead.** `ENDPOINT_OVERHEAD_MS` is still 0, so the subtraction does nothing and the guard holds only arithmetically: the boundary arrives some way *after* the configured gate, so a `max_ms` clamped exactly to `ceiling_ms` overshoots the ceiling on every turn. The P1 matrix measured that lag as consistently positive and well outside the noise across every plain silence-gate cell. Until `make bench` supplies the value (INV-9 — it is not written here), do not rely on this guard to keep a fluent caller from waiting |
 | **Floor on boolean turns** | on `boolean`, `min_ms` never exceeds 400 | yes/no must stay snappy |
 | **Freeze on instability** | if 3 patches in 5 turns all reverse direction, freeze the speaker axis for 10 turns and emit `controller_frozen` | detects oscillation instead of thrashing |
 | **Host override** | if the host application sent its own `UpdateConfiguration` in the last 5 s, Nod does not touch the fields the host set | the host owns its own decisions |
@@ -249,7 +249,7 @@ the bench delta in the commit message.
 Written with `hypothesis`, over arbitrary feature vectors:
 
 1. Output is always within the hard clamps.
-2. `max_ms >= min_ms + 200` always holds.
+2. `max_ms >= min_ms + 200` always holds. Over the valid range of `ceiling_ms` (ADR-021), and after the decay guard as well as after the law (ADR-020).
 3. `max_ms <= ceiling_ms - ENDPOINT_OVERHEAD_MS` always holds. Note this is currently
    vacuous: with `ENDPOINT_OVERHEAD_MS` at 0 it reduces to `max_ms <= ceiling_ms`, which
    the clamps already give. It becomes a real constraint only once the bench measures
@@ -257,8 +257,9 @@ Written with `hypothesis`, over arbitrary feature vectors:
 4. Monotonicity: increasing `disfluency` with everything else fixed never decreases
    `max_ms`.
 5. Idempotence: `decide()` on the same state twice returns an equal patch and the second
-   emits nothing after hysteresis.
-6. Narrowing never exceeds `NARROW_STEP` in one turn.
+   emits nothing after hysteresis. What "after hysteresis" compares against is
+   ADR-020.
+6. Narrowing never exceeds `NARROW_STEP` in one turn. This property is a live constraint only under ADR-020's resolution; under the alternative it passes vacuously because no narrowing is ever emitted.
 7. `decide()` performs no I/O — asserted by monkeypatching `socket` and `open` to raise.
 8. On `boolean` context, `min_ms <= 400`.
 9. **The incomplete-utterance test.** Given a warm profile whose `g_p90` implies a pause

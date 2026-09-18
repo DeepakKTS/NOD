@@ -348,7 +348,7 @@ editorial (ADR-017), because a chart leaving the repo has to carry its own prove
 BENCH_SPEC governs because it is the measurement contract and ROADMAP is a schedule: when a
 schedule and a contract disagree about what a number means, the contract wins.
 
-**Four instances now, and the pattern is worth naming.** The first three were each two
+**Six instances now, and the pattern is worth naming.** The first three were each two
 internally coherent documents specifying incompatible things, and each surfaced only when
 something had to consume both at once — never from re-reading either one.
 1. BENCH_SPEC §4 ("CI runs the fake; the published table is generated from live runs")
@@ -370,11 +370,38 @@ something had to consume both at once — never from re-reading either one.
    same reason as the other three: a YAML block in a spec is never executed, so *reading*
    it cannot fail. Restored per reading (a), the key was lost; the multipliers are
    unchanged.
+5. CONTROL_SPEC §5's hysteresis guard against §5's asymmetric decay guard — 12 % cannot
+   clear 15 %, so one guard cancelled the other and narrowing was unreachable. Found at
+   Phase 2 Gate 1 writing §9 property 6. Resolved by ADR-020. Note this pair is *within one
+   section of one document*, which the first four were not: coherence is not a property a
+   document has, it is a property of every pair of lines in it.
+6. CONTROL_SPEC §4's invariant repair against §4's latency ceiling, applied in that order,
+   so a low `ceiling_ms` returns `max_ms < min_ms + 200`. Found in the same sitting, from
+   the same cause. Resolved by ADR-021.
 The lesson is procedural rather than editorial — a spec review would not have caught any of
 them. For the first three, because each document is right on its own; for the fourth,
-because prose review reads a code block for intent and not for syntax. They are found by
-building the consumer. A spec fragment that nothing parses is untested code that happens to
-live in a document.
+because prose review reads a code block for intent and not for syntax; for the fifth and
+sixth, because the arithmetic of two constants is invisible until something has to satisfy
+both at once. They are found by building the consumer. A spec fragment that nothing parses
+is untested code that happens to live in a document.
+
+**Used forwards for the first time, at pre-Gate-2 on 18 Sep — and this is not a seventh
+instance.** The question asked was whether CONTROL_SPEC §5 and §9 failing to cite ADR-020
+and ADR-021 is itself an instance. It is not, and the distinction is worth keeping sharp:
+every one of the six above is a **realised** defect, already in the repository, found
+because something had to consume two things at once. The missing cross-references are a
+defect that had not happened yet — no wrong code had been built from them, because Gate 3
+had not run. Counting a risk alongside six materialised defects would inflate the list and
+blur what the pattern is for.
+
+What it is instead is the first time the pattern was applied as a **forward check** rather
+than a post-mortem: §5's guards table and §9 now carry pointers to both ADRs, phrased to
+name the question each ADR answers rather than to restate the answer. That phrasing is
+deliberate. §5 restating ADR-020's ordering would create two copies that can drift, which
+is instance one through six all over again; a pointer keeps one source of truth and still
+stops a Gate 3 session meeting the silence that produced the conflict. Instance 2 is the
+precedent that made this worth doing — a CONTROL_SPEC property contradicting an ADR is a
+shape this repository has already paid for once.
 
 ## ADR-017 — `FakeAssemblyAI` is a simulator, not a replayer
 2026-09-17 · Status: accepted
