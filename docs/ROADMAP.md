@@ -15,6 +15,31 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
+## Where this stands — 18 Sep, end of day
+
+Pointers, not restatements. One source of truth; do not copy this elsewhere.
+
+**Phase 0** closed. **Phase 1** exit open on **Track C only** — corpus and clean-clone items
+closed. **Phase 2** implemented, exit blocked.
+
+**Phase 2's four modules done**: `profiler`, `policy`, `arbiter`, `proxy`. 93 mutations killed
+via `make mutate`, twelve §9 properties passing (the thirteenth skipped as vacuous until
+`make bench` measures the endpoint overhead), `decide()` **6 µs p99** against INV-2's 5 ms.
+
+**The blocker.** *The controller has never emitted a patch outside a synthetic driver.* Track A
+is per-utterance and Nod is a per-session adapter: 1–9 gaps per clip against a warm threshold
+of 24, so 0 of 120 clips warm and **Phase 2's chart has three controlled arms that are
+`balanced` under another name.** Not a coverage gap — nothing on the chart to widen. See
+ADR-022, ADR-026, ADR-027, ADR-028 and CLAUDE.md §5.
+
+**Next: write the Track C script, then record.** Prompts each with a declared
+`expected_answer`, and a `w − 1` gap count per prompt summing past 24 well before the call
+ends. Requirements and the tension between them are at Phase 0's bullet.
+
+**Freeze 26 Sep.** Phase 3 is the agent and the console; **the console is unstarted.**
+
+---
+
 ## Phase 0 — Ground truth (Sep 15, half a day)
 
 Instrument before building anything. If the thesis is not measurable by the end of day
