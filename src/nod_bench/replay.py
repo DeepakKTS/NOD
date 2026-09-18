@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final, Literal
 
@@ -21,6 +22,26 @@ from pydantic import BaseModel, ConfigDict
 from nod_bench.corpus import BuiltCorpus, GeneratedClip
 from nod_bench.fake_assemblyai import Endpointer
 from nod_bench.metrics import ClipObservation, ScoredUtterance
+from nod_core.arbiter import (
+    BASE_MAX_MS,
+    BASE_MIN_MS,
+    DEFAULT_CEILING_MS,
+    Arbiter,
+    ArbiterInput,
+)
+from nod_core.capabilities import UPDATABLE_FIELDS
+from nod_core.policy import CompiledPolicy
+from nod_core.profiler import Profiler
+from nod_core.types import (
+    Capabilities,
+    ConfidenceField,
+    ExpectedAnswer,
+    KnobVerdict,
+    Turn,
+    TurnConfig,
+    WindowHint,
+    Word,
+)
 
 FRAME_MS: Final = 50
 """Feeder frame size, PCM16 (BENCH_SPEC.md §4). Milliseconds."""
@@ -156,24 +177,271 @@ def run_clip(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class NodAxes:
+    """Which of the controller's two axes an arm is allowed to use.
+
+    BENCH_SPEC §3's ablations are implemented by **neutralising an input**, not by
+    a second code path. `nod-nospeaker` drives the same `decide` with the profile
+    reported `cold`, which is exactly what CONTROL_SPEC §4 does when the profiler
+    has too few gaps; `nod-nocontext` drives it with the neutral hint a policy's
+    `default` supplies. An ablation that ran different code would measure the
+    difference between two implementations rather than between two axes.
+    """
+
+    speaker: bool
+    context: bool
+
+
+NOD_ARMS: Final = {
+    "nod": NodAxes(speaker=True, context=True),
+    "nod-nocontext": NodAxes(speaker=True, context=False),
+    "nod-nospeaker": NodAxes(speaker=False, context=True),
+}
+"""The controlled arms of BENCH_SPEC §3, and their two ablations."""
+
+NOD_CAPABILITIES: Final = Capabilities(
+    knobs=tuple((field, KnobVerdict.LIVE) for field in UPDATABLE_FIELDS),
+    confidence_field=ConfidenceField.VARYING,
+    force_endpoint=KnobVerdict.LIVE,
+    has_word_timings=True,
+)
+"""What ADR-001 measured, so the capability gate passes both silence knobs.
+
+`end_of_turn_confidence_threshold` is marked `LIVE` here and still never sent:
+§4 does not emit it (ADR-011). Marking it live rather than `INERT` keeps the
+gate from being the reason it is absent, so a law that started emitting it would
+show up on the chart instead of being silently filtered.
+"""
+
+
+def _axes_label(axes: NodAxes) -> str:
+    """Name the axes an arm uses, for the run manifest. `O(1)`."""
+    names = [
+        name
+        for name, on in (("speaker", axes.speaker), ("context", axes.context))
+        if on
+    ]
+    return "+".join(names) or "none"
+
+
+@dataclass(frozen=True, slots=True)
+class NodRun:
+    """One clip through one controlled arm, plus what the controller did."""
+
+    observation: ClipObservation
+    patches: int
+    turns: int
+    final_min_ms: int
+    final_max_ms: int
+
+
+def _turn_from_gaps(
+    clip: GeneratedClip, consumed: int, until_ms: float, turn_order: int
+) -> tuple[Turn | None, int]:
+    """Synthesise the `Turn` the upstream would have sent for one boundary.
+
+    The simulator emits boundaries, not word timings, and the profiler needs
+    timings — `g_i = words[i].start - words[i-1].end` is its only input. The
+    truth sidecar has exactly that information: a `Gap` runs from the end of one
+    word to the start of the next, so a run of gaps *is* a word sequence with the
+    words between them.
+
+    **This is a reconstruction and it is worth being clear about its status.** It
+    is faithful on the axis the profiler reads — every gap the generator inserted
+    reaches `g_p50` and `g_p90` at its true duration — and silent on the axes it
+    does not: the token text is a placeholder, so §2.3's disfluency features see
+    no repeats, no fillers and no duration outliers, and score 0 for every clip.
+    So the speaker axis measured here is **the pause profile alone**, with
+    `disfluency` and `recent_cuts` contributing nothing. That is a floor on what
+    the controller can do, not a neutral choice, and the Gate 5 report says so.
+
+    Args:
+        clip: The clip and its ground truth.
+        consumed: Gaps already turned into words by earlier turns.
+        until_ms: The boundary this turn ends at.
+        turn_order: 1-based turn index.
+
+    Returns:
+        The turn and the new `consumed` index, or `(None, consumed)` when this
+        boundary added no new gaps.
+    """
+    gaps = [gap for gap in clip.truth.gaps[consumed:] if gap.end_ms <= until_ms]
+    if not gaps:
+        return None, consumed
+    words: list[Word] = []
+    previous_end = 0
+    for index, gap in enumerate(gaps):
+        words.append(
+            Word(
+                text=f"w{index}",
+                start_ms=previous_end,
+                end_ms=gap.start_ms,
+                confidence=0.9,
+                is_final=True,
+            )
+        )
+        previous_end = gap.end_ms
+    words.append(
+        Word(
+            text=f"w{len(gaps)}",
+            start_ms=previous_end,
+            end_ms=int(min(until_ms, clip.final_word_end_ms)),
+            confidence=0.9,
+            is_final=True,
+        )
+    )
+    return (
+        Turn(
+            turn_order=turn_order,
+            end_of_turn=True,
+            end_of_turn_confidence=0.4,
+            transcript=" ".join(word.text for word in words),
+            words=tuple(words),
+        ),
+        consumed + len(gaps),
+    )
+
+
+def run_nod_clip(
+    clip: GeneratedClip,
+    arm: Arm,
+    *,
+    endpoint_overhead_ms: float = 0.0,
+    policy: CompiledPolicy | None = None,
+    expected_answer: ExpectedAnswer | None = None,
+) -> NodRun:
+    """Run one clip through a controlled arm, reconfiguring mid-clip. `O(frames)`.
+
+    This is the closed loop, and the mid-clip reconfiguration is the whole point:
+    the arm starts at `BASE_MIN_MS` / `BASE_MAX_MS` and every emitted
+    `ConfigPatch` is written onto the live endpointer, exactly as the proxy writes
+    it onto a live socket. An arm that configured once at the start would be a
+    fourth static arm wearing the controller's name.
+
+    Args:
+        clip: The generated clip and its ground truth.
+        arm: One of `NOD_ARMS`.
+        endpoint_overhead_ms: ADR-017's parameter; 0 fires early.
+        policy: The compiled context policy. Required for the context axis.
+        expected_answer: The host's declared dialogue state for this clip.
+
+    Returns:
+        The observation and what the controller did.
+    """
+    axes = NOD_ARMS[arm]
+    endpointer = Endpointer(
+        gaps=clip.truth.gaps,
+        min_turn_silence=BASE_MIN_MS,
+        max_turn_silence=BASE_MAX_MS,
+        endpoint_overhead_ms=endpoint_overhead_ms,
+    )
+    profiler = Profiler()
+    controller = Arbiter(capabilities=NOD_CAPABILITIES, ceiling_ms=DEFAULT_CEILING_MS)
+    current = TurnConfig(
+        min_turn_silence_ms=BASE_MIN_MS,
+        max_turn_silence_ms=BASE_MAX_MS,
+        end_of_turn_confidence_threshold=0.0,
+        vad_threshold=None,
+    )
+    neutral = WindowHint(min_mult=1.0, max_mult=1.0)
+    hint = neutral
+    if axes.context and policy is not None:
+        hint = policy.hint_for(expected_answer)
+
+    fired: list[float] = []
+    consumed = 0
+    patches = 0
+    turns = 0
+    for frame in frames_of(clip.audio_path):
+        boundary = endpointer.feed(frame)
+        if boundary is None:
+            continue
+        fired.append(boundary.fired_at_ms)
+        turns += 1
+        turn, consumed = _turn_from_gaps(clip, consumed, boundary.fired_at_ms, turns)
+        if turn is None:
+            continue
+        profiler.observe_turn(turn)
+        features = profiler.features()
+        if not axes.speaker:
+            # The ablation: report the profile cold, which is what §4 already does
+            # below MIN_GAPS_FOR_WARM, so the speaker axis is skipped by the law
+            # rather than by a branch in the harness.
+            features = replace(features, cold=True)
+        patch = controller.decide(
+            ArbiterInput(
+                features=features,
+                hint=hint,
+                expected_answer=expected_answer if axes.context else None,
+                current=current,
+                capabilities=NOD_CAPABILITIES,
+                ceiling_ms=DEFAULT_CEILING_MS,
+                turn_order=turns,
+                t_ms=int(boundary.fired_at_ms),
+                host_override_fields=frozenset(),
+                patches_sent=patches,
+            )
+        )
+        if patch is None:
+            continue
+        patches += 1
+        current = patch.config
+        endpointer.min_turn_silence = float(current.min_turn_silence_ms)
+        endpointer.max_turn_silence = float(current.max_turn_silence_ms)
+
+    return NodRun(
+        observation=ClipObservation(
+            clip_id=clip.clip_id,
+            arm=arm,
+            utterances=(
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=clip.final_word_end_ms,
+                    gaps=clip.truth.gaps,
+                ),
+            ),
+            emitted_end_ms=tuple(fired),
+        ),
+        patches=patches,
+        turns=turns,
+        final_min_ms=current.min_turn_silence_ms,
+        final_max_ms=current.max_turn_silence_ms,
+    )
+
+
 def run_matrix(
     corpus: BuiltCorpus,
     arms: Sequence[Arm],
     *,
     endpoint_overhead_ms: float = 0.0,
+    policy: CompiledPolicy | None = None,
+    expected_answer: ExpectedAnswer | None = None,
 ) -> dict[Arm, list[ClipObservation]]:
     """Run every clip through every arm. `O(arms * frames)`.
 
     The same clips through every arm, so downstream comparisons are paired
     (BENCH_SPEC §9).
     """
-    return {
-        arm: [
-            run_clip(clip, arm, endpoint_overhead_ms=endpoint_overhead_ms)
-            for clip in corpus.clips
-        ]
-        for arm in arms
-    }
+    out: dict[Arm, list[ClipObservation]] = {}
+    for arm in arms:
+        if arm in NOD_ARMS:
+            out[arm] = [
+                run_nod_clip(
+                    clip,
+                    arm,
+                    endpoint_overhead_ms=endpoint_overhead_ms,
+                    policy=policy,
+                    expected_answer=expected_answer,
+                ).observation
+                for clip in corpus.clips
+            ]
+        else:
+            out[arm] = [
+                run_clip(clip, arm, endpoint_overhead_ms=endpoint_overhead_ms)
+                for clip in corpus.clips
+            ]
+    return out
 
 
 async def replay(
@@ -225,6 +493,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         pcr,
     )
     from nod_bench.report import render_all
+    from nod_core.arbiter import MAX_PATCHES
 
     parser = argparse.ArgumentParser(prog="python -m nod_bench.replay")
     parser.add_argument(
@@ -261,12 +530,54 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     corpus = BuiltCorpus.model_validate_json(corpus_file.read_text())
-    arms: list[Arm] = ["aggressive", "balanced", "conservative"]
+    arms: list[Arm] = [
+        "aggressive",
+        "balanced",
+        "conservative",
+        "nod",
+        "nod-nocontext",
+        "nod-nospeaker",
+    ]
     out.write(
         f"{len(corpus.clips)} clips x {len(arms)} arms, simulated, "
         f"{SIMULATED_REPEATS} repeat.\n"
     )
     by_arm = run_matrix(corpus, arms, endpoint_overhead_ms=args.overhead_ms)
+
+    # The patch census. §5 caps a session at MAX_PATCHES and Gate 4 observed that
+    # the cap may be unreachable once hysteresis has converged, so the question is
+    # answered with a count rather than an argument.
+    census = {
+        arm: [
+            run_nod_clip(clip, arm, endpoint_overhead_ms=args.overhead_ms)
+            for clip in corpus.clips
+        ]
+        for arm in arms
+        if arm in NOD_ARMS
+    }
+    for arm, runs in census.items():
+        counts = sorted(run.patches for run in runs)
+        turns = sorted(run.turns for run in runs)
+        out.write(
+            f"  {arm}: patches/clip min={counts[0]} median="
+            f"{counts[len(counts) // 2]} max={counts[-1]} "
+            f"(cap {MAX_PATCHES}); turns/clip median={turns[len(turns) // 2]}\n"
+        )
+    (args.out / "patch_census.simulated.json").write_text(
+        json.dumps(
+            {
+                arm: {
+                    "patches": [run.patches for run in runs],
+                    "turns": [run.turns for run in runs],
+                    "final_min_ms": [run.final_min_ms for run in runs],
+                    "final_max_ms": [run.final_max_ms for run in runs],
+                    "cap": MAX_PATCHES,
+                }
+                for arm, runs in census.items()
+            },
+            indent=1,
+        )
+    )
 
     everything = [o for obs in by_arm.values() for o in obs]
     try:
@@ -288,11 +599,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 name=arm,
                 end_of_turn_confidence_threshold=(
                     STATIC_ARMS[arm].end_of_turn_confidence_threshold
+                    if arm in STATIC_ARMS
+                    else 0.0
                 ),
-                min_turn_silence=STATIC_ARMS[arm].min_turn_silence,
-                max_turn_silence=STATIC_ARMS[arm].max_turn_silence,
+                min_turn_silence=(
+                    STATIC_ARMS[arm].min_turn_silence
+                    if arm in STATIC_ARMS
+                    else BASE_MIN_MS
+                ),
+                max_turn_silence=(
+                    STATIC_ARMS[arm].max_turn_silence
+                    if arm in STATIC_ARMS
+                    else BASE_MAX_MS
+                ),
                 source=(
                     "AssemblyAI turn-detection docs, accessed 2026-09-17, BENCH_SPEC §3"
+                    if arm in STATIC_ARMS
+                    else (
+                        f"nod controller, CONTROL_SPEC §4, axes="
+                        f"{_axes_label(NOD_ARMS[arm])}"
+                        f"; min/max above are the STARTING config, not a fixed one"
+                    )
                 ),
             )
             for arm in arms
