@@ -19,6 +19,14 @@ htmlcov/
 # Nod runtime data (DEPLOYMENT §2: NOD_TRACE_DIR, NOD_CACHE_DIR, NOD_DB_PATH)
 data/*
 !data/.gitkeep
+
+# The Track A corpus is committed, deliberately and directly, not via LFS
+# (ROADMAP Phase 1). `say` is macOS-only and there is no cross-platform way to
+# regenerate the seed, so committing the audio is the only route to a bench that
+# runs on a clean clone. `source/` is committed too: it holds the sliced source
+# clips and their manifest, which is what lets `corpus.build` rebuild the corpus
+# on a machine without macOS.
+!data/corpus/
 .nodcache/
 *.db
 *.db-wal

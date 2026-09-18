@@ -1,0 +1,28 @@
+{
+ "start_ms": 0,
+ "end_ms": 10841,
+ "perturbation": {
+  "type": "pause",
+  "at_ms": 2420,
+  "len_ms": 1800
+ },
+ "gaps": [
+  {
+   "start_ms": 2420,
+   "end_ms": 4220,
+   "origin": "pause",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "cut at a word boundary inside one source utterance; structurally a fragment, but a word boundary can coincide with a clause end, which the model would read as complete"
+  },
+  {
+   "start_ms": 6591,
+   "end_ms": 10841,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

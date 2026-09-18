@@ -1,0 +1,44 @@
+{
+ "start_ms": 0,
+ "end_ms": 10889,
+ "perturbation": {
+  "type": "pause",
+  "at_ms": 2544,
+  "len_ms": 1600
+ },
+ "gaps": [
+  {
+   "start_ms": 2544,
+   "end_ms": 4144,
+   "origin": "pause",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "cut at a word boundary inside one source utterance; structurally a fragment, but a word boundary can coincide with a clause end, which the model would read as complete"
+  },
+  {
+   "start_ms": 2250,
+   "end_ms": 4150,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 5150,
+   "end_ms": 5350,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 6689,
+   "end_ms": 10889,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

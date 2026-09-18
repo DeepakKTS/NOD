@@ -1,0 +1,44 @@
+{
+ "start_ms": 0,
+ "end_ms": 9954,
+ "perturbation": {
+  "type": "repeat",
+  "at_ms": 1950,
+  "times": 2
+ },
+ "gaps": [
+  {
+   "start_ms": 2270,
+   "end_ms": 2390,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
+   "start_ms": 2710,
+   "end_ms": 2830,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
+   "start_ms": 3800,
+   "end_ms": 4050,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 5704,
+   "end_ms": 9954,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

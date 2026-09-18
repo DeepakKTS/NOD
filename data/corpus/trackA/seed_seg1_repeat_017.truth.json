@@ -1,0 +1,84 @@
+{
+ "start_ms": 0,
+ "end_ms": 10609,
+ "perturbation": {
+  "type": "repeat",
+  "at_ms": 2036,
+  "times": 3
+ },
+ "gaps": [
+  {
+   "start_ms": 2356,
+   "end_ms": 2476,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
+   "start_ms": 2796,
+   "end_ms": 2916,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
+   "start_ms": 3236,
+   "end_ms": 3356,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
+   "start_ms": 2250,
+   "end_ms": 2450,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 2700,
+   "end_ms": 2900,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 3150,
+   "end_ms": 3350,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 3600,
+   "end_ms": 3850,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 4850,
+   "end_ms": 5050,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 6409,
+   "end_ms": 10609,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

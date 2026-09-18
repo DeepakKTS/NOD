@@ -1,0 +1,44 @@
+{
+ "start_ms": 0,
+ "end_ms": 10134,
+ "perturbation": {
+  "type": "correct",
+  "at_ms": 2437,
+  "template": 1
+ },
+ "gaps": [
+  {
+   "start_ms": 2437,
+   "end_ms": 2757,
+   "origin": "correct",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "the speaker broke off and re-uttered; structurally a fragment, but the break can land after a clause the model would score as complete"
+  },
+  {
+   "start_ms": 3317,
+   "end_ms": 3497,
+   "origin": "correct",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "the speaker broke off and re-uttered; structurally a fragment, but the break can land after a clause the model would score as complete"
+  },
+  {
+   "start_ms": 4000,
+   "end_ms": 4200,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 5884,
+   "end_ms": 10134,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

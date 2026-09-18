@@ -1,0 +1,35 @@
+{
+ "start_ms": 0,
+ "end_ms": 9823,
+ "perturbation": {
+  "type": "burst",
+  "bursts": 2
+ },
+ "gaps": [
+  {
+   "start_ms": 3256,
+   "end_ms": 4038,
+   "origin": "burst",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an utterance split at a drawn offset; structurally a fragment, but the offset is not aligned to clause boundaries and may land on one"
+  },
+  {
+   "start_ms": 3250,
+   "end_ms": 4000,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 5573,
+   "end_ms": 9823,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

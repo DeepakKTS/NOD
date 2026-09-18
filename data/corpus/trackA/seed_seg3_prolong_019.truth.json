@@ -1,0 +1,20 @@
+{
+ "start_ms": 0,
+ "end_ms": 9401,
+ "perturbation": {
+  "type": "prolong",
+  "at_ms": 1936,
+  "factor": 2.5
+ },
+ "gaps": [
+  {
+   "start_ms": 5151,
+   "end_ms": 9401,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

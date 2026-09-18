@@ -1,0 +1,27 @@
+{
+ "start_ms": 0,
+ "end_ms": 9074,
+ "perturbation": {
+  "type": "noise",
+  "snr_db": 30.0
+ },
+ "gaps": [
+  {
+   "start_ms": 2950,
+   "end_ms": 3150,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 4874,
+   "end_ms": 9074,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}

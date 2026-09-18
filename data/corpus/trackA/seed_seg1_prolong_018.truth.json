@@ -1,0 +1,36 @@
+{
+ "start_ms": 0,
+ "end_ms": 9409,
+ "perturbation": {
+  "type": "prolong",
+  "at_ms": 2036,
+  "factor": 1.5
+ },
+ "gaps": [
+  {
+   "start_ms": 2400,
+   "end_ms": 2650,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 3650,
+   "end_ms": 3850,
+   "origin": "source_intrinsic",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 5209,
+   "end_ms": 9409,
+   "origin": "utterance_end",
+   "preceding": "complete",
+   "certainty": "certain",
+   "basis": "the speaker has finished; the semantic gate fires"
+  }
+ ],
+ "text": ""
+}
