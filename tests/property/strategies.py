@@ -33,6 +33,7 @@ from typing import Final
 
 from hypothesis import strategies as st
 
+from nod_core.arbiter import CEILING_FLOOR_MS as _CEILING_FLOOR_MS
 from nod_core.arbiter import (
     INVARIANT_GAP_MS,
     MAX_MS_CEIL,
@@ -97,23 +98,12 @@ one in the example, so the domain is deliberately wider than §3's table. Zero i
 included: a `0.0` multiplier is the cleanest probe of the lower clamp.
 """
 
-CEILING_FLOOR_MS: Final = MIN_MS_CEIL + INVARIANT_GAP_MS
-"""Lowest `ceiling_ms` drawn. 1100 ms today. **This bound is a decision.**
+CEILING_FLOOR_MS: Final = _CEILING_FLOOR_MS
+"""Lowest `ceiling_ms` drawn, re-exported from the law rather than re-derived.
 
-CONTROL_SPEC.md §4 applies invariant repair *before* the latency ceiling:
-
-    max_ms = max(max_ms, min_ms + INVARIANT_GAP_MS)   # repair
-    max_ms = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)   # ceiling
-
-So the ceiling can undo the repair. With `ceiling_ms` at 500 and `min_ms` clamped
-up to 900, the law returns `max_ms = 500`, which is below `min_ms + 200 = 1100`,
-and §9 property 2 fails — for a reason in the spec's own ordering rather than in
-any implementation of it.
-
-Restricting the domain to `ceiling_ms >= MIN_MS_CEIL + INVARIANT_GAP_MS` removes
-the conflict arithmetically: `min_ms <= MIN_MS_CEIL` always, so `min_ms + 200 <=
-1100 <= ceiling_ms`, and the `min()` cannot drop `max_ms` below `min_ms + 200`.
-`DEFAULT_CEILING_MS` is 2600, well inside.
+The arithmetic and its justification live on `arbiter.CEILING_FLOOR_MS`, which is
+the single definition; this name exists only so the strategies below read in terms
+of the domain rather than reaching into the law for a bound mid-expression.
 
 **Settled by ADR-021, and this bound does not widen.** A `ceiling_ms` below
 1100 ms is not a valid configuration: `Settings` rejects it at process startup
@@ -168,13 +158,29 @@ def speaker_features(
 ) -> SpeakerFeatures:
     """An internally consistent `SpeakerFeatures` (CONTROL_SPEC.md §2).
 
-    Two couplings are enforced rather than drawn, because a state violating either
-    is one the profiler cannot emit, and a property test that fails on an
-    unreachable state reports a bug that does not exist:
+    Two couplings are enforced rather than drawn, because a property test that
+    fails on an unreachable state reports a bug that does not exist:
 
-    - `g_p90_ms >= g_p50_ms`. Two quantiles over one sample set.
     - `cold == (n_gaps < MIN_GAPS_FOR_WARM)`. `Profiler.features` derives `cold`
-      from `n_gaps`; they are two views of one fact, and §4 branches on it.
+      from `n_gaps`; they are two views of one fact, and §4 branches on it. This
+      one is genuinely unreachable otherwise.
+    - `g_p90_ms >= g_p50_ms`. Two quantiles over one sample set — **and this
+      justification is now known to be too strong.** Gate 2 measured the
+      profiler emitting the inversion: `g_p50` and `g_p90` are two *independent*
+      P² estimators (CONTROL_SPEC §2.1 says to maintain two and says nothing
+      about coupling them), their approximation errors are independent, and over
+      20 000 random gap streams the order inverted 28 times, 0.14 %, worst
+      inversion 146 ms. See
+      `test_profiler_quantiles.test_two_independent_estimators_can_report_p90_below_p50`.
+
+      The restriction is kept for now rather than widened, because widening it is
+      a decision about what the control law must tolerate and CONTROL_SPEC §0
+      makes that an ADR. The consequence of keeping it is recorded here so it is
+      not mistaken for a guarantee: **the §9 properties below have never been
+      evaluated on an inverted state**, and an inverted state can reach
+      `decide()` in production. The §4 invariant repair stops it producing
+      `max < min`, so the visible damage is bounded; what is untested is
+      everything else. Gate 3 owns the call.
 
     Args:
         draw: Hypothesis draw function.
