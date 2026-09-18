@@ -348,9 +348,9 @@ editorial (ADR-017), because a chart leaving the repo has to carry its own prove
 BENCH_SPEC governs because it is the measurement contract and ROADMAP is a schedule: when a
 schedule and a contract disagree about what a number means, the contract wins.
 
-**Three instances now, and the pattern is worth naming.** Each was two internally coherent
-documents specifying incompatible things, and each surfaced only when something had to
-consume both at once — never from re-reading either one.
+**Four instances now, and the pattern is worth naming.** The first three were each two
+internally coherent documents specifying incompatible things, and each surfaced only when
+something had to consume both at once — never from re-reading either one.
 1. BENCH_SPEC §4 ("CI runs the fake; the published table is generated from live runs")
    against ROADMAP's Phase 1 exit ("offline, on a clean clone"). Found when Gate C asked
    what `FakeAssemblyAI` concretely had to produce. Resolved above.
@@ -361,8 +361,20 @@ consume both at once — never from re-reading either one.
    only its timing. Found when Gate A implemented `correct` and had to satisfy both. The
    contract governs, as in (1): `correct` is a restart built from the clip's own audio,
    and the divergence from the illustration is recorded at the implementation.
+4. CONTROL_SPEC §3's policy YAML against `policy.PolicyFile`. Found at Phase 2 Gate 1,
+   reading the spec in order to write the loader. **This one is a variant, and the
+   difference is the point.** The first three were two documents each coherent alone; §3's
+   example was not coherent alone — its `answers:` key had been lost in an edit, leaving
+   eight classes indented under nothing, so the block is not valid YAML and `PolicyFile`
+   would have rejected it under `extra="forbid"` even if it parsed. Nobody noticed for the
+   same reason as the other three: a YAML block in a spec is never executed, so *reading*
+   it cannot fail. Restored per reading (a), the key was lost; the multipliers are
+   unchanged.
 The lesson is procedural rather than editorial — a spec review would not have caught any of
-them, because each document is right on its own. They are found by building the consumer.
+them. For the first three, because each document is right on its own; for the fourth,
+because prose review reads a code block for intent and not for syntax. They are found by
+building the consumer. A spec fragment that nothing parses is untested code that happens to
+live in a document.
 
 ## ADR-017 — `FakeAssemblyAI` is a simulator, not a replayer
 2026-09-17 · Status: accepted

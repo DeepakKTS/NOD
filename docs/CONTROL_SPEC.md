@@ -126,7 +126,7 @@ A policy file compiles to `expected_answer → WindowHint`:
 ```yaml
 version: 1
 default: {min_mult: 1.0, max_mult: 1.0}
-
+answers:
   boolean:        {min_mult: 0.7, max_mult: 0.7}
   free:           {min_mult: 1.0, max_mult: 1.0}
   number:         {min_mult: 1.2, max_mult: 1.6}
@@ -136,6 +136,12 @@ default: {min_mult: 1.0, max_mult: 1.0}
   entity_list:    {min_mult: 1.4, max_mult: 2.2}
   spelling:       {min_mult: 1.5, max_mult: 2.4}
 ```
+
+The `answers:` key was lost in an edit and restored on 17 Sep. Without it the block
+above is not valid YAML at all — the eight classes are indented under nothing — and
+`PolicyFile` declares `answers: Mapping[ExpectedAnswer, WindowHintModel]` under
+`extra="forbid"`, so it would have rejected the document either way. Recorded as
+ADR-016's fourth instance.
 
 Applied for exactly one turn, then released. A context hint never persists into the
 speaker profile; the two axes are combined at decision time and stored separately.
