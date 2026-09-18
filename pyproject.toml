@@ -199,7 +199,7 @@ testpaths = ["tests"]
 # developer typing bare `pytest`, not only for CI.
 addopts = """\
 -ra --strict-markers --strict-config \
--m 'not live' \
+-m 'not live and not say' \
 --cov=nod_core --cov-branch \
 --cov-report=term-missing --cov-report=xml \
 --cov-fail-under=85\
@@ -225,6 +225,7 @@ markers = [
     "live: requires network and ASSEMBLYAI_API_KEY; excluded from CI (INV-7)",
     "smoke: the bench leg of `make check`",
     "slow: soak and load tests (EC-09, EC-10)",
+    "say: shells out to the macOS `say` binary; excluded by default, run with `make seed-tests`",
 ]
 
 # Coverage source and branch mode come from the pytest addopts above
