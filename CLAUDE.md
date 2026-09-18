@@ -242,9 +242,30 @@ lines. That file is long-term memory; this file is the standing contract.
     corpus ground truth, the arm configurations, the provenance labelling. INV-9 says no
     figure is hand-written, which is only worth anything if the code generating it is
     guarded. Four flattering-direction errors in Phase 1 were all found here.
+  - `policy.py` **in full**, decided at Phase 2. The two lists above named `arbiter.py` and
+    anything feeding a published number, and left the context axis unassigned. It belongs in
+    the first tier under the *second* rule rather than the first: `hint.min_mult` multiplies
+    `min_ms`, `min_ms` is the gate that decides responsiveness after a complete utterance,
+    and TTL is measured off exactly those boundaries. A wrong multiplier is therefore not a
+    wrong hint — it is a wrong published latency figure, arriving with no symptom, because
+    every value in the table is plausible. `0.7` where `1.4` belongs reads as a working
+    controller that is simply faster than it should be.
+  - `proxy.py` is **thinner overall, with two named exceptions in the first tier**:
+    `send_patch_upstream` and `run_controller`'s `SAFE` path. The rest of the module is
+    plumbing that fails visibly — a broken audio pump is a silent call, a broken rotation is
+    a dropped session, and nobody ships either by accident. These two fail *invisibly and in
+    the flattering direction*. A patch that is computed, traced and never applied, or a
+    controller that catches an exception and quietly holds last-known-good for the rest of
+    the session, both produce a run that looks like `nod` and behaves like `balanced`. The
+    arm would then be measured under the wrong label and the headline delta would be an
+    artifact of a bug. Per INV-4 and INV-8 both paths are already required to emit — a
+    `ConfigDecision` and a `controller_error` — so the tests to guard are that **the patch
+    reached the socket** and that **entering `SAFE` is loud**, not merely that the code
+    caught the error.
   **Accepted thinner elsewhere**, as a decision rather than an oversight: the console, the
-  TTS and LLM adapters, the server plumbing, report rendering beyond its labels. These fail
-  visibly when they fail. A wrong number does not — it prints a plausible one.
+  TTS and LLM adapters, the rest of the server plumbing, `proxy.py` outside the two paths
+  named above, report rendering beyond its labels. These fail visibly when they fail. A
+  wrong number does not — it prints a plausible one.
   When time is short, cut coverage from the second list and say so in the commit. Do not
   dilute the first.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
