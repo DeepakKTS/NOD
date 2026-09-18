@@ -214,3 +214,36 @@ def test_noise_against_silence_is_refused() -> None:
             snr_db=20.0,
             rng=np.random.default_rng(1),
         )
+
+
+def test_the_intrinsic_floor_equals_the_simulators_floor() -> None:
+    """The coupling nothing enforced, asserted before the corpus is committed.
+
+    `corpus.INTRINSIC_FLOOR_DBFS` is documented as "the simulator's silence
+    floor at the default `vad_threshold`". It is written as a literal -44.0, and
+    `fake_assemblyai` arrives at the same number from three other constants. They
+    agreed by *meaning*, not by code, and nothing checked it.
+
+    Why assert rather than derive. Deriving `INTRINSIC_FLOOR_DBFS` from
+    `DEFAULT_VAD` would make them agree forever and be wrong: the committed
+    corpus freezes 125 `source_intrinsic` gap labels computed at -44.0, so a
+    later change to `DEFAULT_VAD` must not silently re-derive a floor the
+    committed audio was never scanned at. It has to fail, loudly, and make
+    someone decide whether the corpus needs rebuilding. A derivation would hide
+    exactly the drift this exists to catch.
+    """
+    from nod_bench.corpus import INTRINSIC_FLOOR_DBFS
+    from nod_bench.fake_assemblyai import (
+        DEFAULT_VAD,
+        SILENCE_FLOOR_DBFS,
+        VAD_RANGE_DB,
+    )
+
+    simulator_floor = SILENCE_FLOOR_DBFS + DEFAULT_VAD * VAD_RANGE_DB
+    assert simulator_floor == INTRINSIC_FLOOR_DBFS, (
+        f"intrinsic-gap detection scans at {INTRINSIC_FLOOR_DBFS} dBFS but the "
+        f"simulator treats {simulator_floor} dBFS as its silence floor. The "
+        f"committed corpus's gap labels were computed at the former; if the "
+        f"latter has moved, those labels no longer describe what the endpointer "
+        f"hears and the corpus must be rebuilt, not re-derived."
+    )
