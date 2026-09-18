@@ -1024,3 +1024,70 @@ Consequence: no code changes. ADR-023's decision stands; its Context paragraph s
 with this one. Cost of keeping the repair now that the warm-path rate is unmeasurable: one
 comparison per `features()` call, `O(1)`, which INV-2 does not notice at a measured 4.4 µs
 mean for the whole decision path.
+
+## ADR-026 — The simulator does not tune the control law
+2026-09-18 · Status: accepted
+Context: CONTROL_SPEC §8 says the constants "are tuned by `nod tune`, which sweeps them
+against the bench corpus", and CLAUDE.md §7 says "do not hand-tune the control law by ear.
+Tune against `make bench`." Both were written before ADR-017 established what `make bench`
+actually runs against in Phase 2: `FakeAssemblyAI`, a **simulator**, not a replayer.
+
+Three properties of that simulator make it the wrong instrument for tuning, and each is
+recorded in ADR-017 as a deliberate design choice rather than a defect:
+1. **Its gate response is 1:1 by construction.** `ENDPOINT_OVERHEAD_MS` defaults to 0, so it
+   fires exactly at the configured gate. The real service does not: the P1 matrix measured
+   the boundary landing 172–217 ms *after* the gate, a spread comparable to its own repeat
+   noise, and `make bench` still owes the measurement (INV-9).
+2. **Its timing spread is zero.** Determinism is why it exists (INV-7), and it is also why
+   ADR-019 had to replace repeat-IQR error bars with a bootstrap over clips: five repeats are
+   byte-identical.
+3. **Its regime labelling comes from the truth sidecar**, not from the model. That is correct
+   — ADR-001 measured `end_of_turn_confidence_threshold` INERT, so a fake in which it works
+   would let a control law be rewarded for exploiting a knob that does not exist — but it
+   means the simulator agrees with the corpus by construction on exactly the axis PCR scores.
+
+Tuning is fitting parameters to an environment's response. Fitting to (1), (2) and (3) is
+fitting to **our model of the service**, and the closer the fit the more of the model's
+1:1-ness and zero spread the constants encode. A constant that is optimal against a gate with
+no overhead and no jitter is not thereby optimal against one with 200 ms of overhead and 40 ms
+of spread — and worse, the sweep would report the fit as an improvement with no signal that it
+came from the model rather than from the world.
+Decision: **constants derived from measurement outside the bench are not tuned against
+simulated output.** Named, so there is no ambiguity about which:
+
+| constant | derived from | ADR |
+|---|---|---|
+| `MIN_GAPS_FOR_WARM` = 24 | P² error against exact quantiles on the digit-reading shape | ADR-022 |
+| `WIDEN_STEP` = 0.25 | turns-to-serve against turns-to-undo against turns-to-ceiling | ADR-022 |
+| `NARROW_STEP` = 0.12 | §5's stated purpose, ordering fixed against hysteresis | ADR-020 |
+| `MIN_SEPARATION` floor = 100 ms | measured endpoint overhead, 147–274 ms | ADR-014 |
+| `CEILING_FLOOR_MS` = 1100 | `MIN_MS_CEIL + INVARIANT_GAP_MS`, arithmetic | ADR-021 |
+| `BOOLEAN_MIN_MS_CAP` = 400 | §5's stated purpose, exemption derived | ADR-024 |
+
+Any constant the bench suggests moving is **reported with the simulated evidence and not
+adopted in Phase 2.** The live check is deferred to Phase 4's `N = 5` runs against the real
+service, which is where INV-9 already says published figures come from. A suggestion is not
+discarded — it is a hypothesis with an experiment attached and a date.
+
+This does not make the bench decorative, and the distinction is worth keeping sharp. The
+simulator is the right instrument for the things it is deterministic *about*: that the arms
+are wired correctly, that the metrics compute, that the report regenerates, that a refactor
+did not change behaviour, and that the tradeoff has **this shape under our model** (ADR-017's
+own statement of what the simulated chart may claim). It is the wrong instrument for the value
+of a constant, and only that.
+Consequence: **Phase 2's chart shows the controller's shape under our model, and its
+constants are defensible by derivation rather than by fit.** That is a weaker claim than "we
+tuned it and it won", and it is the claim the evidence supports. It also has one real
+advantage worth stating rather than conceding: a derived constant comes with the argument that
+produced it, so a future session can check the arithmetic and know what would change it, where
+a fitted constant comes with a number and a corpus that no longer exists.
+
+Two costs, both accepted:
+- **The constants are probably not optimal.** Nothing here claims they are. They are
+  defensible, which is a different and, at nine days to freeze, more useful property.
+- **`nod tune` is cut** (ROADMAP §3), so no sweep exists to be tempted by in Phase 2 anyway.
+  This ADR is therefore mostly about Phase 4, where a live sweep *would* be admissible — and
+  it is written now, before any number is in hand, because a tuning decision taken after
+  seeing a flattering result is not a decision.
+CONTROL_SPEC §8 and CLAUDE.md §7 should be read with this: "tune against `make bench`" means
+against the **live** bench of BENCH_SPEC §4, never against the simulated path of ADR-016.
