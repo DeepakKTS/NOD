@@ -21,7 +21,8 @@ dataclass, not a stub, and `PROFILER_STATE` below is still built from it.
 **`policy.py`'s three and `arbiter.py`'s six went at Gate 3**, replaced by
 `tests/unit/test_policy.py`, `tests/unit/test_arbiter.py` (§4's two gates and
 every §5 guard with the polarity reversed) and `tests/property/test_control_law.py`
-(CONTROL_SPEC §9). What remains here is `proxy.py`, which Gate 4 owns.
+(CONTROL_SPEC §9). **`proxy.py`'s eight went at Gate 4**, the last of them,
+replaced by `tests/unit/test_proxy.py`.
 
 The coverage this file was holding up had to be replaced, not merely removed. Each
 gate's delta is in its report.
@@ -29,12 +30,14 @@ gate's delta is in its report.
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable, Coroutine
-from typing import Any, cast
+from pathlib import Path
+from typing import Any, Final
 
 import pytest
 
-from nod_core import arbiter, capabilities, profiler, proxy
+from nod_core import arbiter, capabilities, profiler
 from nod_core.types import (
     Capabilities,
     ConfidenceField,
@@ -96,41 +99,72 @@ PROFILER_STATE = profiler.ProfilerState(
     last_turn_order=1,
 )
 
-SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = (
-    (
-        "proxy.SessionProxy.__init__",
-        lambda: proxy.SessionProxy(
-            upstream=cast(Any, None),
-            profiler=cast(Any, None),
-            arbiter=cast(Any, None),
-            trace=cast(Any, None),
-            mode=cast(Any, None),
-            ceiling_ms=2600,
-        ),
-    ),
-)
+SYNC_STUBS: tuple[tuple[str, Callable[[], object]], ...] = ()
 
-ASYNC_STUBS: tuple[tuple[str, Callable[[], Coroutine[Any, Any, object]]], ...] = (
-    ("proxy.SessionProxy.run", lambda: _uninitialised(proxy.SessionProxy).run()),
-    (
-        "proxy.SessionProxy.pump_audio_up",
-        lambda: _uninitialised(proxy.SessionProxy).pump_audio_up(),
-    ),
-    (
-        "proxy.SessionProxy.pump_events_down",
-        lambda: _uninitialised(proxy.SessionProxy).pump_events_down(),
-    ),
-    (
-        "proxy.SessionProxy.run_controller",
-        lambda: _uninitialised(proxy.SessionProxy).run_controller(),
-    ),
-    (
-        "proxy.SessionProxy.send_patch_upstream",
-        lambda: _uninitialised(proxy.SessionProxy).send_patch_upstream(("min",)),
-    ),
-    ("proxy.SessionProxy.rotate", lambda: _uninitialised(proxy.SessionProxy).rotate()),
-    ("proxy.SessionProxy.aclose", lambda: _uninitialised(proxy.SessionProxy).aclose()),
-)
+ASYNC_STUBS: tuple[tuple[str, Callable[[], Coroutine[Any, Any, object]]], ...] = ()
+"""Empty as of Phase 2 Gate 4: `proxy.py`'s eight entries were the last of them.
+
+Replaced by `tests/unit/test_proxy.py`. Two paths there carry CLAUDE.md §5's
+first tier — `send_patch_upstream` and `run_controller`'s `SAFE` path — and their
+tests assert what §5 asks for rather than what is easy: that the patch reached
+the socket, and that entering `SAFE` is loud. The rest of the module is the
+accepted-thinner tier.
+
+**This file has now done its whole job and is kept for the shape of it.** Every
+`nod_core` stub it once guarded has landed, so the parametrisations below are
+empty and the file asserts nothing. That is not a reason to keep it green by
+accident: `test_no_stub_survives_unlisted` fails if a new
+`raise NotImplementedError` appears in `nod_core` without an entry here, which
+turns an empty list from a vacuous pass into a live claim.
+"""
+
+NOD_CORE: Final = Path(__file__).resolve().parents[2] / "src" / "nod_core"
+
+
+def test_no_stub_survives_unlisted() -> None:
+    """Every `raise NotImplementedError` in `nod_core` must be listed above.
+
+    This is what stops the two empty tuples from being a vacuous pass. With every
+    stub landed there is nothing left to parametrise, so the two tests below run
+    zero times each and assert nothing at all — which is exactly the shape
+    CLAUDE.md §5 warns about, a check that cannot fail sitting where coverage
+    used to be.
+
+    So the claim is inverted. Instead of "each listed stub raises", this asserts
+    "no unlisted stub exists": a new `raise NotImplementedError` appearing in
+    `nod_core` fails here until someone either implements it or adds it to the
+    lists. That keeps the file honest in both directions — it went from guarding
+    28 stubs to guarding the absence of them, and it can still go red.
+
+    `NotImplementedError` raised from an abstract base or a deliberate
+    "unsupported operation" would trip this too. That is intended: `nod_core` has
+    neither today, and a module that acquires one should have to say so here.
+    """
+    offenders: list[str] = []
+    listed = {name for name, _ in SYNC_STUBS} | {name for name, _ in ASYNC_STUBS}
+    for module in sorted(NOD_CORE.glob("*.py")):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Raise) or node.exc is None:
+                continue
+            raised = node.exc
+            name = (
+                raised.id
+                if isinstance(raised, ast.Name)
+                else raised.func.id
+                if isinstance(raised, ast.Call) and isinstance(raised.func, ast.Name)
+                else ""
+            )
+            if name == "NotImplementedError":
+                offenders.append(f"{module.name}:{node.lineno}")
+    assert not offenders or listed, (
+        f"unlisted stubs in nod_core: {offenders}. Implement them, or add an "
+        "entry to SYNC_STUBS/ASYNC_STUBS so the contract covers them."
+    )
+    assert not offenders, (
+        f"unlisted stubs in nod_core: {offenders}. Every stub must be listed "
+        "above or implemented; an unguarded stub is a promise nothing checks."
+    )
 
 
 @pytest.mark.parametrize(
