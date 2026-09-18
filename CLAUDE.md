@@ -199,6 +199,25 @@ lines. That file is long-term memory; this file is the standing contract.
     minimum. The impossible-value question — "what would this test report if clipping were
     on?" — exposed that the pass was unrelated to the property named.
   Do this before reporting a number, not after someone queries it.
+- **Coverage is deliberately uneven, and this is where it goes.** Nine days to freeze will
+  not support full mutation discipline across the whole repository. Applying it evenly is
+  the failure mode to avoid: spread thin it becomes a ritual that is done properly nowhere
+  and still consumes the time. Concentrate it.
+  **Non-negotiable — full mutation discipline through the sha256 harness:**
+  - `arbiter.py`'s decision logic for **both gates**. `max_turn_silence` governs the
+    incomplete-utterance regime and is the only knob that tolerates a mid-sentence pause;
+    `min_turn_silence` governs responsiveness after a complete one (ADR-011, ADR-001). A
+    silent regression in either is the project failing at the thing it exists to do, and
+    CONTROL_SPEC §9's tests 9 and 10 are the floor, not the ceiling.
+  - Anything that feeds **a published number**: the metrics, the quantile definition, the
+    corpus ground truth, the arm configurations, the provenance labelling. INV-9 says no
+    figure is hand-written, which is only worth anything if the code generating it is
+    guarded. Four flattering-direction errors in Phase 1 were all found here.
+  **Accepted thinner elsewhere**, as a decision rather than an oversight: the console, the
+  TTS and LLM adapters, the server plumbing, report rendering beyond its labels. These fail
+  visibly when they fail. A wrong number does not — it prints a plausible one.
+  When time is short, cut coverage from the second list and say so in the commit. Do not
+  dilute the first.
 - **Run `make check` before declaring anything done.** It runs ruff, mypy, pytest with
   the coverage gate, and a bench smoke test. If it fails, fix it; do not describe the
   failure and move on.
