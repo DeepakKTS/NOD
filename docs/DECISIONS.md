@@ -1420,6 +1420,17 @@ Consequence: four, and the second is a gain rather than a side effect.
    than coarser and right, but the grid is real and a later reader should not be surprised
    by it.
 
+**ADR-022's threshold of 24 was checked against the grid and does not move.** Its table was
+derived on a continuous distribution, and P² markers behave differently when samples share
+exact values, so the Gate 2 differential was re-run with every gap snapped to `round(g/80)*80`
+over the same four shapes and the same `n` values. On the digit-reading shape the quantised
+error is uniformly *lower* — 71.6 % against 74.9 % median at `n = 8`, 16.1 % against 17.5 % at
+`n = 24` — because snapping concentrates the bulk cluster and P²'s markers settle sooner. The
+crossing of ADR-022's criterion (median error in `max_ms` within one 397.5 ms hysteresis band
+at the hesitant operating point) stays exactly where it was: fail at 8 and 16, pass at 20 and
+24. The harness was validated by reproducing ADR-022's continuous column from a different seed
+before the quantised column was believed. **24 stands and needs no re-derivation.**
+
 Implementing this is **Gate 7 and needs approval**. No recording session is scheduled until
 it lands: a Track C session run against the current ingestion path would produce a fluent arm
 that never warms, and the script's gap budget is not recoverable from the audio afterwards.
