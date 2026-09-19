@@ -188,6 +188,22 @@ lines. That file is long-term memory; this file is the standing contract.
     arrived in 3.82, so the line is read and ignored — `false | true` succeeds and the
     recipe continues. A pipefail guard that cannot fire, sitting in the build file for the
     whole project, which is why `gate` now protects itself instead of relying on it.
+  - **`run_nod_clip` had no test at all, and the reason it stayed invisible is the
+    important half.** The closed loop — the function that drives the controller over a
+    clip and produces the Pareto chart's three controlled arms — sat at 55 % module
+    coverage with lines 333–394 uncovered and *nothing in `tests/` referencing it by
+    name*. Gate 5's nod-arm figures came out of it. It went unnoticed because the output
+    matched the prediction made before the run: Track A is per-utterance, the profiler
+    should never warm, so the arms should be identical to `balanced` — and they were,
+    to the last digit. That identity was then read as confirmation that the wiring was
+    correct, when nothing had checked the wiring. **A predicted-and-observed match is not
+    a test.** The same zeros are produced by a correct controller with nothing to adapt
+    to and by a controller that never ran, and the agreement cannot distinguish them.
+    Where a result confirms a prediction, ask what *else* produces that result — and if
+    "the code is broken" is on the list, the confirmation is worth nothing until a test
+    rules it out. The rule that follows: a number is only evidence about the code that
+    produced it once that code has a test that goes red.
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.

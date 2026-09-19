@@ -1434,3 +1434,97 @@ before the quantised column was believed. **24 stands and needs no re-derivation
 Implementing this is **Gate 7 and needs approval**. No recording session is scheduled until
 it lands: a Track C session run against the current ingestion path would produce a fluent arm
 that never warms, and the script's gap budget is not recoverable from the audio afterwards.
+
+## ADR-032 — 80 ms quantisation manufactures patches on the digit-reading shape
+2026-09-19 · Status: accepted — measured and recorded, resolution deferred to Phase 4
+Context: ADR-031 moved the sidecar's word timings to the service, and the service
+quantises them to an 80 ms grid. ADR-022 derived `MIN_GAPS_FOR_WARM` against a continuous
+distribution, so two things had to be checked before the change could be trusted: whether
+the threshold still holds (it does — recorded in ADR-031, the crossing does not move), and
+whether the grid can move the control law on its own. This is the second.
+
+**The arithmetic, over the operating range rather than at one point.** One grid step in
+`g_p90` is `1.6 × 80 = 128 ms` in `max_ms`, and the hysteresis band is
+`HYST_FRACTION × reference max_ms`. The fraction of a band one step consumes is therefore
+inversely proportional to where the controller is sitting:
+
+| `g_p90` | `max_ms` | band | step / band | |
+|---|---|---|---|---|
+| 60 | 400 | 60.0 | **2.13** | `MAX_MS_FLOOR` |
+| 160 | 506 | 75.9 | **1.69** | fluent, pilot-like gaps |
+| 231 | 620 | 92.9 | **1.38** | the fluent shape's p90 |
+| 377 | 853 | 128.0 | **1.00** | break-even |
+| 645 | 1282 | 192.3 | 0.67 | `BASE_MAX_MS` |
+| 1500 | 2650 | 397.5 | 0.32 | ADR-022's hesitant operating point |
+| 2344 | 4000 | 600.0 | 0.21 | `MAX_MS_CEIL` |
+
+**Break-even is `128 / 0.15 = 853 ms` of `max_ms`, which the law reaches at
+`g_p90 = 377 ms`, and the whole fluent regime sits below it.** The intuition that one step
+is comfortably inside a band is correct only at the hesitant end, which is where it was
+first checked. With a context hint at the widest multiplier — `spelling` at 2.4 — the step
+becomes 307 ms and reaches **5.12 × a band** at `MAX_MS_FLOOR`.
+
+**Measured on the real arbiter**, full state machine, 60 turns × 6 words, 3000 streams per
+shape, the same stream fed continuous and snapped:
+
+| shape | cont. patches | quant. patches | manufactured | suppressed | per-turn rate |
+|---|---|---|---|---|---|
+| fluent | 12010 | 12010 | 115 | 115 | **0.064 %** |
+| digit_reading | 13587 | 13811 | 1810 | 1586 | **1.006 %** |
+| hesitant | 6109 | 6093 | 310 | 326 | 0.172 % |
+| mixed | 8742 | 8628 | 1458 | 1572 | 0.810 % |
+
+Manufactured and suppressed counts are close enough that the effect could be re-timing
+rather than fabrication, so that was measured too rather than inferred:
+
+| shape | identical patch count | Δ distribution | final `max_ms` identical |
+|---|---|---|---|
+| fluent | 99.5 % | −1: 8, 0: 2984, +1: 8 | 99.2 % |
+| digit_reading | 77.5 % | −1: 178, 0: 2326, **+1: 361** | 58.9 % |
+| hesitant | 96.6 % | −1: 54, 0: 2898, +1: 38 | 39.4 % |
+| mixed | 75.9 % | −1: 396, 0: 2278, +1: 283 | 19.3 % |
+
+**So it is dominated by re-timing and it is not only re-timing.** 77.5 % of digit-reading
+streams end with the same patch count, which is the re-timing half; the delta is skewed
+361 to 178 toward *more* patches, a net +1.6 %, which is not. The same arithmetic sits
+benign at 0.064 % on `fluent`, where the near-perfect symmetry (115 against 115, 8 against
+8) is what a pure timing jitter looks like. The mechanism on `digit_reading` is different
+in kind: its 90th percentile sits on the cliff between the 180 ms cluster and the 1500 ms
+cluster, so snapping reorders ranks across a discontinuity in the quantile function and the
+two estimates land on opposite sides of it — measured pairs like (814, 1297) and
+(1025, 591). That is not one grid step, and it is why the effect is largest on the shape
+the project exists to serve.
+
+**This is not a regression, and the reason is the whole point.** The live path has always
+been quantised. Every one of the 70 inter-word gaps measured across the ADR-031 pilot clip
+and the four Track A source segments was a multiple of 80 ms, so the profiler has consumed
+grid-quantised input in every live session since P1. What was continuous was the
+*simulated* path, because generator gap durations are floats. ADR-031 makes the simulation
+match production. The behaviour recorded above is therefore a property of the **production
+controller** that was invisible for as long as the bench ran on continuous input — a
+measurement newly able to see something, not a change that broke something.
+Decision: **record it, change nothing, and do not propose a fix here.** Three reasons, and
+the first is ADR-026's: the evidence is simulated, and a constant governing how a real
+controller responds to a real service's timing resolution is exactly the kind of question a
+deterministic model cannot answer. The second is that the failure direction is mild — a
+patch arriving one turn early or late, on a shape where the controller's job is to widen,
+with the final `max_ms` identical on 58.9 % of streams and a median absolute difference of
+0 ms. The third is that any plausible fix — snapping `g_p90` to the grid before the law
+reads it, widening the hysteresis band at low `max_ms`, or quantising the law's output —
+is a change to the control law, and CLAUDE.md §7 says the law is not tuned by ear and
+ADR-026 says it is not tuned against the simulator either.
+**What evidence would justify a fix**, so this is not re-litigated from the same figures:
+a patch census from Phase 4's `N = 5` live runs showing either (a) a per-session patch
+count materially above what the same sessions produce under a de-quantised counterfactual,
+or (b) a measurable PCR or TTL difference attributable to the manufactured patches rather
+than to their timing. Neither is obtainable from the simulator. If the live runs show the
+net +1.6 % holding on real digit-reading speech, the candidate fix to evaluate first is
+widening the band at low `max_ms` — the break-even table above says the exposure is
+entirely in the fluent regime, so a floor on the band costs nothing at the hesitant end
+where the controller does its work.
+Consequence: `HYST_FRACTION` stays 0.15 and nothing in §4 or §5 moves. Phase 4 must collect
+the patch census named above alongside ADR-027's per-session count — they are the same
+measurement read two ways, and collecting them together costs nothing. Until then the
+honest statement about the simulated chart is that its patch *timings* carry an 80 ms
+grid's worth of jitter on bimodal pause profiles, and its patch *counts* are within 1.6 %
+of what a continuous-timing controller would emit.
