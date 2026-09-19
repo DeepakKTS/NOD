@@ -1304,3 +1304,122 @@ this makes each call roughly 45–55 s longer than its speech content, which is 
 length estimate in `docs/TRACK_C_SCRIPT.md` §8. The seams are not gaps and never reach the
 profiler — CONTROL_SPEC §2.1 computes gaps only within a turn — provided the turn actually
 ends there, which is what the check guarantees.
+
+## ADR-031 — Sidecar word timings come from transcription, not silence detection
+2026-09-18 · Status: accepted — decision recorded, implementation deferred to Gate 7
+Context: `docs/TRACK_C_SCRIPT.md` §8 flagged a risk it could not resolve: there is no Track C
+ingestion path, and the obvious one built on `corpus._intrinsic_gaps` might lose most of the
+script's gaps. The pilot specified there was run before scheduling any recording.
+
+**Measured, on `say`-synthesised connected speech.** One continuous utterance, 22 words,
+6811 ms, transcribed live against `universal-streaming-english`:
+
+| | gaps |
+|---|---|
+| live, from AssemblyAI word timings | **21** (22 words, one turn — exactly `w - 1`) |
+| `_intrinsic_gaps`, same audio | **0** |
+
+**`MIN_INTRINSIC_GAP_MS` is not the filter.** Thirteen of the 21 live gaps exceed 100 ms by
+word timing, so the duration threshold would have admitted them. `INTRINSIC_FLOOR_DBFS` at
+−44.0 is what rejects them: over the 135 speech frames only **2** reach that floor, and
+neither run is 100 ms long. Frame energy runs min −47.8, p05 −36.9, median −14.1 dBFS. The
+intervals between words in connected speech never get that quiet.
+
+Sweeping the floor shows the two methods agree about *where* the gaps are and disagree only
+about the threshold: at −20 dBFS the detector finds **13 runs of 100 ms or more, the same 13**
+the word timings give. So the detector is not broken. It is correctly calibrated for what it
+was written for — generator-inserted silence, which is digital zeros — and wrong for
+connected speech, which is not.
+
+**The Track A extension, which is the more consequential half.** The same comparison was run
+against the four committed source segments rather than inferred from the threshold sweep:
+
+| segment | live gaps | sidecar | live ≥ 100 ms | longest live gap |
+|---|---|---|---|---|
+| `seed_seg0` | 16 | 1 | 6 | 560 ms |
+| `seed_seg1` | 8 | 2 | 5 | 720 ms |
+| `seed_seg2` | 9 | 1 | 3 | 320 ms |
+| `seed_seg3` | 16 | **0** | 9 | 560 ms |
+| total | **49** | **4** | 23 | |
+
+**4 of 49.** The committed Track A source carries inter-word silences up to 720 ms that the
+sidecar does not describe, several of them above `aggressive`'s 400 ms gate, and `seed_seg3`
+contributes none at all. This is the defect CLAUDE.md §5 already records — "source-intrinsic
+silences were undescribed in the sidecar, and every PCR figure in the run was wrong" — and
+the fix applied then was partial: it caught the 4 and left the 45.
+
+**What is and is not claimed.** The simulated path is internally consistent: the `Endpointer`
+is driven by the sidecar's gaps, so it cannot fire where the sidecar is silent, and **no
+simulated figure is wrong through a disagreement with the audio.** The exposure is that the
+ground truth is incomplete, and that Phase 4's live runs will fire boundaries inside silences
+the scorer does not know exist. Gate 5's numbers are **not** re-derived here and **no
+direction is asserted** — establishing the sign means re-running the regime labelling, which
+is Gate 7's work, not this ADR's.
+
+The stimulus was `say`, per the standing note that it is adequate for probing and not for
+numbers. The direction of that limitation is knowable even where the magnitude is not: a
+human recorded in a room carries room tone, breath and mic self-noise, all of which push
+frame energy further above −44 dBFS. A real recording should score worse than 0 of 21, not
+better. That is an argument and not a measurement, and it is the one the decision turns on.
+Decision: **the sidecar's word timings are derived from a transcription pass, not from
+acoustic silence detection.** Transcribe each corpus clip once at build time and record
+`words[].start` and `words[].end` in the sidecar.
+
+**On the ownership split, which is the part that needs arguing rather than assuming.**
+ADR-017 refuses to let the harness supply its own input to the feature it then measures, and
+the axis it protects is **regime labelling**, because that is the axis PCR scores. Regime
+labelling stays generator-owned: a gap's `preceding` and `certainty` come from what the
+generator inserted, or from `_intrinsic_gaps`'s standing rule that a source pause is
+`fragment`/`ambiguous`. Nothing the service returns decides them. What moves to the service is
+*what the words were and when* — a physical property of the audio, which the service measures
+better than an energy threshold does, and which is not a question about what the right answer
+is. On that reading the split is admissible, and it is accepted.
+
+Two things sharpen it, and both are recorded so the precedent is not read wider than it is:
+- **It is narrower than it sounds for Track A and total for Track C.** Generator-inserted
+  gaps keep their exact generator-recorded durations; only the *intrinsic* gaps change hands.
+  Track C has no generator-inserted gaps at all, so there the whole gap geometry becomes
+  service-derived, and the regime labels come from the standing rule rather than from a
+  record of an insertion.
+- **"The service cannot influence PCR" would be too strong.** A gap's start and end reach
+  PCR's arithmetic — whether a boundary fired inside a gap depends on where the gap is — even
+  when the *label* on that gap does not come from the service. The defensible claim is
+  narrower and is the one to cite: **the service cannot influence what counts as premature,
+  only when the silence was.**
+**The risk, stated plainly.** If a future change lets service output reach regime labelling —
+`end_of_turn`, `end_of_turn_confidence`, or any model judgement about completeness deciding a
+`preceding` value — ADR-017 is breached, and **this ADR is the precedent that will be cited to
+justify it.** It does not justify it. The line is between measuring the audio and judging the
+answer, and it is written here so that a later session has to argue past it rather than
+through it.
+Consequence: four, and the second is a gain rather than a side effect.
+
+1. **The Track C gap arithmetic survives to the simulated path.** `n_gaps` becomes real words
+   minus real turns, so `docs/TRACK_C_SCRIPT.md` §7's crossing turns hold offline as well as
+   live, and the fluent condition — the control arm — can warm.
+2. **Real token text removes ADR-028's floor.** §2.3's adjacent repeats, filler set and
+   duration outliers score 0 on every clip today *because the reconstructed tokens are
+   placeholders* `w0, w1, …`. A transcript-derived sidecar carries the words, so those three
+   features become measurable offline for the first time, and `disfluency` stops being pinned
+   at 0 in §4's `max_turn_silence` expression. **ADR-028 needs restating once this lands** —
+   its claim that "only the Phase 4 live runs exercise the disfluency term at all" will no
+   longer be true. Not restated here: it is restated against a working implementation, not
+   against an intention.
+3. **`replay._turn_from_gaps` stops reconstructing and starts replaying.** It exists to invert
+   a gap list into a word sequence, one synthetic word per gap, because the simulator emits
+   boundaries and the profiler needs timings. With real `Word` records in the sidecar it
+   replays them instead, and the inversion — along with the reconstruction caveat in its
+   docstring — goes away.
+4. **Cost: one transcription pass per corpus clip at build time.** A key is needed to
+   *regenerate* the corpus and not to run `make bench`, because the sidecar is committed
+   exactly as the `.wav` files already are, so the clean-clone property of Phase 1's exit
+   survives unchanged. One further cost worth recording because it feeds the control law:
+   the service quantises word timings to **80 ms** — observed across both pilot clips, every
+   gap a multiple of 80 — so gap durations, and therefore `g_p50` and `g_p90`, arrive on an
+   80 ms grid where the 50 ms acoustic frame was nominally finer. Finer and wrong is worse
+   than coarser and right, but the grid is real and a later reader should not be surprised
+   by it.
+
+Implementing this is **Gate 7 and needs approval**. No recording session is scheduled until
+it lands: a Track C session run against the current ingestion path would produce a fluent arm
+that never warms, and the script's gap budget is not recoverable from the audio afterwards.
