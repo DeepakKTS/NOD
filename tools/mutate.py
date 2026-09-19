@@ -61,6 +61,7 @@ CONTROL_TESTS: Final = (
 )
 POLICY_TESTS: Final = ("tests/unit/test_policy.py",)
 PROXY_TESTS: Final = ("tests/unit/test_proxy.py",)
+WORDS_TESTS: Final = ("tests/unit/test_replay_words.py",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -657,11 +658,72 @@ def _proxy_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _replay_mutations() -> tuple[Mutation, ...]:
+    """`_turn_from_words` and the closed loop. First tier: it feeds the chart.
+
+    ADR-031 moved the sidecar from reconstructed gaps to replayed words, and
+    `run_nod_clip` is what puts the `nod` arms on the Pareto chart. Both were
+    entirely untested before Gate 7 — `replay.py` sat at 55 % with the closed
+    loop wholly uncovered — which is the second rule of CLAUDE.md §5 exactly:
+    anything feeding a published number.
+    """
+    src = "src/nod_bench/replay.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, WORDS_TESTS)
+
+    return (
+        mutation(
+            "_turn_from_words: drop the wordless guard",
+            "    if not clip.truth.words:",
+            "    if not clip.truth.words and False:",
+        ),
+        mutation(
+            "_turn_from_words: put placeholder tokens back (ADR-028 regression)",
+            "            text=word.text,",
+            '            text="w0",',
+        ),
+        mutation(
+            "_turn_from_words: exclude a word ending exactly on the boundary",
+            "    taken = [w for w in clip.truth.words[consumed:] if w.end_ms <= until_ms]",
+            "    taken = [w for w in clip.truth.words[consumed:] if w.end_ms < until_ms]",
+        ),
+        mutation(
+            "_turn_from_words: never advance the cursor, so words replay forever",
+            "        consumed + len(taken),",
+            "        consumed,",
+        ),
+    )
+
+
+def _transcribe_mutations() -> tuple[Mutation, ...]:
+    """`apply_words`. First tier: it writes the ground truth the metrics read."""
+    src = "src/nod_bench/transcribe.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, WORDS_TESTS)
+
+    return (
+        mutation(
+            "apply_words: stop checking the audio hash before rewriting truth",
+            "        if digest != clip.sha256:",
+            "        if digest != clip.sha256 and False:",
+        ),
+        mutation(
+            "apply_words: accept a corpus with a clip nobody transcribed",
+            "        if clip.clip_id not in words_by_clip:",
+            "        if clip.clip_id not in words_by_clip and False:",
+        ),
+    )
+
+
 CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "profiler": _profiler_mutations(),
     "arbiter": _arbiter_mutations(),
     "policy": _policy_mutations(),
     "proxy": _proxy_mutations(),
+    "replay": _replay_mutations(),
+    "transcribe": _transcribe_mutations(),
     "selftest": _self_test_mutations(),
 }
 """Mutations per module, first tier only (CLAUDE.md §5)."""

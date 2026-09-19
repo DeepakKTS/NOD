@@ -236,60 +236,61 @@ class NodRun:
     final_max_ms: int
 
 
-def _turn_from_gaps(
+class MissingWordsError(RuntimeError):
+    """A clip has no transcribed words, so a controlled arm cannot be run."""
+
+
+def _turn_from_words(
     clip: GeneratedClip, consumed: int, until_ms: float, turn_order: int
 ) -> tuple[Turn | None, int]:
-    """Synthesise the `Turn` the upstream would have sent for one boundary.
+    """Replay the `Turn` the upstream sent for one boundary. `O(ΔW)`.
 
-    The simulator emits boundaries, not word timings, and the profiler needs
-    timings — `g_i = words[i].start - words[i-1].end` is its only input. The
-    truth sidecar has exactly that information: a `Gap` runs from the end of one
-    word to the start of the next, so a run of gaps *is* a word sequence with the
-    words between them.
+    **This replays; it does not reconstruct.** Until ADR-031 the sidecar carried
+    only gaps, so this function inverted a gap list into a word sequence — one
+    synthetic word per gap, text `w0, w1, …` — which was faithful on the pause
+    axis and silent on every other. §2.3's adjacent repeats, filler set and
+    duration outliers scored 0 on every clip of every run because no placeholder
+    token is ever equal to its predecessor or a member of `FILLER_TOKENS`, and
+    that was a floor on what the controller could demonstrate (ADR-028).
 
-    **This is a reconstruction and it is worth being clear about its status.** It
-    is faithful on the axis the profiler reads — every gap the generator inserted
-    reaches `g_p50` and `g_p90` at its true duration — and silent on the axes it
-    does not: the token text is a placeholder, so §2.3's disfluency features see
-    no repeats, no fillers and no duration outliers, and score 0 for every clip.
-    So the speaker axis measured here is **the pause profile alone**, with
-    `disfluency` and `recent_cuts` contributing nothing. That is a floor on what
-    the controller can do, not a neutral choice, and the Gate 5 report says so.
+    The sidecar now carries the service's own `words[].start`, `words[].end` and
+    text, so the words are handed to the profiler as they arrived. Every
+    inter-word gap reaches the estimator at its true duration, including the ones
+    no energy threshold could see, and the tokens are real.
 
     Args:
         clip: The clip and its ground truth.
-        consumed: Gaps already turned into words by earlier turns.
+        consumed: Words already delivered by earlier turns.
         until_ms: The boundary this turn ends at.
         turn_order: 1-based turn index.
 
     Returns:
         The turn and the new `consumed` index, or `(None, consumed)` when this
-        boundary added no new gaps.
+        boundary added no new words.
+
+    Raises:
+        MissingWordsError: the clip has no transcribed words at all.
     """
-    gaps = [gap for gap in clip.truth.gaps[consumed:] if gap.end_ms <= until_ms]
-    if not gaps:
-        return None, consumed
-    words: list[Word] = []
-    previous_end = 0
-    for index, gap in enumerate(gaps):
-        words.append(
-            Word(
-                text=f"w{index}",
-                start_ms=previous_end,
-                end_ms=gap.start_ms,
-                confidence=0.9,
-                is_final=True,
-            )
+    if not clip.truth.words:
+        msg = (
+            f"{clip.clip_id}: the sidecar carries no transcribed words. Run "
+            f"`python -m nod_bench.transcribe --corpus <dir>` first (ADR-031). "
+            f"Reconstructing them from gaps is what that ADR removed."
         )
-        previous_end = gap.end_ms
-    words.append(
+        raise MissingWordsError(msg)
+
+    taken = [w for w in clip.truth.words[consumed:] if w.end_ms <= until_ms]
+    if not taken:
+        return None, consumed
+    words = tuple(
         Word(
-            text=f"w{len(gaps)}",
-            start_ms=previous_end,
-            end_ms=int(min(until_ms, clip.final_word_end_ms)),
+            text=word.text,
+            start_ms=word.start_ms,
+            end_ms=word.end_ms,
             confidence=0.9,
             is_final=True,
         )
+        for word in taken
     )
     return (
         Turn(
@@ -297,9 +298,9 @@ def _turn_from_gaps(
             end_of_turn=True,
             end_of_turn_confidence=0.4,
             transcript=" ".join(word.text for word in words),
-            words=tuple(words),
+            words=words,
         ),
-        consumed + len(gaps),
+        consumed + len(taken),
     )
 
 
@@ -359,7 +360,7 @@ def run_nod_clip(
             continue
         fired.append(boundary.fired_at_ms)
         turns += 1
-        turn, consumed = _turn_from_gaps(clip, consumed, boundary.fired_at_ms, turns)
+        turn, consumed = _turn_from_words(clip, consumed, boundary.fired_at_ms, turns)
         if turn is None:
             continue
         profiler.observe_turn(turn)

@@ -117,6 +117,26 @@ class Gap(BaseModel):
     """Why this gap carries this label, in one phrase, for a human reader."""
 
 
+class TruthWord(BaseModel):
+    """One transcribed word in a `.truth.json` sidecar (ADR-031).
+
+    Timings are **service-derived**: the real transcriber measures where each
+    word starts and ends far better than an energy threshold does, and asking
+    what the words were and when is not asking what the right answer is. Regime
+    labelling — the axis PCR scores, and the axis ADR-017 protects — stays
+    generator-owned on `Gap`, and nothing here touches it.
+
+    Timings arrive on an 80 ms grid; that is the service's resolution, not a
+    rounding this model applies.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    start_ms: int
+    end_ms: int
+    text: str
+
+
 class TruthSpan(BaseModel):
     """One utterance in a `.truth.json` sidecar (BENCH_SPEC.md §2).
 
@@ -137,6 +157,15 @@ class TruthSpan(BaseModel):
 
     Defaulted because a perturbation function is handed samples, not a
     transcript, and inventing one here would put a guess into ground truth.
+    """
+
+    words: tuple[TruthWord, ...] = ()
+    """Transcribed word timings, filled by `corpus.transcribe` (ADR-031).
+
+    Empty until the transcription pass has run. `replay` refuses to run a
+    controlled arm against a clip with no words rather than falling back to
+    reconstructing them from gaps: the fallback is what ADR-031 removed, and a
+    silent one would put the old behaviour back under the new name.
     """
 
 
