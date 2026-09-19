@@ -27,8 +27,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
@@ -56,13 +57,14 @@ about fifteen minutes, which is a build step run once per corpus.
 RETRIES: Final = 5
 """Attempts per clip before a pass gives up."""
 
-COOLDOWN_S: Final = 3.0
+COOLDOWN_S: Final = 8.0
 """Pause between clips in a corpus pass. Seconds.
 
 The service answered `1008 Unauthorized Connection: Too many concurrent
 sessions` on the sixth consecutive clip at concurrency 1, so a closed socket is
 not immediately a released session. This is the gap that makes a serial pass
-serial from the *service's* point of view and not just ours.
+serial from the *service's* point of view and not just ours. Three seconds was
+not enough; eight is, measured.
 """
 
 RETRY_BACKOFF_S: Final = 5.0
@@ -159,39 +161,80 @@ async def transcribe_clip(
     return tuple(words)
 
 
+def load_cache(path: Path) -> dict[str, tuple[TruthWord, ...]]:
+    """Read a partial pass. `O(clips)`. Missing or unreadable reads as empty."""
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text())
+    return {
+        clip_id: tuple(TruthWord.model_validate(w) for w in words)
+        for clip_id, words in raw.items()
+    }
+
+
+def save_cache(path: Path, words: Mapping[str, Sequence[TruthWord]]) -> None:
+    """Write a partial pass atomically. `O(clips)`."""
+    payload = {clip_id: [w.model_dump() for w in ws] for clip_id, ws in words.items()}
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload))
+    tmp.replace(path)
+
+
 async def transcribe_corpus(
-    corpus: BuiltCorpus, *, api_key: str, model: str, concurrency: int = CONCURRENCY
+    corpus: BuiltCorpus,
+    *,
+    api_key: str,
+    model: str,
+    cache: Path | None = None,
+    log: Callable[[str], None] = lambda _: None,
 ) -> dict[str, tuple[TruthWord, ...]]:
-    """Transcribe every clip in a corpus. `O(clips)` sessions, bounded fan-out.
+    """Transcribe every clip in a corpus, serially and resumably. `O(clips)`.
+
+    **Resumable by design, not by accident.** A pass is a quarter of an hour of
+    network against a service that intermittently refuses a session, and the
+    first version held every result in memory until the end: one refusal after
+    fourteen minutes discarded fourteen minutes. Each clip is now written to
+    `cache` as it lands, and a rerun skips what is already there.
 
     Args:
         corpus: The built corpus to transcribe.
         api_key: Server-side credential.
         model: `speech_model`.
-        concurrency: Simultaneous upstream sessions.
+        cache: Partial-results file, written after every clip.
+        log: Progress sink, called once per clip.
 
     Returns:
         Words per `clip_id`.
+
+    Raises:
+        TranscriptionError: a clip failed every attempt.
     """
-    limit = asyncio.Semaphore(concurrency)
-    out: dict[str, tuple[TruthWord, ...]] = {}
+    out: dict[str, tuple[TruthWord, ...]] = load_cache(cache) if cache else {}
+    if out:
+        log(f"resuming: {len(out)} of {len(corpus.clips)} clips already cached")
 
-    async def one(clip_id: str, path: Path) -> None:
-        async with limit:
-            for attempt in range(RETRIES):
-                try:
-                    out[clip_id] = await transcribe_clip(
-                        path, api_key=api_key, model=model
-                    )
-                except Exception:  # a build-time network pass; see RETRIES
-                    if attempt == RETRIES - 1:
-                        raise
-                    await asyncio.sleep(RETRY_BACKOFF_S * (2**attempt))
-                else:
-                    await asyncio.sleep(COOLDOWN_S)
-                    return
-
-    await asyncio.gather(*(one(c.clip_id, c.audio_path) for c in corpus.clips))
+    for index, clip in enumerate(corpus.clips, start=1):
+        if clip.clip_id in out:
+            continue
+        for attempt in range(RETRIES):
+            try:
+                out[clip.clip_id] = await transcribe_clip(
+                    clip.audio_path, api_key=api_key, model=model
+                )
+            except Exception as exc:  # a build-time network pass; see RETRIES
+                if attempt == RETRIES - 1:
+                    msg = f"{clip.clip_id}: failed {RETRIES} attempts ({exc})"
+                    raise TranscriptionError(msg) from exc
+                await asyncio.sleep(RETRY_BACKOFF_S * (2**attempt))
+            else:
+                log(
+                    f"[{index}/{len(corpus.clips)}] {clip.clip_id}: "
+                    f"{len(out[clip.clip_id])} words"
+                )
+                if cache:
+                    save_cache(cache, out)
+                await asyncio.sleep(COOLDOWN_S)
+                break
     return out
 
 
@@ -254,7 +297,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--model", default="universal-streaming-english")
-    parser.add_argument("--concurrency", type=int, default=CONCURRENCY)
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        default=None,
+        help="partial-results file; a rerun resumes from it",
+    )
     args = parser.parse_args(argv)
 
     import os
@@ -266,10 +314,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    def progress(line: str) -> None:
+        sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+
     corpus = BuiltCorpus.model_validate_json((args.corpus / "corpus.json").read_text())
     words = asyncio.run(
         transcribe_corpus(
-            corpus, api_key=key, model=args.model, concurrency=args.concurrency
+            corpus,
+            api_key=key,
+            model=args.model,
+            cache=args.cache,
+            log=progress,
         )
     )
     count = apply_words(args.corpus, words)
