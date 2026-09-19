@@ -1206,3 +1206,101 @@ the bench than it shows.
   with constructed features and real tokens, so the disfluency path is fully covered there
   (`tests/unit/test_profiler.py`). What is untested is the *composition* of real disfluency
   features with a real corpus, and that needs the live path.
+
+## ADR-029 — `expected_answer` is judged from the prompt, never from the answer
+2026-09-18 · Status: accepted
+Context: writing the Track C script (`docs/TRACK_C_SCRIPT.md`) ran straight into ROADMAP §0's
+stated tension — declared answer classes push toward short answers, and a turn of `w` words
+contributes `w - 1` gaps, so short answers starve the profiler. `boolean` is where it bites:
+a yes/no answer is one word and zero gaps.
+
+The obvious escape is to write a prompt that offers an alternative — "I have you on
+Marlborough Street, is that right, **or has it changed?**" — declare it `boolean`, and collect
+the twelve gaps of the sentence the caller actually says. It is natural dialogue, it reads as
+a yes/no question, and it is wrong.
+
+CONTROL_SPEC §3 gives `boolean` a hint of `min_mult 0.7 / max_mult 0.7`. The rationale for
+that number is that a yes/no answer is short and completes quickly. So the escape **narrows
+the window by 30 % on a turn deliberately engineered to draw a long answer**, and the arm
+under test then cuts the caller off mid-sentence at a rate the script chose. PCR on those
+turns would report the script's authoring and print it as the controller's behaviour.
+
+**This is a flattering-direction error in the corpus itself**, and that is the part worth
+recording rather than the rule. ADR-018 tallies four such errors in the metrics; ADR-022
+records one in the control law. Ground truth is a third place for the pattern and it is the
+hardest of the three to catch:
+- a wrong metric is caught by `make mutate` — the code computing it is guarded;
+- a wrong constant is caught by a property test or by the arithmetic in its ADR;
+- **hand-authored ground truth has no mutation harness at all.** There is no source to
+  mutate, no test that goes red, and no assertion to make vacuous. A mislabelled
+  `expected_answer` is one word in a markdown table, it is plausible, it survives every gate
+  in the repository, and it moves a published number.
+CLAUDE.md §5's "ask what would have to change for this to fail" has no purchase here, because
+nothing fails. The only available check is the rule, applied when the corpus is written.
+Decision: **the class describes the prompt's expectation, not the answer's shape.** Three
+rules, for this script and for any corpus work that declares a dialogue state:
+1. **Either/or prompts are `free`.** "Move all of them, or just this one?" expects neither
+   yes nor no, so it is not a `boolean` however much it reads like one.
+2. **Genuine yes/no prompts are `boolean`**, and are budgeted at zero gaps regardless of the
+   answer written next to them. `docs/TRACK_C_SCRIPT.md` §7 carries a conservative recount on
+   exactly that basis, and no crossing turn depends on a boolean.
+3. **A caller elaborating on a real yes/no is a real caller.** "Did anyone tell you it needed
+   renewing?" drawing "Nobody said anything about that when I booked it" is not the script's
+   doing and needs no correction. The defect is a prompt that *cannot* expect the class it
+   declares, not an answer that exceeds it.
+The general form: a corpus may not supply its own input to the feature it then measures.
+ADR-017 refuses this for regime labelling and ADR-028 refuses it for disfluency tokens; this
+is the same refusal on the context axis.
+Consequence: `boolean` stays gap-poor and the script works around it by spending it late
+rather than by relabelling it — all six boolean turns in the five scripts sit at turn 5 or
+later, past a warm threshold crossed on turn 2 or 3. The cost is real and accepted: the
+context axis gets six `boolean` turns instead of a dozen, and they contribute almost nothing
+to warming. That is the correct cost of not fabricating the input.
+
+## ADR-030 — The inter-turn seam is 4500 ms, above `conservative`'s gate
+2026-09-18 · Status: accepted
+Context: a Track C call is recorded as caller audio only — the agent's prompts are read
+off-mic or played from TTS and cut out, because the bench has no agent audio (ADR-028) and
+anything left in the clip is read as caller speech by the VAD. What remains where each prompt
+was is a silent **seam**, and that seam is what ends the turn: there is no other boundary
+signal in a caller-only multi-turn clip.
+
+So the seam length decides the turn count, and the turn count is not a cosmetic property.
+`docs/TRACK_C_SCRIPT.md` §1 establishes that no gap spans a turn boundary, so
+
+```
+gaps in a call = total words - total turns
+```
+
+If a seam is shorter than an arm's `max_turn_silence`, that arm does not end the turn there
+and sees one turn where a wider-gated arm sees two. `conservative` runs at 3600 ms and
+`aggressive` at 400 ms (BENCH_SPEC §3), so a 2000 ms seam gives `aggressive` more turns than
+`conservative` — and therefore **fewer gaps**, a different `n_gaps` trajectory, a different
+warm turn, and a different speaker profile. The arms would be compared on corpora that differ
+in the one quantity the controller reads. The headline delta would be partly an artifact of
+the edit.
+
+The number is derived against **the requirement — `conservative`'s 3600 ms gate — and not
+against any constant the tooling currently holds.** That is deliberate and it is CLAUDE.md
+§5's tail-silence lesson applied before the fact rather than after: `test_every_clip_ships_a_
+sidecar_and_a_tail` compared a generated tail against `TAIL_SILENCE_MS`, the very constant
+that produced it, so it passed for any value and survived a tail shrinking below the widest
+arm's gate. Anchoring the seam to a tooling constant would reproduce that defect exactly. The
+900 ms of margin covers frame quantisation in the editor and any endpoint overhead above the
+configured gate — the P1 matrix measured boundaries landing 172–217 ms late (ADR-026).
+Decision: **every inter-turn seam in a Track C clip is at least 4500 ms of silence**, and
+this is enforced by **a check on the edited audio before it becomes a corpus**, not by a line
+in the recording notes. A convention in prose is a check that cannot fail: nothing reads it,
+nothing reports it, and a mis-edited clip enters the corpus looking like every other clip.
+The check, when the Track C ingestion path is built: for each clip, detect the silent runs,
+assert every run that separates two answers is `>= 4500` ms, and fail the ingest — loudly and
+non-zero — naming the clip and the short seam. It asserts against 4500 as a literal tied to
+`conservative`'s documented gate in a comment, never against `MIN_INTRINSIC_GAP_MS`,
+`TAIL_SILENCE_MS` or any other constant that could drift underneath it.
+Consequence: the edit is constrained and slightly unnatural — 4.5 s between answers is longer
+than a real agent would take, so the clips are not a realistic rendering of a call's pacing.
+Accepted, because the clips exist to be replayed arm-by-arm and not to be listened to. Also:
+this makes each call roughly 45–55 s longer than its speech content, which is already in the
+length estimate in `docs/TRACK_C_SCRIPT.md` §8. The seams are not gaps and never reach the
+profiler — CONTROL_SPEC §2.1 computes gaps only within a turn — provided the turn actually
+ends there, which is what the check guarantees.
