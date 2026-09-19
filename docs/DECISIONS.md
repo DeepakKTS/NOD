@@ -1154,7 +1154,44 @@ cap by *supplying* `patches_sent` at the boundary, which tests the arbiter's ari
 not the cap's reachability, and its docstring should not be read as more than that.
 
 ## ADR-028 — The bench reconstructs turns from gaps, so disfluency is unmeasured
-2026-09-18 · Status: accepted
+2026-09-18 · Status: **superseded in part by ADR-031 and ADR-033**; restated at Gate 7
+
+> **Restated 2026-09-19, measured on the regenerated corpus.** The cause this ADR names —
+> reconstructed placeholder tokens `w0, w1, …` — **is fixed.** ADR-031 put the service's own
+> token text in the sidecar and `replay._turn_from_words` replays it. What that changed, and
+> what it did not:
+>
+> | §2.3 feature | this ADR said | measured at Gate 7, 120 clips |
+> |---|---|---|
+> | duration outliers | 0 on every clip | **43 across the corpus, 41/120 clips nonzero**, `disfluency` max 0.222 |
+> | adjacent repeats | 0 on every clip | **1** — and the 1 is the finding, see ADR-033 |
+> | filler set | 0 on every clip | **0, and this is correct behaviour** |
+> | `recent_cuts` (§2.5) | 0.0 on every clip | **0.0, unchanged** |
+>
+> - **Duration outliers register.** `disfluency` has come off the floor for the first time
+>   since the corpus existed, and essentially all of the movement is this one feature.
+> - **Adjacent repeats stand at 1**, against a corpus with twelve clips of a perturbation
+>   built to produce exactly this signal. The placeholder tokens were masking a *second*
+>   cause, in the generator rather than the replayer. **ADR-033** records it.
+> - **Fillers at 0 is not a defect and must not be filed as one.** Track A is `say` reading a
+>   clean script; a synthetic voice never utters "um". A corpus of clean read speech scoring
+>   zero on a filler detector is the detector being right.
+> - **`recent_cuts` stays 0.0** for the reason this ADR already gives: cut detection needs
+>   agent audio and the bench has none. Nothing in ADR-031 touches that.
+>
+> **The conclusion narrows rather than drops.** This ADR ends by saying only Phase 4's live
+> runs exercise the disfluency term at all. Corrected, three ways at once:
+> - the **duration-outlier path is exercised offline**, from Gate 7 onward;
+> - the **repeat path is not**, and will not be until the perturbation is aligned to word
+>   boundaries (ADR-033);
+> - the **filler path cannot be** on this corpus at all, at any point, because the material
+>   contains no fillers to find. That one is not deferred work; it is out of Track A's reach
+>   by construction, and only Track C or a live run can reach it.
+>
+> Everything below is left as written, including the consequence that simulated figures
+> understate the controller — that still holds, since `disfluency` reaching 0.222 on some
+> clips rather than 0.0 can only *widen* `max_turn_silence` (§4 coefficient 0.45, positive).
+
 Context: `FakeAssemblyAI` emits boundaries, not word timings, and the profiler's only input
 is timings — `g_i = words[i].start - words[i-1].end` (CONTROL_SPEC §2.1). So
 `nod_bench.replay._turn_from_gaps` synthesises the `Turn` stream the upstream would have
@@ -1306,7 +1343,31 @@ profiler — CONTROL_SPEC §2.1 computes gaps only within a turn — provided th
 ends there, which is what the check guarantees.
 
 ## ADR-031 — Sidecar word timings come from transcription, not silence detection
-2026-09-18 · Status: accepted — decision recorded, implementation deferred to Gate 7
+2026-09-18 · Status: accepted — implemented at Gate 7 (2026-09-19)
+
+> **Correction, added at Gate 7, and it is the first thing to read.** This ADR moved the
+> **profiler's input**. It did **not** move the **scorer's ground truth**, and nothing below
+> should be read as claiming it did. PCR is computed from `Gap` records; `_intrinsic_gaps`
+> still produces those at `INTRINSIC_FLOOR_DBFS = -44.0`; and **none of the ~16 transcript
+> inter-word gaps per clip became a `Gap`.** The sidecars gained one key, `words`, and the
+> `gaps` arrays are byte-identical before and after.
+>
+> **So the incomplete-ground-truth exposure this ADR records is still open. Gate 7 did not
+> close it.** The 4-of-49 measurement below still stands as written: the committed Track A
+> source still carries undescribed silences up to 720 ms, several above `aggressive`'s
+> 400 ms gate, and Phase 4's live runs will still fire boundaries inside them.
+>
+> **The evidence is that Gate 7's bench table reproduces Gate 5's exactly** — all six arms,
+> every cell, PCR, TTL and FRAG. That identity is not a coincidence and not a caching
+> artifact: it is what it looks like when the quantity a metric reads has not changed. It
+> was verified rather than assumed, per CLAUDE.md §5 — `git` confirms the `gaps` arrays are
+> unchanged, and the run demonstrably consumed the new words, because `_turn_from_words`
+> raises `MissingWordsError` on a wordless clip and the bench exited 0.
+>
+> Closing the exposure means promoting transcript gaps to `Gap` records with regime labels,
+> which is a change to what the scorer is told and therefore a separate ADR under ADR-017's
+> constraint — not an extension of this one.
+
 Context: `docs/TRACK_C_SCRIPT.md` §8 flagged a risk it could not resolve: there is no Track C
 ingestion path, and the obvious one built on `corpus._intrinsic_gaps` might lose most of the
 script's gaps. The pilot specified there was run before scheduling any recording.
@@ -1528,3 +1589,67 @@ measurement read two ways, and collecting them together costs nothing. Until the
 honest statement about the simulated chart is that its patch *timings* carry an 80 ms
 grid's worth of jitter on bimodal pause profiles, and its patch *counts* are within 1.6 %
 of what a continuous-timing controller would emit.
+
+## ADR-033 — The `repeat` perturbation does not produce a transcribable repetition
+2026-09-19 · Status: accepted — defect recorded, fix deferred past freeze
+Context: `repeat` exists to put adjacent word repetition into the corpus, which is the first
+of CONTROL_SPEC §2.3's three disfluency features. It has scored zero on every clip since the
+corpus was built. ADR-028 attributed that to the harness handing the profiler placeholder
+tokens `w0, w1, …`, which no comparison can ever see as a repeat. That cause was real and
+ADR-031 fixed it. **The zero survived the fix**, which is how the second cause became
+visible.
+
+Measured at Gate 7 on the regenerated corpus, 12 `repeat` clips:
+
+| kind | clips | adjacent repeats | fillers | duration outliers |
+|---|---|---|---|---|
+| `repeat` | 12 | **1** | 0 | 9 |
+| all kinds | 120 | **1** | 0 | 43 |
+
+**The perturbation is at fault, not the detector.** Three pieces of evidence, in the order
+they settle it:
+
+1. **The duplicated window is not a word.** `REPEAT_WORD_MS = 320` is a fixed slice taken at
+   `at_ms = 0.4 × clip_length`, an offset computed from clip duration and chosen without
+   reference to any word boundary — the generator had no word timings when it was written.
+   In `seed_seg0_repeat_015` that window is 1950–2270 ms, and the transcript places the
+   neighbouring words at **2160–2240 (`nod`)** and **2480–3200 (`capability`)**. So the
+   window holds **210 ms of silence and 80 ms of one word.** The docstring's claim that this
+   is "how much audio at `at_ms` counts as *the word*" was never true of this corpus.
+2. **Duplicating it changes no token.** The three `seed_seg0` repeat clips at `times = 1, 2`
+   and `3` transcribe **identically**: "this is a test recording for the nod capability probe
+   i am reading at a normal pace". One, two or three copies of a mostly-silent fragment
+   produce the same transcript as none.
+3. **The detector works.** It caught the corpus's one genuine adjacent repeat,
+   `seed_seg1_repeat_017`, token `then` — a clip where the fixed slice happened to land on a
+   word. `_count_disfluency`'s token comparison is also driven directly by
+   `tests/unit/test_replay_words.py`. A detector that finds the one real instance in 120
+   clips is not the broken component.
+
+**One cause masked another, and that is the part to carry forward.** ADR-028 diagnosed the
+zero correctly and completely for the evidence available, and was still wrong about the
+whole story, because a feature reading zero for one sufficient reason cannot show you a
+second sufficient reason sitting behind it. The placeholder tokens guaranteed zero, so no
+amount of staring at the zero could reveal that the audio would have produced zero anyway.
+**Fixing the first cause is what made the second measurable** — and if Gate 7 had stopped at
+"disfluency came off the floor", the repeat path would have been recorded as working.
+Generalised: when a fix to a known cause does not move a number as far as expected, the
+remaining gap is evidence of another cause, not noise. Ask what the number *should* have
+moved to before fixing, so there is something to compare against afterwards.
+Decision: **record it, do not fix it.** Seven days to freeze. `disfluency` is a secondary
+term in §4's `max_turn_silence` expression (coefficient 0.45, against the pause quantiles'
+primary path), the demo and the headline claim rest on the speaker axis, and Track A's
+inability to warm the profiler (Gate 7 item 3: 0 of 120 clips reach `MIN_GAPS_FOR_WARM`)
+means no `repeat` clip would reach the control law even with the feature working. Fixing it
+now would improve a term that nothing currently reads.
+**The fix is available and was not before**, which is worth stating so the next session does
+not re-derive it: the sidecar now carries `words[].start` and `words[].end`, so `repeat` can
+select a real word — take the word spanning `at_ms`, or the nearest one, and duplicate
+exactly its span — instead of guessing 320 ms. That is a change to the generator, so it
+invalidates the committed corpus and requires a rebuild and a re-transcription pass, which
+is the other reason it is not a freeze-week change.
+Consequence: `repeat` stays in the sweep and stays labelled `repeat`, contributing 12 clips
+whose gaps are real and whose repetition is not. Any report that breaks disfluency down by
+perturbation kind must say so rather than showing a 1. ADR-028's restatement records the
+narrowed claim: the duration-outlier path is exercised offline, the repeat path is not, and
+the filler path cannot be on clean synthetic read speech.
