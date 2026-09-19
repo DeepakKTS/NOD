@@ -15,5 +15,92 @@
    "basis": "the speaker has finished; the semantic gate fires"
   }
  ],
- "text": ""
+ "text": "",
+ "words": [
+  {
+   "start_ms": 480,
+   "end_ms": 560,
+   "text": "this"
+  },
+  {
+   "start_ms": 560,
+   "end_ms": 560,
+   "text": "is"
+  },
+  {
+   "start_ms": 880,
+   "end_ms": 960,
+   "text": "a"
+  },
+  {
+   "start_ms": 960,
+   "end_ms": 1040,
+   "text": "test"
+  },
+  {
+   "start_ms": 1200,
+   "end_ms": 1520,
+   "text": "recording"
+  },
+  {
+   "start_ms": 1520,
+   "end_ms": 1600,
+   "text": "for"
+  },
+  {
+   "start_ms": 1600,
+   "end_ms": 1680,
+   "text": "the"
+  },
+  {
+   "start_ms": 2160,
+   "end_ms": 2240,
+   "text": "knob"
+  },
+  {
+   "start_ms": 2400,
+   "end_ms": 2640,
+   "text": "capability"
+  },
+  {
+   "start_ms": 3120,
+   "end_ms": 3760,
+   "text": "probe"
+  },
+  {
+   "start_ms": 3760,
+   "end_ms": 3760,
+   "text": "i"
+  },
+  {
+   "start_ms": 3760,
+   "end_ms": 3760,
+   "text": "am"
+  },
+  {
+   "start_ms": 3840,
+   "end_ms": 3920,
+   "text": "reading"
+  },
+  {
+   "start_ms": 4320,
+   "end_ms": 4400,
+   "text": "at"
+  },
+  {
+   "start_ms": 4400,
+   "end_ms": 4480,
+   "text": "a"
+  },
+  {
+   "start_ms": 4480,
+   "end_ms": 4560,
+   "text": "normal"
+  },
+  {
+   "start_ms": 4880,
+   "end_ms": 4960,
+   "text": "pace"
+  }
+ ]
 }

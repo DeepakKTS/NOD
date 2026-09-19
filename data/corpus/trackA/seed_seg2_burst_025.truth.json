@@ -39,5 +39,57 @@
    "basis": "the speaker has finished; the semantic gate fires"
   }
  ],
- "text": ""
+ "text": "",
+ "words": [
+  {
+   "start_ms": 640,
+   "end_ms": 720,
+   "text": "my"
+  },
+  {
+   "start_ms": 720,
+   "end_ms": 880,
+   "text": "appointment"
+  },
+  {
+   "start_ms": 1360,
+   "end_ms": 1440,
+   "text": "was"
+  },
+  {
+   "start_ms": 2000,
+   "end_ms": 2080,
+   "text": "on"
+  },
+  {
+   "start_ms": 2320,
+   "end_ms": 2400,
+   "text": "march"
+  },
+  {
+   "start_ms": 2640,
+   "end_ms": 3280,
+   "text": "4"
+  },
+  {
+   "start_ms": 3280,
+   "end_ms": 3280,
+   "text": "thank"
+  },
+  {
+   "start_ms": 3360,
+   "end_ms": 3440,
+   "text": "you"
+  },
+  {
+   "start_ms": 3440,
+   "end_ms": 3520,
+   "text": "very"
+  },
+  {
+   "start_ms": 3680,
+   "end_ms": 3760,
+   "text": "much"
+  }
+ ]
 }

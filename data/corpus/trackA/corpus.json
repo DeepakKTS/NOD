@@ -46,7 +46,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2800,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 4000,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4000,
+      "text": "i"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "am"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "at"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "a"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -90,7 +177,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 4160,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4160,
+      "text": "i"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "am"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "at"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "a"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -134,7 +308,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 4400,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4400,
+      "text": "i"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "am"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "at"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "a"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -178,7 +439,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4560,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4560,
+      "text": "i"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "am"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "at"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "a"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -222,7 +570,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4800,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4800,
+      "text": "i"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "am"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5120,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "at"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "a"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -266,7 +701,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4960,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 4960,
+      "text": "i"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "am"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "at"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "a"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6160,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -310,7 +832,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 5200,
+      "text": "probe"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5200,
+      "text": "i"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "am"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5520,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "at"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "a"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -354,7 +963,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 5360,
+      "text": "probe"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5360,
+      "text": "i"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "am"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "at"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "a"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6080,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6480,
+      "end_ms": 6560,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -398,7 +1094,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5600,
+      "text": "probe"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5600,
+      "text": "i"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "am"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "reading"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6160,
+      "text": "at"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "a"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6640,
+      "end_ms": 6720,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -442,7 +1225,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5760,
+      "text": "probe"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5760,
+      "text": "i"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "am"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "reading"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "at"
+     },
+     {
+      "start_ms": 6320,
+      "end_ms": 6400,
+      "text": "a"
+     },
+     {
+      "start_ms": 6400,
+      "end_ms": 6480,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6880,
+      "end_ms": 6960,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -486,7 +1356,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 6000,
+      "text": "probe"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6000,
+      "text": "i"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6160,
+      "text": "am"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "reading"
+     },
+     {
+      "start_ms": 6480,
+      "end_ms": 6560,
+      "text": "at"
+     },
+     {
+      "start_ms": 6560,
+      "end_ms": 6640,
+      "text": "a"
+     },
+     {
+      "start_ms": 6640,
+      "end_ms": 6720,
+      "text": "normal"
+     },
+     {
+      "start_ms": 7040,
+      "end_ms": 7120,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -530,7 +1487,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 6160,
+      "text": "probe"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6160,
+      "text": "i"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "am"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "reading"
+     },
+     {
+      "start_ms": 6640,
+      "end_ms": 6720,
+      "text": "at"
+     },
+     {
+      "start_ms": 6720,
+      "end_ms": 6800,
+      "text": "a"
+     },
+     {
+      "start_ms": 6800,
+      "end_ms": 6880,
+      "text": "normal"
+     },
+     {
+      "start_ms": 7200,
+      "end_ms": 7280,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -574,7 +1618,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6400,
+      "text": "probe"
+     },
+     {
+      "start_ms": 6400,
+      "end_ms": 6400,
+      "text": "i"
+     },
+     {
+      "start_ms": 6480,
+      "end_ms": 6560,
+      "text": "am"
+     },
+     {
+      "start_ms": 6560,
+      "end_ms": 6640,
+      "text": "reading"
+     },
+     {
+      "start_ms": 6880,
+      "end_ms": 6960,
+      "text": "at"
+     },
+     {
+      "start_ms": 6960,
+      "end_ms": 7040,
+      "text": "a"
+     },
+     {
+      "start_ms": 7040,
+      "end_ms": 7120,
+      "text": "normal"
+     },
+     {
+      "start_ms": 7440,
+      "end_ms": 7520,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -618,7 +1749,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6560,
+      "text": "probe"
+     },
+     {
+      "start_ms": 6560,
+      "end_ms": 6560,
+      "text": "i"
+     },
+     {
+      "start_ms": 6560,
+      "end_ms": 6560,
+      "text": "am"
+     },
+     {
+      "start_ms": 6640,
+      "end_ms": 6720,
+      "text": "reading"
+     },
+     {
+      "start_ms": 7040,
+      "end_ms": 7120,
+      "text": "at"
+     },
+     {
+      "start_ms": 7120,
+      "end_ms": 7200,
+      "text": "a"
+     },
+     {
+      "start_ms": 7200,
+      "end_ms": 7280,
+      "text": "normal"
+     },
+     {
+      "start_ms": 7600,
+      "end_ms": 7680,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -662,7 +1880,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 6320,
+      "end_ms": 6800,
+      "text": "probe"
+     },
+     {
+      "start_ms": 6800,
+      "end_ms": 6800,
+      "text": "i"
+     },
+     {
+      "start_ms": 6880,
+      "end_ms": 6960,
+      "text": "am"
+     },
+     {
+      "start_ms": 6960,
+      "end_ms": 7040,
+      "text": "reading"
+     },
+     {
+      "start_ms": 7280,
+      "end_ms": 7360,
+      "text": "at"
+     },
+     {
+      "start_ms": 7360,
+      "end_ms": 7440,
+      "text": "a"
+     },
+     {
+      "start_ms": 7440,
+      "end_ms": 7520,
+      "text": "normal"
+     },
+     {
+      "start_ms": 7760,
+      "end_ms": 7840,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -706,7 +2011,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 3200,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 4240,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4240,
+      "text": "i"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "am"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "at"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "a"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -758,7 +2150,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 3600,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 4640,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4640,
+      "text": "i"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "am"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "at"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "a"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -818,7 +2297,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 4080,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 5120,
+      "text": "probe"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5120,
+      "text": "i"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "am"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "at"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "a"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -854,7 +2420,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2240,
+      "end_ms": 2320,
+      "text": "nog"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 2880,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3920,
+      "text": "probe"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 3920,
+      "text": "i"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "am"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "at"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "a"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "normal"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -890,7 +2543,99 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2080,
+      "end_ms": 2160,
+      "text": "nog"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2480,
+      "text": "cape"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3280,
+      "text": "ability"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 4080,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4080,
+      "text": "i"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "am"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "at"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "a"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -926,7 +2671,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2080,
+      "end_ms": 2160,
+      "text": "nog"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 3680,
+      "text": "capeability"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 4480,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4480,
+      "text": "i"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4480,
+      "text": "am"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "at"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "a"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -970,7 +2802,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 4400,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4400,
+      "text": "i"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "am"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "at"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "a"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1022,7 +2941,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4800,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4800,
+      "text": "i"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "am"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "at"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "a"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1066,7 +3072,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2720,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4720,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4720,
+      "text": "i"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "am"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "at"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "a"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1109,7 +3202,89 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2240,
+      "end_ms": 3520,
+      "text": "noggability"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 4560,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4560,
+      "text": "i"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "am"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "at"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "a"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "normal"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1160,7 +3335,89 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "test"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2160,
+      "text": "recording"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "for"
+     },
+     {
+      "start_ms": 2240,
+      "end_ms": 2240,
+      "text": "the"
+     },
+     {
+      "start_ms": 2720,
+      "end_ms": 2800,
+      "text": "nod"
+     },
+     {
+      "start_ms": 2880,
+      "end_ms": 3200,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 4320,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4320,
+      "text": "i"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "am"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "the"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1227,7 +3484,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "a"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "test"
+     },
+     {
+      "start_ms": 2400,
+      "end_ms": 2560,
+      "text": "recording"
+     },
+     {
+      "start_ms": 2560,
+      "end_ms": 2640,
+      "text": "for"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2640,
+      "text": "the"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3200,
+      "text": "nog"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3600,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4720,
+      "text": "probe"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4720,
+      "text": "i"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4720,
+      "text": "am"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "reading"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "at"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "a"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "normal"
+     },
+     {
+      "start_ms": 6880,
+      "end_ms": 6960,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1262,7 +3606,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "this"
+     },
+     {
+      "start_ms": 560,
+      "end_ms": 640,
+      "text": "is"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "knob"
+     },
+     {
+      "start_ms": 2400,
+      "end_ms": 2640,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3760,
+      "text": "probe"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3760,
+      "text": "i"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "am"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "at"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "a"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "normal"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1289,7 +3720,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "this"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "is"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "a"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1440,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "for"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "knob"
+     },
+     {
+      "start_ms": 2400,
+      "end_ms": 2640,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3840,
+      "text": "probe"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3840,
+      "text": "i"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "am"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "at"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "a"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "normal"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1316,7 +3834,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "this"
+     },
+     {
+      "start_ms": 560,
+      "end_ms": 560,
+      "text": "is"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "a"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "test"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1520,
+      "text": "recording"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "for"
+     },
+     {
+      "start_ms": 1600,
+      "end_ms": 1680,
+      "text": "the"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "knob"
+     },
+     {
+      "start_ms": 2400,
+      "end_ms": 2640,
+      "text": "capability"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3760,
+      "text": "probe"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3760,
+      "text": "i"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3760,
+      "text": "am"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "reading"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "at"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "a"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "normal"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "pace"
+     }
+    ]
    }
   },
   {
@@ -1368,7 +3973,44 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 5200,
+      "text": "617-5550142"
+     }
+    ]
    }
   },
   {
@@ -1420,7 +4062,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 4080,
+      "text": "555"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 5440,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -1472,7 +4161,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 5600,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1524,7 +4255,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 5840,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1576,7 +4349,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 6000,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1628,7 +4443,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 6240,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1680,7 +4537,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 6400,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1732,7 +4631,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 6640,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1784,7 +4725,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 6800,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1836,7 +4819,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 7040,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1888,7 +4913,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 7200,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1940,7 +5007,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 7440,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -1992,7 +5101,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 7600,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -2044,7 +5195,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 7840,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -2096,7 +5289,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 6720,
+      "end_ms": 8000,
+      "text": "50142"
+     }
+    ]
    }
   },
   {
@@ -2156,7 +5391,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 3200,
+      "text": "617"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3200,
+      "text": "then"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 5440,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -2232,7 +5514,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 3120,
+      "text": "617"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3120,
+      "text": "then"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 5920,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -2324,7 +5653,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 3120,
+      "text": "617"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3680,
+      "text": "then"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "then"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 5040,
+      "text": "555"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 6320,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2368,7 +5754,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3840,
+      "text": "555"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 5120,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2412,7 +5845,44 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 5360,
+      "text": "617-555-0142"
+     }
+    ]
    }
   },
   {
@@ -2456,7 +5926,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 4480,
+      "text": "555"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5760,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2516,7 +6033,44 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 5680,
+      "text": "617-5550142"
+     }
+    ]
    }
   },
   {
@@ -2584,7 +6138,44 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 6080,
+      "text": "6175550142"
+     }
+    ]
    }
   },
   {
@@ -2644,7 +6235,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 6000,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -2695,7 +6328,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2320,
+      "text": "617"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 5760,
+      "text": "5550142"
+     }
+    ]
    }
   },
   {
@@ -2754,7 +6429,49 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "back"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 4000,
+      "text": "555"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 6080,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2821,7 +6538,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 1600,
+      "end_ms": 1680,
+      "text": "back"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "on"
+     },
+     {
+      "start_ms": 2240,
+      "end_ms": 2640,
+      "text": "617"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 5280,
+      "text": "555"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6560,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2864,7 +6628,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 480,
+      "end_ms": 560,
+      "text": "you"
+     },
+     {
+      "start_ms": 560,
+      "end_ms": 560,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "back"
+     },
+     {
+      "start_ms": 1280,
+      "end_ms": 1360,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2240,
+      "text": "617"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3680,
+      "text": "555"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 5040,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2891,7 +6702,44 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "back"
+     },
+     {
+      "start_ms": 1280,
+      "end_ms": 1360,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 4960,
+      "text": "617-555-0142"
+     }
+    ]
    }
   },
   {
@@ -2918,7 +6766,54 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 400,
+      "end_ms": 480,
+      "text": "you"
+     },
+     {
+      "start_ms": 480,
+      "end_ms": 480,
+      "text": "can"
+     },
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "call"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "me"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "back"
+     },
+     {
+      "start_ms": 1280,
+      "end_ms": 1360,
+      "text": "on"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2240,
+      "text": "617"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3760,
+      "text": "555"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4960,
+      "text": "0142"
+     }
+    ]
    }
   },
   {
@@ -2962,7 +6857,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 2880,
+      "text": "4"
+     },
+     {
+      "start_ms": 2880,
+      "end_ms": 2880,
+      "text": "thank"
+     },
+     {
+      "start_ms": 2960,
+      "end_ms": 3040,
+      "text": "you"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3120,
+      "text": "very"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3280,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3006,7 +6953,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 3040,
+      "text": "4"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3040,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3200,
+      "text": "you"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3280,
+      "text": "very"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3050,7 +7049,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 3360,
+      "text": "4"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3360,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "you"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "very"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3094,7 +7145,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3440,
+      "text": "th"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3440,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "you"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "very"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3138,7 +7246,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3680,
+      "text": "th"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "you"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "very"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3182,7 +7347,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3840,
+      "text": "th"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "you"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "very"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3226,7 +7448,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4080,
+      "text": "th"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "thank"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "you"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "very"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3270,7 +7549,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4240,
+      "text": "th"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "thank"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "you"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "very"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3314,7 +7650,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4480,
+      "text": "th"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4480,
+      "text": "thank"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "you"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "very"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3358,7 +7751,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4640,
+      "text": "th"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "thank"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "you"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "very"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3402,7 +7852,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4880,
+      "text": "th"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "thank"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "you"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "very"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3446,7 +7953,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 5040,
+      "text": "th"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "thank"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "you"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "very"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3490,7 +8054,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5280,
+      "text": "th"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "thank"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "you"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "very"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3534,7 +8155,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5520,
+      "text": "th"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5520,
+      "text": "thank"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "you"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "very"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3578,7 +8256,64 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5680,
+      "text": "th"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "thank"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "you"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "very"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6080,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3622,7 +8357,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 3120,
+      "text": "4"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3120,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3280,
+      "text": "you"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3360,
+      "text": "very"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3674,7 +8461,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 3600,
+      "text": "4"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3600,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "you"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "very"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3734,7 +8573,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 4000,
+      "text": "4th"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4000,
+      "text": "thank"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "you"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "very"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3770,7 +8661,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1600,
+      "end_ms": 1680,
+      "text": "march"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2800,
+      "text": "4"
+     },
+     {
+      "start_ms": 2800,
+      "end_ms": 2800,
+      "text": "thank"
+     },
+     {
+      "start_ms": 2880,
+      "end_ms": 2960,
+      "text": "you"
+     },
+     {
+      "start_ms": 2960,
+      "end_ms": 3040,
+      "text": "very"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3200,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3814,7 +8757,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1680,
+      "end_ms": 1760,
+      "text": "march"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 3040,
+      "text": "4th"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3040,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3200,
+      "text": "you"
+     },
+     {
+      "start_ms": 3200,
+      "end_ms": 3280,
+      "text": "very"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3858,7 +8853,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1680,
+      "end_ms": 1760,
+      "text": "march"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3440,
+      "text": "4th"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3440,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "you"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "very"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3902,7 +8949,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 3360,
+      "text": "4"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3360,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "you"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "very"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3954,7 +9053,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 3760,
+      "text": "4"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3760,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "you"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "very"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -3998,7 +9149,74 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "4"
+     },
+     {
+      "start_ms": 2560,
+      "end_ms": 2640,
+      "text": "on"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2720,
+      "text": "march"
+     },
+     {
+      "start_ms": 2960,
+      "end_ms": 3600,
+      "text": "4"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3600,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "you"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "very"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4041,7 +9259,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "was"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "on"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "march"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2000,
+      "text": "4"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "you"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "very"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4092,7 +9362,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "my"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "was"
+     },
+     {
+      "start_ms": 2000,
+      "end_ms": 2080,
+      "text": "on"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "march"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 3280,
+      "text": "4"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3280,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "you"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "very"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4151,7 +9473,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "my"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1360,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 1520,
+      "end_ms": 1600,
+      "text": "was"
+     },
+     {
+      "start_ms": 2000,
+      "end_ms": 2080,
+      "text": "on"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "march"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 3680,
+      "text": "4"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3680,
+      "text": "thank"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "you"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "very"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4186,7 +9560,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "my"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "was"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1600,
+      "end_ms": 1680,
+      "text": "march"
+     },
+     {
+      "start_ms": 2000,
+      "end_ms": 2640,
+      "text": "4"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2640,
+      "text": "thank"
+     },
+     {
+      "start_ms": 2800,
+      "end_ms": 2880,
+      "text": "you"
+     },
+     {
+      "start_ms": 2880,
+      "end_ms": 2960,
+      "text": "very"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3120,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4213,7 +9639,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "my"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "was"
+     },
+     {
+      "start_ms": 1200,
+      "end_ms": 1280,
+      "text": "on"
+     },
+     {
+      "start_ms": 1600,
+      "end_ms": 1680,
+      "text": "march"
+     },
+     {
+      "start_ms": 2000,
+      "end_ms": 2640,
+      "text": "4"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2640,
+      "text": "thank"
+     },
+     {
+      "start_ms": 2800,
+      "end_ms": 2880,
+      "text": "you"
+     },
+     {
+      "start_ms": 2880,
+      "end_ms": 2960,
+      "text": "very"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3120,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4240,7 +9718,59 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "my"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "appointment"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "was"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "on"
+     },
+     {
+      "start_ms": 1600,
+      "end_ms": 1680,
+      "text": "march"
+     },
+     {
+      "start_ms": 2000,
+      "end_ms": 2720,
+      "text": "4"
+     },
+     {
+      "start_ms": 2720,
+      "end_ms": 2720,
+      "text": "thank"
+     },
+     {
+      "start_ms": 2800,
+      "end_ms": 2880,
+      "text": "you"
+     },
+     {
+      "start_ms": 2880,
+      "end_ms": 2960,
+      "text": "very"
+     },
+     {
+      "start_ms": 3040,
+      "end_ms": 3120,
+      "text": "much"
+     }
+    ]
    }
   },
   {
@@ -4276,7 +9806,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2720,
+      "end_ms": 2960,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "and"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "the"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "next"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "thing"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "i"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "to"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4312,7 +9929,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 3280,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "and"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "the"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "next"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "i"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "to"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4348,7 +10052,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "and"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "the"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4080,
+      "text": "next"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "i"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "to"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4384,7 +10175,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "and"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "the"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4320,
+      "text": "next"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "i"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "to"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4420,7 +10298,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "and"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "the"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4480,
+      "text": "next"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "i"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "to"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4456,7 +10421,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "and"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "the"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4720,
+      "text": "next"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "i"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "to"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4492,7 +10544,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "and"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "the"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4880,
+      "text": "next"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "thing"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "i"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "to"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6080,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4528,7 +10667,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "and"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "the"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "next"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "thing"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "i"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "to"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4564,7 +10790,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 5120,
+      "end_ms": 5200,
+      "text": "and"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "the"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5280,
+      "text": "next"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "thing"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "i"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "to"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6160,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6400,
+      "end_ms": 6480,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4600,7 +10913,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "and"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "the"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "next"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "thing"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "i"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6080,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6160,
+      "text": "to"
+     },
+     {
+      "start_ms": 6320,
+      "end_ms": 6400,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6560,
+      "end_ms": 6640,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4636,7 +11036,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "and"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "the"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5680,
+      "text": "next"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "thing"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "i"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 6320,
+      "end_ms": 6400,
+      "text": "to"
+     },
+     {
+      "start_ms": 6480,
+      "end_ms": 6560,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6800,
+      "end_ms": 6880,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4672,7 +11159,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "and"
+     },
+     {
+      "start_ms": 5760,
+      "end_ms": 5840,
+      "text": "the"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "next"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "thing"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6080,
+      "text": "i"
+     },
+     {
+      "start_ms": 6400,
+      "end_ms": 6480,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 6480,
+      "end_ms": 6560,
+      "text": "to"
+     },
+     {
+      "start_ms": 6720,
+      "end_ms": 6800,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6960,
+      "end_ms": 7040,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4708,7 +11282,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "and"
+     },
+     {
+      "start_ms": 6000,
+      "end_ms": 6080,
+      "text": "the"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6080,
+      "text": "next"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "thing"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "i"
+     },
+     {
+      "start_ms": 6640,
+      "end_ms": 6720,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 6720,
+      "end_ms": 6800,
+      "text": "to"
+     },
+     {
+      "start_ms": 6880,
+      "end_ms": 6960,
+      "text": "mention"
+     },
+     {
+      "start_ms": 7200,
+      "end_ms": 7280,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4744,7 +11405,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 6080,
+      "end_ms": 6160,
+      "text": "and"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "the"
+     },
+     {
+      "start_ms": 6240,
+      "end_ms": 6320,
+      "text": "next"
+     },
+     {
+      "start_ms": 6320,
+      "end_ms": 6400,
+      "text": "thing"
+     },
+     {
+      "start_ms": 6400,
+      "end_ms": 6480,
+      "text": "i"
+     },
+     {
+      "start_ms": 6800,
+      "end_ms": 6880,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 6880,
+      "end_ms": 6960,
+      "text": "to"
+     },
+     {
+      "start_ms": 7120,
+      "end_ms": 7200,
+      "text": "mention"
+     },
+     {
+      "start_ms": 7360,
+      "end_ms": 7440,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4780,7 +11528,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 6320,
+      "end_ms": 6400,
+      "text": "and"
+     },
+     {
+      "start_ms": 6400,
+      "end_ms": 6480,
+      "text": "the"
+     },
+     {
+      "start_ms": 6480,
+      "end_ms": 6480,
+      "text": "next"
+     },
+     {
+      "start_ms": 6560,
+      "end_ms": 6640,
+      "text": "thing"
+     },
+     {
+      "start_ms": 6640,
+      "end_ms": 6720,
+      "text": "i"
+     },
+     {
+      "start_ms": 7040,
+      "end_ms": 7120,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 7120,
+      "end_ms": 7200,
+      "text": "to"
+     },
+     {
+      "start_ms": 7280,
+      "end_ms": 7360,
+      "text": "mention"
+     },
+     {
+      "start_ms": 7600,
+      "end_ms": 7680,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4816,7 +11651,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3280,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "and"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3760,
+      "text": "the"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3760,
+      "text": "next"
+     },
+     {
+      "start_ms": 3840,
+      "end_ms": 3920,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "i"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "to"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4860,7 +11782,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3760,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "and"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4240,
+      "text": "the"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "next"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "i"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "to"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4912,7 +11921,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4160,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "and"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4720,
+      "text": "the"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "next"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "i"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5440,
+      "end_ms": 5520,
+      "text": "to"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4940,7 +12036,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 2560,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2800,
+      "end_ms": 3040,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "and"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3440,
+      "text": "the"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "next"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "thing"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3760,
+      "text": "i"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "to"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4968,7 +12151,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2720,
+      "text": "turn"
+     },
+     {
+      "start_ms": 3120,
+      "end_ms": 3280,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "and"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3680,
+      "text": "the"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3680,
+      "text": "next"
+     },
+     {
+      "start_ms": 3760,
+      "end_ms": 3840,
+      "text": "thing"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "i"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "to"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -4996,7 +12266,89 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3760,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "and"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4080,
+      "text": "the"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "next"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "i"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "to"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5032,7 +12384,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2720,
+      "end_ms": 3520,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3920,
+      "end_ms": 4000,
+      "text": "and"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4000,
+      "text": "the"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "next"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "i"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "to"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5076,7 +12515,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2960,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "and"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "the"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "next"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4640,
+      "end_ms": 4720,
+      "text": "i"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5200,
+      "end_ms": 5280,
+      "text": "to"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5600,
+      "end_ms": 5680,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5112,7 +12638,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "and"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4320,
+      "text": "the"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "next"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "i"
+     },
+     {
+      "start_ms": 4960,
+      "end_ms": 5040,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "to"
+     },
+     {
+      "start_ms": 5280,
+      "end_ms": 5360,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5520,
+      "end_ms": 5600,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5155,7 +12768,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2320,
+      "end_ms": 2400,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2560,
+      "end_ms": 2720,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3360,
+      "text": "and"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3360,
+      "text": "the"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "next"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "i"
+     },
+     {
+      "start_ms": 4800,
+      "end_ms": 4880,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "to"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5198,7 +12898,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "the"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "session"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "should"
+     },
+     {
+      "start_ms": 1680,
+      "end_ms": 1760,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1920,
+      "end_ms": 2000,
+      "text": "several"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2720,
+      "end_ms": 2800,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2960,
+      "end_ms": 3120,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "and"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4080,
+      "text": "the"
+     },
+     {
+      "start_ms": 4160,
+      "end_ms": 4240,
+      "text": "next"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "i"
+     },
+     {
+      "start_ms": 4720,
+      "end_ms": 4800,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4880,
+      "end_ms": 4960,
+      "text": "to"
+     },
+     {
+      "start_ms": 5040,
+      "end_ms": 5120,
+      "text": "mention"
+     },
+     {
+      "start_ms": 5360,
+      "end_ms": 5440,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5249,7 +13036,89 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "the"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "session"
+     },
+     {
+      "start_ms": 1680,
+      "end_ms": 1760,
+      "text": "should"
+     },
+     {
+      "start_ms": 1840,
+      "end_ms": 1920,
+      "text": "produce"
+     },
+     {
+      "start_ms": 2080,
+      "end_ms": 2160,
+      "text": "several"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 3600,
+      "text": "clean-turn"
+     },
+     {
+      "start_ms": 3680,
+      "end_ms": 3840,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "and"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4400,
+      "text": "the"
+     },
+     {
+      "start_ms": 4400,
+      "end_ms": 4480,
+      "text": "next"
+     },
+     {
+      "start_ms": 4480,
+      "end_ms": 4560,
+      "text": "thing"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "i"
+     },
+     {
+      "start_ms": 5680,
+      "end_ms": 5760,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 5840,
+      "end_ms": 5920,
+      "text": "to"
+     },
+     {
+      "start_ms": 5920,
+      "end_ms": 6000,
+      "text": "mention"
+     },
+     {
+      "start_ms": 6160,
+      "end_ms": 6240,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5276,7 +13145,99 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 640,
+      "end_ms": 720,
+      "text": "if"
+     },
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "the"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "session"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1360,
+      "end_ms": 1440,
+      "text": "several"
+     },
+     {
+      "start_ms": 1760,
+      "end_ms": 1840,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2400,
+      "end_ms": 2480,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2560,
+      "end_ms": 2800,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3360,
+      "text": "and"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3360,
+      "text": "the"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "next"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "thing"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "i"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "to"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5303,7 +13264,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 720,
+      "end_ms": 800,
+      "text": "the"
+     },
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "session"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "should"
+     },
+     {
+      "start_ms": 1040,
+      "end_ms": 1120,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "several"
+     },
+     {
+      "start_ms": 2000,
+      "end_ms": 2080,
+      "text": "clean"
+     },
+     {
+      "start_ms": 2400,
+      "end_ms": 2480,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2560,
+      "end_ms": 2800,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3360,
+      "text": "and"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3360,
+      "text": "the"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3440,
+      "text": "next"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "thing"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "i"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "to"
+     },
+     {
+      "start_ms": 4240,
+      "end_ms": 4320,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "is"
+     }
+    ]
    }
   },
   {
@@ -5330,7 +13378,94 @@
       "basis": "the speaker has finished; the semantic gate fires"
      }
     ],
-    "text": ""
+    "text": "",
+    "words": [
+     {
+      "start_ms": 800,
+      "end_ms": 880,
+      "text": "the"
+     },
+     {
+      "start_ms": 880,
+      "end_ms": 960,
+      "text": "session"
+     },
+     {
+      "start_ms": 960,
+      "end_ms": 1040,
+      "text": "should"
+     },
+     {
+      "start_ms": 1120,
+      "end_ms": 1200,
+      "text": "produce"
+     },
+     {
+      "start_ms": 1440,
+      "end_ms": 1520,
+      "text": "several"
+     },
+     {
+      "start_ms": 2160,
+      "end_ms": 2240,
+      "text": "claim"
+     },
+     {
+      "start_ms": 2480,
+      "end_ms": 2560,
+      "text": "turn"
+     },
+     {
+      "start_ms": 2640,
+      "end_ms": 2880,
+      "text": "boundaries"
+     },
+     {
+      "start_ms": 3280,
+      "end_ms": 3360,
+      "text": "and"
+     },
+     {
+      "start_ms": 3360,
+      "end_ms": 3360,
+      "text": "the"
+     },
+     {
+      "start_ms": 3440,
+      "end_ms": 3520,
+      "text": "next"
+     },
+     {
+      "start_ms": 3520,
+      "end_ms": 3600,
+      "text": "thing"
+     },
+     {
+      "start_ms": 3600,
+      "end_ms": 3680,
+      "text": "i"
+     },
+     {
+      "start_ms": 4000,
+      "end_ms": 4080,
+      "text": "wanted"
+     },
+     {
+      "start_ms": 4080,
+      "end_ms": 4160,
+      "text": "to"
+     },
+     {
+      "start_ms": 4320,
+      "end_ms": 4400,
+      "text": "mention"
+     },
+     {
+      "start_ms": 4560,
+      "end_ms": 4640,
+      "text": "is"
+     }
+    ]
    }
   }
  ]

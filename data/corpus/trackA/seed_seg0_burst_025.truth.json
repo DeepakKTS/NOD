@@ -39,5 +39,87 @@
    "basis": "the speaker has finished; the semantic gate fires"
   }
  ],
- "text": ""
+ "text": "",
+ "words": [
+  {
+   "start_ms": 400,
+   "end_ms": 480,
+   "text": "this"
+  },
+  {
+   "start_ms": 480,
+   "end_ms": 560,
+   "text": "is"
+  },
+  {
+   "start_ms": 720,
+   "end_ms": 800,
+   "text": "a"
+  },
+  {
+   "start_ms": 960,
+   "end_ms": 1040,
+   "text": "test"
+  },
+  {
+   "start_ms": 1920,
+   "end_ms": 2160,
+   "text": "recording"
+  },
+  {
+   "start_ms": 2160,
+   "end_ms": 2240,
+   "text": "for"
+  },
+  {
+   "start_ms": 2240,
+   "end_ms": 2240,
+   "text": "the"
+  },
+  {
+   "start_ms": 2720,
+   "end_ms": 2800,
+   "text": "nod"
+  },
+  {
+   "start_ms": 2880,
+   "end_ms": 3200,
+   "text": "capability"
+  },
+  {
+   "start_ms": 3520,
+   "end_ms": 4320,
+   "text": "probe"
+  },
+  {
+   "start_ms": 4320,
+   "end_ms": 4320,
+   "text": "i"
+  },
+  {
+   "start_ms": 4400,
+   "end_ms": 4480,
+   "text": "am"
+  },
+  {
+   "start_ms": 4560,
+   "end_ms": 4640,
+   "text": "reading"
+  },
+  {
+   "start_ms": 5680,
+   "end_ms": 5760,
+   "text": "the"
+  },
+  {
+   "start_ms": 5840,
+   "end_ms": 5920,
+   "text": "normal"
+  },
+  {
+   "start_ms": 6240,
+   "end_ms": 6320,
+   "text": "pace"
+  }
+ ]
 }

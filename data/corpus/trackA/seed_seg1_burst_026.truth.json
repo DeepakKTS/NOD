@@ -55,5 +55,52 @@
    "basis": "the speaker has finished; the semantic gate fires"
   }
  ],
- "text": ""
+ "text": "",
+ "words": [
+  {
+   "start_ms": 400,
+   "end_ms": 480,
+   "text": "you"
+  },
+  {
+   "start_ms": 480,
+   "end_ms": 480,
+   "text": "can"
+  },
+  {
+   "start_ms": 640,
+   "end_ms": 720,
+   "text": "call"
+  },
+  {
+   "start_ms": 800,
+   "end_ms": 880,
+   "text": "me"
+  },
+  {
+   "start_ms": 1600,
+   "end_ms": 1680,
+   "text": "back"
+  },
+  {
+   "start_ms": 1760,
+   "end_ms": 1840,
+   "text": "on"
+  },
+  {
+   "start_ms": 2240,
+   "end_ms": 2640,
+   "text": "617"
+  },
+  {
+   "start_ms": 4640,
+   "end_ms": 5280,
+   "text": "555"
+  },
+  {
+   "start_ms": 5920,
+   "end_ms": 6560,
+   "text": "0142"
+  }
+ ]
 }

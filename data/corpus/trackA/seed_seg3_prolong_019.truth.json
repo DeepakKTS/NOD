@@ -16,5 +16,92 @@
    "basis": "the speaker has finished; the semantic gate fires"
   }
  ],
- "text": ""
+ "text": "",
+ "words": [
+  {
+   "start_ms": 640,
+   "end_ms": 720,
+   "text": "the"
+  },
+  {
+   "start_ms": 720,
+   "end_ms": 800,
+   "text": "session"
+  },
+  {
+   "start_ms": 800,
+   "end_ms": 880,
+   "text": "should"
+  },
+  {
+   "start_ms": 1040,
+   "end_ms": 1120,
+   "text": "produce"
+  },
+  {
+   "start_ms": 1360,
+   "end_ms": 1440,
+   "text": "several"
+  },
+  {
+   "start_ms": 1760,
+   "end_ms": 1840,
+   "text": "clean"
+  },
+  {
+   "start_ms": 2640,
+   "end_ms": 2720,
+   "text": "turn"
+  },
+  {
+   "start_ms": 3120,
+   "end_ms": 3280,
+   "text": "boundaries"
+  },
+  {
+   "start_ms": 3600,
+   "end_ms": 3680,
+   "text": "and"
+  },
+  {
+   "start_ms": 3680,
+   "end_ms": 3680,
+   "text": "the"
+  },
+  {
+   "start_ms": 3680,
+   "end_ms": 3680,
+   "text": "next"
+  },
+  {
+   "start_ms": 3760,
+   "end_ms": 3840,
+   "text": "thing"
+  },
+  {
+   "start_ms": 3920,
+   "end_ms": 4000,
+   "text": "i"
+  },
+  {
+   "start_ms": 4320,
+   "end_ms": 4400,
+   "text": "wanted"
+  },
+  {
+   "start_ms": 4480,
+   "end_ms": 4560,
+   "text": "to"
+  },
+  {
+   "start_ms": 4640,
+   "end_ms": 4720,
+   "text": "mention"
+  },
+  {
+   "start_ms": 4960,
+   "end_ms": 5040,
+   "text": "is"
+  }
+ ]
 }
