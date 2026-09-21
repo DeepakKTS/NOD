@@ -1653,3 +1653,195 @@ whose gaps are real and whose repetition is not. Any report that breaks disfluen
 perturbation kind must say so rather than showing a 1. ADR-028's restatement records the
 narrowed claim: the duration-outlier path is exercised offline, the repeat path is not, and
 the filler path cannot be on clean synthetic read speech.
+
+## ADR-034 — Transcript inter-word gaps are promoted to `Gap` records
+2026-09-21 · Status: accepted — decided at Gate 8, before the Track C ingestion path
+Context: Track C has no generator-inserted gaps at all (ADR-031), so `_intrinsic_gaps` is
+the only existing producer of `Gap` records for it — and it is measured not to work on this
+material. ADR-031's pilot found **0 of 21** inter-word gaps on connected `say` speech and
+**4 of 49** across the four committed Track A source segments, because
+`INTRINSIC_FLOOR_DBFS = -44.0` is calibrated for generator-inserted digital silence while
+connected speech runs p05 −36.9 dBFS. A human recorded in a room carries room tone, breath
+and mic self-noise, all of which push frame energy further above the floor, so the direction
+on real audio is worse and not better.
+
+The geometry is the easy half and ADR-031 already solved it: the sidecar carries
+`words[].start` and `words[].end`. The hard half is the **label**. On Track A a gap's
+`preceding` and `certainty` come from a record of what the generator cut. Track C has no
+such record, so the label has to come from somewhere, and the three candidates are not
+equally admissible.
+
+**Rejected — the script's declared structure.** `docs/TRACK_C_SCRIPT.md` knows which turn is
+which and could in principle say where a clause ends. This is hand-authored ground truth
+with no source to mutate, which ADR-029 names as the hardest of the three places for a
+flattering-direction error to hide: "there is no source to mutate, no test that goes red,
+and no assertion to make vacuous. A mislabelled `expected_answer` is one word in a markdown
+table, it is plausible, it survives every gate in the repository, and it moves a published
+number." A hand-placed `complete` label is the same object, and it would be placed by the
+person who wants the controller to look good.
+
+**Rejected — the service's completeness judgement.** `end_of_turn`,
+`end_of_turn_confidence`, or any model judgement about whether the caller had finished.
+This is exactly what ADR-017 forbids, and ADR-031 anticipated it being proposed here and
+refused to license it in advance: "If a future change lets service output reach regime
+labelling … ADR-017 is breached, and **this ADR is the precedent that will be cited to
+justify it.** It does not justify it." Cited and declined.
+
+**Accepted — the standing rule, with the cost stated rather than minimised.**
+`_intrinsic_gaps` already labels every source silence `fragment`/`ambiguous`, on the
+reasoning that the speaker is by construction mid-utterance and that a natural pause can
+fall where a clause ends without the detector being able to tell. The same rule extends to
+a transcript-derived gap for the same reason and with the same blind spot.
+
+Its cost, plainly: **it labels a genuine clause-end pause as a fragment.** That is wrong,
+it is wrong uniformly, and the direction is knowable — a `fragment` label selects
+`max_turn_silence`, which is the wider gate on every arm (400 vs 160, 1280 vs 400,
+3600 vs 800), so a mislabelled clause end makes the endpointer wait *longer* there than it
+should. The error therefore inflates TTL and suppresses cutoffs — it runs **against** the
+project, in the same rare direction ADR-028 records, and not for it. That is why it is
+tolerable where a hand-placed label is not.
+Decision: **every transcript inter-word gap becomes a `Gap` record, labelled `fragment` /
+`ambiguous` by the standing rule, deduplicated against gaps already described** — the same
+`any(g.start_ms <= start <= g.end_ms for g in described)` guard `_intrinsic_gaps` uses, so a
+generator-inserted gap keeps its own generator-owned label and is never shadowed.
+**Every transcript-derived gap carries `certainty="ambiguous"`**, without exception and
+regardless of how the pause reads, because the rule that produced the label cannot tell a
+clause end from a fragment and the field exists to carry exactly that doubt.
+
+**Against ADR-017, explicitly, as ADR-031 required.** The split is: **the service supplies
+geometry, the rule supplies the label.** `words[].start` and `words[].end` are a physical
+property of the audio, measured better by the service than by an energy threshold, and they
+answer *when the silence was*. `preceding` and `certainty` answer *which gate governs it*,
+and they come from a standing rule written in this repository, applied uniformly, with no
+input from the service whatsoever. The defensible claim is ADR-031's, unchanged and now
+load-bearing: **the service cannot influence what counts as premature, only when the silence
+was.** What would breach it: `preceding` taking any value from `end_of_turn`,
+`end_of_turn_confidence`, punctuation, casing, or any other model judgement about whether
+the caller had finished; or `certainty` being set to `certain` on a transcript-derived gap
+on the strength of the transcript reading like a complete sentence. Both would move
+regime labelling into service hands, which is the axis PCR scores and the axis ADR-017
+exists to protect. Neither is licensed here, by this ADR or by ADR-031.
+Consequence: four, and the second is measured rather than asserted.
+
+1. **This also closes the incomplete-ground-truth exposure on Track A**, which ADR-031's
+   Gate 7 correction left open in as many words: "none of the ~16 transcript inter-word gaps
+   per clip became a `Gap` … the incomplete-ground-truth exposure this ADR records is still
+   open." The same promotion applies to Track A and closes it. Measured on the committed
+   corpus: **882 transcript inter-word gaps, 81 already covered by a described gap, 801 newly
+   described**, median 240 ms, p90 720 ms; 120 of the 801 exceed `aggressive`'s 400 ms gate
+   and 7 exceed `balanced`'s 1280 ms.
+
+2. **The predicted effect on the simulated Track A figures is exactly none, and that
+   prediction is recorded before the run** (ADR-033: ask what the number should move to
+   before fixing, so there is something to compare against). The reasoning, which also
+   corrects a claim made twice:
+
+   **`Endpointer` is driven by the audio, not by the sidecar.** `feed` detects silence at
+   `SILENCE_FLOOR_DBFS + vad_threshold × VAD_RANGE_DB` and consults `regime_at` only to
+   choose *which gate*; where no gap covers the silence it falls back to `complete`.
+   ADR-031's "the `Endpointer` is driven by the sidecar's gaps, so it cannot fire where the
+   sidecar is silent" is **wrong as written** — it can fire there, it fires on the min gate.
+   Measured: 45 boundaries per arm fire at silences no gap covers, on all three arms.
+
+   So promotion changes Endpointer behaviour only where it flips a *detected* silence from
+   `complete` to `fragment`, and on Track A there is nowhere for that to happen:
+   `_intrinsic_gaps` already describes every acoustic silence of 100 ms or more before the
+   final word at the *same* −44 dBFS floor and the same 50 ms frames, the Endpointer needs
+   160 ms at minimum to fire at all, and the 801 newly described gaps sit at intervals that
+   detector cannot see. The 45 undescribed-silence boundaries are not mid-utterance: all 45
+   begin within 14 ms of `final_word_end_ms` — the utterance-end silence starting one frame
+   before the `utterance_end` gap does — and transcript gaps lie strictly between words, so
+   promotion does not cover them either.
+
+   **Predicted: PCR, TTL and FRAG unchanged on all three static arms — `aggressive` 0.642,
+   `balanced` 0.317, `conservative` 0.000.** The closure is real and pays at Phase 4, where
+   the live service hears a 720 ms inter-word gap that a −44 dBFS threshold cannot; offline
+   it is invisible.
+
+   **And an identity here proves nothing on its own.** This is the shape that hid the
+   `run_nod_clip` defect (CLAUDE.md §5) — a predicted-and-observed match produced equally by
+   a correct no-op and by a promotion that never ran. So the promotion must be demonstrated
+   separately: the sidecar gap counts must be asserted to have changed, and a test must show
+   a silence the Endpointer *can* see flipping gate under promotion and going red without it.
+
+3. **`certain_only` collapses to an empty scope on Track A**, and this is a blocker rather
+   than a note. `ScoredUtterance.certain` requires *every* gap in the utterance to be
+   `certain`; 15 of 120 clips qualify today; after promotion all 120 carry at least one
+   ambiguous gap, so the scope is 0 utterances and `pcr(certain_only=True)` raises
+   `ValueError("no utterances in scope: PCR of nothing is not 0.0")` — which `replay.main`
+   calls unconditionally. The metric is right to raise and is not changed. The **caller** is
+   what must handle an empty scope and record it as such. The deeper question — whether
+   utterance-level certainty is the right granularity once a typical utterance holds a dozen
+   ambiguous gaps — is left open and named in the Gate 8 report rather than settled here.
+
+4. **Track C's gap geometry becomes wholly service-derived**, as ADR-031 predicted it would.
+   There is no generator record to fall back on, so every `Gap` in a Track C sidecar is a
+   transcript gap under the standing rule, plus the seams and the utterance ends. The whole
+   corpus is therefore `ambiguous` by construction, and any Track C figure must be reported
+   as such rather than alongside a certain-only column that cannot exist.
+
+## ADR-035 — Phase 3's exit criterion, restated against the cut list
+2026-09-21 · Status: accepted — supersedes ROADMAP.md Phase 3's exit bullet as written
+Context: ROADMAP Phase 3 exits on four clauses — "a full call runs end to end in the
+browser. The Floor Meter visibly grows on a hesitant caller. Voice switches mid-call
+without dropping. Replay mode runs from a committed trace with no API key." Freeze is
+26 Sep. Measured at Gate 8: `console/` does not exist, `src/nod_adapters/llm/` and
+`src/nod_adapters/tts/` contain `__init__.py` and nothing else, and `TelemetryHub.publish`,
+`TelemetryHub.subscribe`, `ws.stream_endpoint`, `ws.console_endpoint` and
+`app.create_session` all raise `NotImplementedError`. The controller itself is done and
+already emits every record the screen needs.
+
+Two of the four clauses are not reachable as written, and one of them contradicts the
+standing cut list rather than merely exceeding the time available. Restating the criterion
+is better than missing it silently: §3's cut list is the mechanism for this, and a clause
+that survives only by being quietly reinterpreted on the 26th is a criterion that cannot
+fail.
+Decision: the exit criterion is the four clauses below, replacing the ROADMAP's.
+
+1. **A full call runs end to end in the browser — thinner, and the thinning is named.**
+   Browser TTS only, one LLM call, **no filler on slow LLM, no false-barge recovery**.
+   Barge-in is attempted and is **at risk**; if it goes, the clause still passes without it
+   and the demo says so. This is ROADMAP Phase 3's first bullet minus its second half, and
+   the deleted half is where the week went.
+
+2. **The Floor Meter visibly grows on a hesitant caller — full strength, not thinned.**
+   §3 survivor 3 is "one demo screen … the live call view with the Floor Meter, the config
+   strip and the reason line", and this clause is the only evidence the loop closes. It is
+   cut last and it is cut after clause 1, not before. One precondition, recorded because it
+   is cheap in advance and expensive to discover on camera: the capsule only grows when the
+   profiler warms, which needs 24 gaps by `words − turns` (ADR-022), so **the demo call must
+   be scripted to the gap budget** exactly as a Track C script is — five turns of six words
+   crosses on turn 5.
+
+3. **Voice switching is dropped**, not restated. §3 contingent cut 4 is "Cloud TTS
+   providers, keep `browser` only", which leaves no second provider to switch *to*, and
+   ARCHITECTURE §8's resynthesis of the unspoken remainder is separate work on top. The
+   available restatement — switching between two *browser* voices — was considered and
+   rejected: it demonstrates the mechanism while supporting none of the claim, and a demo
+   that shows a voice changing proves nothing a viewer cares about. Better to drop a clause
+   than to pass it on a technicality. `POST /v1/sessions/{id}/voice` stays a stub and
+   `Voice.pacing_hint_ms` stays wired to the arbiter ceiling for the post-freeze path.
+
+4. **Replay mode runs from a committed trace with no API key — thinner, and downstream of
+   clause 1 rather than parallel to it.** This is the dependency the ROADMAP had inverted,
+   and it is the reason this ADR exists rather than a note in the report. The ROADMAP lists
+   the four clauses as independent deliverables, which reads as four things that can be
+   built in parallel and cut independently. They cannot: **there is no committed trace to
+   replay.** Measured — 118 `.jsonl` traces are committed across `data/traces*` and
+   `tests/fixtures/traces`, and **zero contain a `config_decision` record.** The seed
+   fixture's frame kinds are `frame` (406), `event` (50), `sent` (2), `meta`, `feed_report`
+   and `verdict`; it is an ADR-001 probe stimulus, which ADR-017 already says in as many
+   words. A replay view has nothing to render until a live `SessionProxy` call has produced
+   a trace carrying `config_decision`, `config_applied` and the turn stream — which is
+   clause 1. So clause 4 cannot start before clause 1 finishes, and if clause 1 is cut,
+   clause 4 goes with it automatically.
+   Thinned to: **one pane replaying one committed Nod trace with no API key.** The two-pane
+   stock-vs-Nod view with a shared scrubber is cut — it is a second screen, against §3's
+   "one screen that shows the loop closing, not three".
+Consequence: three. **The demo video loses the voice switch**, which was never one of §3's
+four survivors and costs the pitch little. **Producing the committed trace becomes a named
+deliverable of clause 1**, not a by-product — record one scripted hesitant call, commit the
+trace, and clause 4 is most of the way done. And **the ordering is now explicit**: 1 → 2 → 4,
+with 3 gone, so cutting from the end of that chain on the 26th degrades the demo gracefully
+instead of leaving a half-built screen. If the whole chain is at risk, clause 2 is what
+survives, because it is the only one of the four that §3 lists among the four that ship.
