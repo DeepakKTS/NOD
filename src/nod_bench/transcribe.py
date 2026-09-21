@@ -10,8 +10,14 @@ speech never get that quiet.
 **What moves and what does not.** Word timings become service-derived. Regime
 labelling — `Gap.preceding` and `Gap.certainty`, the axis PCR scores and the axis
 ADR-017 protects — stays generator-owned, from the insertion record or from
-`_intrinsic_gaps`'s standing `fragment`/`ambiguous` rule. Nothing in this module
-writes a `Gap`.
+the standing `fragment`/`ambiguous` rule.
+
+**Since ADR-034 this module does write `Gap`s**, and the distinction that makes
+that admissible is the one ADR-031 argued: `apply_words` promotes every
+transcript inter-word gap to a `Gap` whose *geometry* is service-derived and
+whose *label* comes from the standing rule. The service still decides nothing
+about regime. The earlier form of this note said "nothing in this module writes
+a `Gap`", which was true until promotion landed.
 
 The audio is never touched. `apply_words` rewrites sidecars and `corpus.json`
 only, and verifies every clip's recorded `sha256` still matches the `.wav` on
@@ -38,6 +44,7 @@ import soundfile as sf
 
 from nod_bench.corpus import BuiltCorpus
 from nod_bench.perturb import TruthWord
+from nod_bench.trackc import promote_word_gaps
 
 SAMPLE_RATE: Final = 16000
 """Corpus audio is mono 16 kHz PCM16 throughout."""
@@ -276,7 +283,13 @@ def apply_words(
     updated: list[object] = []
     for clip in corpus.clips:
         words = tuple(words_by_clip[clip.clip_id])
-        truth = clip.truth.model_copy(update={"words": words})
+        # ADR-034. Promotion belongs here and not in `corpus.build`, because
+        # `build` has no words: they arrive from this pass. Deduplicated on
+        # overlap against what the generator already described, so a generator
+        # gap keeps its own label and `utterance_end` is never relabelled.
+        promoted = promote_word_gaps(words, described=clip.truth.gaps)
+        gaps = tuple(sorted((*clip.truth.gaps, *promoted), key=lambda g: g.start_ms))
+        truth = clip.truth.model_copy(update={"words": words, "gaps": gaps})
         clip.truth_path.write_text(truth.model_dump_json(indent=1))
         updated.append(clip.model_copy(update={"truth": truth}))
 

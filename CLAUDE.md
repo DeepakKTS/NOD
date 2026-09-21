@@ -183,6 +183,15 @@ lines. That file is long-term memory; this file is the standing contract.
     anything.** It redirects rather than pipes, tests the status explicitly, prints
     `gate: FAILED` with the tail of the log, and exits non-zero — so chaining a commit
     after it is safe, because the chain now stops.
+    **Third occurrence, 21 Sep, and the mechanism changed again.** `make gate` itself was
+    piped — `make gate 2>&1 | tail -4 && git commit` — and a pipeline's exit status is its
+    last command's, so `tail` succeeded and the chain carried on over a red lint. The target
+    was correct and powerless: it cannot control what a caller pipes it into, which means it
+    was still a convention. **The check now lives in `.git/hooks/pre-commit`** (ADR-037):
+    `make gate` stamps `.gate.ok` with the working tree's hash and the hook refuses any
+    commit that does not match. Run `make hooks` once. **Never put `make gate` in a pipeline
+    or a `&&` chain** — run it alone and read the exit code — but forgetting that is no
+    longer silent.
     Found while fixing it: `.SHELLFLAGS := -eu -o pipefail -c` in the Makefile **has never
     once taken effect on this machine**. macOS ships GNU make 3.81 and `.SHELLFLAGS`
     arrived in 3.82, so the line is read and ignored — `false | true` succeeds and the

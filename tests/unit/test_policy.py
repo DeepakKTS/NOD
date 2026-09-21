@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Final
+from typing import Final, get_args
 
 import pytest
 import yaml
@@ -280,3 +280,63 @@ def test_the_cache_is_bounded_at_the_documented_size() -> None:
         text = MINIMAL.replace("1.0, max_mult: 1.0", f"1.0, max_mult: {1.0 + index}")
         _compile_content(str(index), text)
     assert _compile_content.cache_info().currsize == POLICY_CACHE_SIZE
+
+
+# ---------------------------------------------------------------------------
+# The shipped policy file (config/policy.yaml)
+# ---------------------------------------------------------------------------
+
+SHIPPED_POLICY = Path("config/policy.yaml")
+
+CONTROL_SPEC_TABLE = {
+    "boolean": (0.7, 0.7),
+    "free": (1.0, 1.0),
+    "number": (1.2, 1.6),
+    "entity_id": (1.3, 2.0),
+    "entity_date": (1.2, 1.8),
+    "entity_address": (1.3, 2.0),
+    "entity_list": (1.4, 2.2),
+    "spelling": (1.5, 2.4),
+}
+"""CONTROL_SPEC.md §3's table, transcribed here independently of the YAML.
+
+Written out rather than read from the file the test checks. A test that loads
+`config/policy.yaml` and compares it to itself passes for any values, which is
+the defect CLAUDE.md §5 records. `hint.min_mult` multiplies `min_ms`, `min_ms`
+decides responsiveness after a complete utterance, and TTL is measured off
+exactly those boundaries — so a wrong multiplier here is a wrong published
+latency figure arriving with no symptom.
+"""
+
+
+def test_the_shipped_policy_matches_the_spec_table() -> None:
+    """All eight classes, at the spec's values, or a published TTL is wrong."""
+    compiled = load_policy(SHIPPED_POLICY)
+    for name, (min_mult, max_mult) in CONTROL_SPEC_TABLE.items():
+        hint = compiled.hint_for(name)  # type: ignore[arg-type]
+        assert (hint.min_mult, hint.max_mult) == (min_mult, max_mult), name
+
+
+def test_the_shipped_policy_declares_every_class_the_controller_knows() -> None:
+    """A missing class silently returns the default and narrows nothing."""
+    from nod_core.types import ExpectedAnswer
+
+    declared = set(get_args(ExpectedAnswer.__value__))
+    assert declared == set(CONTROL_SPEC_TABLE), declared ^ set(CONTROL_SPEC_TABLE)
+
+
+def test_boolean_is_the_only_class_that_narrows_the_window() -> None:
+    """ADR-029 turns on this: `boolean` is the one row below 1.0.
+
+    If a second class dropped below 1.0 the argument in ADR-029 — that
+    mislabelling a prompt `boolean` manufactures cutoffs — would no longer
+    identify the unique hazard, and the script's class assignments would need
+    re-auditing against a different rule.
+    """
+    compiled = load_policy(SHIPPED_POLICY)
+    narrowing = {
+        name
+        for name in CONTROL_SPEC_TABLE
+        if compiled.hint_for(name).max_mult < 1.0  # type: ignore[arg-type]
+    }
+    assert narrowing == {"boolean"}

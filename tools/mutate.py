@@ -791,6 +791,43 @@ def _metrics_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _shipped_policy_mutations() -> tuple[Mutation, ...]:
+    """`config/policy.yaml`. First tier: it multiplies `min_ms`, so it sets TTL.
+
+    CLAUDE.md §5 puts `policy.py` in the first tier under the published-number
+    rule rather than the controller rule: `0.7` where `1.4` belongs reads as a
+    working controller that is simply faster than it should be. The *file* is
+    the other half of that and had no guard until Gate 8.
+    """
+    src = "config/policy.yaml"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, POLICY_TESTS)
+
+    return (
+        mutation(
+            "policy.yaml: spelling narrows instead of widening",
+            "  spelling:       {min_mult: 1.5, max_mult: 2.4}",
+            "  spelling:       {min_mult: 0.7, max_mult: 0.7}",
+        ),
+        mutation(
+            "policy.yaml: boolean stops being the only narrowing class",
+            "  number:         {min_mult: 1.2, max_mult: 1.6}",
+            "  number:         {min_mult: 0.9, max_mult: 0.9}",
+        ),
+        mutation(
+            "policy.yaml: drop a class, so it silently takes the default",
+            "  entity_list:    {min_mult: 1.4, max_mult: 2.2}",
+            "",
+        ),
+        mutation(
+            "policy.yaml: entity_id's min drifts one step",
+            "  entity_id:      {min_mult: 1.3, max_mult: 2.0}",
+            "  entity_id:      {min_mult: 1.2, max_mult: 2.0}",
+        ),
+    )
+
+
 def _trackc_mutations() -> tuple[Mutation, ...]:
     """The Track C ingest. First tier: it manufactures a scored corpus.
 
@@ -872,6 +909,7 @@ CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "replay": _replay_mutations(),
     "metrics": _metrics_mutations(),
     "trackc": _trackc_mutations(),
+    "policyfile": _shipped_policy_mutations(),
     "transcribe": _transcribe_mutations(),
     "selftest": _self_test_mutations(),
 }

@@ -30,7 +30,7 @@ from nod_core.arbiter import (
     ArbiterInput,
 )
 from nod_core.capabilities import UPDATABLE_FIELDS
-from nod_core.policy import CompiledPolicy
+from nod_core.policy import CompiledPolicy, load_policy
 from nod_core.profiler import Profiler
 from nod_core.types import (
     Capabilities,
@@ -568,6 +568,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=0.0,
         help="ADR-017's endpoint overhead; 0 means unmeasured and fires early",
     )
+    parser.add_argument(
+        "--policy",
+        type=Path,
+        default=Path("config/policy.yaml"),
+        help="the context axis (CONTROL_SPEC §3); without it every hint is 1.0",
+    )
     args = parser.parse_args(argv)
     out = sys.stdout
 
@@ -602,14 +608,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"{len(corpus.clips)} clips x {len(arms)} arms, simulated, "
         f"{SIMULATED_REPEATS} repeat.\n"
     )
-    by_arm = run_matrix(corpus, arms, endpoint_overhead_ms=args.overhead_ms)
+    # Without a policy every `hint_for` returns the default and the context
+    # axis contributes nothing on any corpus — which is what `make bench` did
+    # until Gate 8. Refused rather than defaulted to neutral: a silently
+    # neutral context axis is an arm measured under the wrong label.
+    if not args.policy.exists():
+        out.write(f"policy not found: {args.policy}\n")
+        return 2
+    policy = load_policy(args.policy)
+
+    by_arm = run_matrix(
+        corpus, arms, endpoint_overhead_ms=args.overhead_ms, policy=policy
+    )
 
     # The patch census. §5 caps a session at MAX_PATCHES and Gate 4 observed that
     # the cap may be unreachable once hysteresis has converged, so the question is
     # answered with a count rather than an argument.
     census = {
         arm: [
-            run_nod_clip(clip, arm, endpoint_overhead_ms=args.overhead_ms)
+            run_nod_clip(
+                clip, arm, endpoint_overhead_ms=args.overhead_ms, policy=policy
+            )
             for clip in corpus.clips
         ]
         for arm in arms

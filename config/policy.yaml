@@ -1,0 +1,20 @@
+# The context axis (CONTROL_SPEC.md §3), transcribed from the spec's table.
+#
+# Multipliers scale the arbiter's computed window for exactly one turn and are
+# then released; they never persist into the speaker profile (EC-13).
+#
+# `boolean` is the only row below 1.0, and deliberately: a yes/no answer is
+# short and completes quickly. ADR-029 records why a prompt may not be labelled
+# `boolean` to harvest a long answer — narrowing the window by 30 % on a turn
+# engineered to draw a sentence manufactures cutoffs the script chose.
+version: 1
+default: {min_mult: 1.0, max_mult: 1.0}
+answers:
+  boolean:        {min_mult: 0.7, max_mult: 0.7}
+  free:           {min_mult: 1.0, max_mult: 1.0}
+  number:         {min_mult: 1.2, max_mult: 1.6}
+  entity_id:      {min_mult: 1.3, max_mult: 2.0}
+  entity_date:    {min_mult: 1.2, max_mult: 1.8}
+  entity_address: {min_mult: 1.3, max_mult: 2.0}
+  entity_list:    {min_mult: 1.4, max_mult: 2.2}
+  spelling:       {min_mult: 1.5, max_mult: 2.4}

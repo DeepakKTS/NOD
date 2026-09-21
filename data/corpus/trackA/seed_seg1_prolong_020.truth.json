@@ -8,6 +8,46 @@
  },
  "gaps": [
   {
+   "start_ms": 480,
+   "end_ms": 640,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 720,
+   "end_ms": 800,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 880,
+   "end_ms": 960,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 1040,
+   "end_ms": 1200,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 1280,
+   "end_ms": 1920,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
    "start_ms": 2900,
    "end_ms": 3250,
    "origin": "source_intrinsic",
@@ -22,6 +62,14 @@
    "preceding": "fragment",
    "certainty": "ambiguous",
    "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 4480,
+   "end_ms": 5120,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
   },
   {
    "start_ms": 5809,

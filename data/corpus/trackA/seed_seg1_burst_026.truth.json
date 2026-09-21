@@ -7,6 +7,14 @@
  },
  "gaps": [
   {
+   "start_ms": 480,
+   "end_ms": 640,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
    "start_ms": 729,
    "end_ms": 1101,
    "origin": "burst",
@@ -15,16 +23,24 @@
    "basis": "an utterance split at a drawn offset; structurally a fragment, but the offset is not aligned to clause boundaries and may land on one"
   },
   {
-   "start_ms": 2373,
-   "end_ms": 2779,
-   "origin": "burst",
+   "start_ms": 1680,
+   "end_ms": 1760,
+   "origin": "transcript_interword",
    "preceding": "fragment",
    "certainty": "ambiguous",
-   "basis": "an utterance split at a drawn offset; structurally a fragment, but the offset is not aligned to clause boundaries and may land on one"
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
   },
   {
-   "start_ms": 3135,
-   "end_ms": 3902,
+   "start_ms": 1840,
+   "end_ms": 2240,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 2373,
+   "end_ms": 2779,
    "origin": "burst",
    "preceding": "fragment",
    "certainty": "ambiguous",
@@ -37,6 +53,14 @@
    "preceding": "fragment",
    "certainty": "ambiguous",
    "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 3135,
+   "end_ms": 3902,
+   "origin": "burst",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an utterance split at a drawn offset; structurally a fragment, but the offset is not aligned to clause boundaries and may land on one"
   },
   {
    "start_ms": 5100,

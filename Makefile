@@ -36,9 +36,10 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
 		{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## Install the pinned toolchain and all extras
+install: ## Install the pinned toolchain and all extras (and the git hooks)
 	$(UV) python install $(PYTHON_VERSION)
 	$(UV) sync --frozen --extra dev --extra bench
+	$(MAKE) hooks
 
 fmt: ## Format and apply safe lint fixes
 	$(RUN) ruff format $(PATHS)
@@ -77,15 +78,22 @@ gate: ## The gate, with its exit code preserved. Use this, not `make check | gre
 	@# (see the note at the top), so the only reliable construction is to
 	@# redirect, test the status explicitly, and make the failure path the one
 	@# that produces output.
+	@rm -f .gate.ok
 	@$(MAKE) check > .gate.log 2>&1 || { \
 		tail -40 .gate.log; \
 		echo; \
 		echo "gate: FAILED — full log in .gate.log"; \
 		exit 1; \
 	}
+	@sh tools/gate-stamp.sh > .gate.ok
 	@echo
 	@grep -E 'passed|Required test coverage' .gate.log | tail -3
 	@echo "gate: PASSED"
+
+hooks: ## Install the pre-commit gate-stamp guard
+	@cp tools/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "installed .git/hooks/pre-commit"
 
 mutate: ## Mutation run over the first-tier modules (CLAUDE.md §5). MODULE=profiler
 	$(RUN) python tools/mutate.py $(MODULE)

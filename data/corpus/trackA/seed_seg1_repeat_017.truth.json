@@ -8,28 +8,44 @@
  },
  "gaps": [
   {
-   "start_ms": 2356,
-   "end_ms": 2476,
-   "origin": "repeat",
+   "start_ms": 480,
+   "end_ms": 640,
+   "origin": "transcript_interword",
    "preceding": "fragment",
-   "certainty": "certain",
-   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
   },
   {
-   "start_ms": 2796,
-   "end_ms": 2916,
-   "origin": "repeat",
+   "start_ms": 720,
+   "end_ms": 800,
+   "origin": "transcript_interword",
    "preceding": "fragment",
-   "certainty": "certain",
-   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
   },
   {
-   "start_ms": 3236,
-   "end_ms": 3356,
-   "origin": "repeat",
+   "start_ms": 880,
+   "end_ms": 960,
+   "origin": "transcript_interword",
    "preceding": "fragment",
-   "certainty": "certain",
-   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 1040,
+   "end_ms": 1200,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
+  },
+  {
+   "start_ms": 1280,
+   "end_ms": 1920,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
   },
   {
    "start_ms": 2250,
@@ -40,12 +56,28 @@
    "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
   },
   {
+   "start_ms": 2356,
+   "end_ms": 2476,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
    "start_ms": 2700,
    "end_ms": 2900,
    "origin": "source_intrinsic",
    "preceding": "fragment",
    "certainty": "ambiguous",
    "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 2796,
+   "end_ms": 2916,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
   },
   {
    "start_ms": 3150,
@@ -56,12 +88,28 @@
    "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
   },
   {
+   "start_ms": 3236,
+   "end_ms": 3356,
+   "origin": "repeat",
+   "preceding": "fragment",
+   "certainty": "certain",
+   "basis": "a duplicated word mid-utterance; the speaker is audibly still in the same utterance and the gap is shorter than any arm's min_turn_silence"
+  },
+  {
    "start_ms": 3600,
    "end_ms": 3850,
    "origin": "source_intrinsic",
    "preceding": "fragment",
    "certainty": "ambiguous",
    "basis": "a pause already present in the source speech; the speaker is mid-utterance, but a natural pause can fall where a clause ends and this is detected acoustically, not read"
+  },
+  {
+   "start_ms": 3920,
+   "end_ms": 4480,
+   "origin": "transcript_interword",
+   "preceding": "fragment",
+   "certainty": "ambiguous",
+   "basis": "an inter-word silence measured by the transcriber; the speaker is mid-utterance, but a natural pause can fall where a clause ends and the standing rule cannot tell (ADR-034)"
   },
   {
    "start_ms": 4850,

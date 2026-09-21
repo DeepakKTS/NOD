@@ -2020,3 +2020,41 @@ Consequence: four.
    exactly one — true of Track A and false of Track C, where a clip holds ten to twelve —
    and `utterances_certain_only` was counted for `arms[0]` alone rather than the pool.
    `total_utterances` now does the counting and carries a mutation.
+
+## ADR-037 — The gate check moves into a pre-commit hook
+2026-09-21 · Status: accepted
+Context: a red gate reached a commit for the **third** time. The first two were a `grep`
+exit code standing in for the gate's, and the response was `make gate`, which redirects
+rather than pipes, tests the status explicitly and exits non-zero — built precisely so that
+chaining a commit after it is safe. The third occurrence defeated it in one character:
+
+```
+make gate 2>&1 | tail -4 && git add -A && git commit ...
+```
+
+**A pipeline's exit status is its last command's.** `tail` succeeded, so the `&&` chain the
+target exists to stop carried on and committed over a failing lint. The target was correct
+and irrelevant: it cannot control what a caller pipes it into.
+
+Three instances, three fixes to the instance, and the same defect each time. CLAUDE.md §5
+already draws the conclusion for the second one — "Fixing the instance twice did not fix it,
+so the mechanism changed instead" — and the changed mechanism has now been routed around,
+which means it was still a *convention*: it worked only while the caller cooperated.
+Decision: **the check moves to the commit, where a caller cannot route around it.**
+`make gate` writes `.gate.ok` on success, holding the sha256 of every tracked file as it is
+on disk; `.git/hooks/pre-commit` refuses any commit whose tree does not match. Installed by
+`make hooks`, which `make install` now runs.
+
+The stamp hashes the **working tree** and not `git ls-files -s`, which reports index blobs:
+a file edited and not staged would hash the same as before the edit and a stamp built from
+it would call a dirty tree clean.
+
+`NOD_SKIP_GATE_STAMP=1` exists as the escape hatch, and is deliberately an environment
+variable that has to be typed rather than a flag that could be habitual.
+Consequence: three. **The failure is now loud and local** — the commit is refused with both
+hashes printed, rather than succeeding and being discovered later. **Both branches were
+proven to fire before this was recorded**, on purpose and not by inspection: a missing stamp
+and a stamp for a different tree, each refused with `HEAD` unmoved. A guard whose failure
+path has never run is the thing CLAUDE.md §5 is about, and a *guard against that class* is
+the worst place to leave one untested. And **`make gate` is still the right command to run**;
+what changed is that forgetting it, or piping it, is no longer silent.

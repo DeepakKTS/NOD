@@ -1,0 +1,31 @@
+#!/bin/sh
+# Refuse a commit unless `make gate` passed on exactly this tree.
+#
+# Third occurrence of a red gate reaching a commit (CLAUDE.md §5). The first two
+# were a `grep` exit code standing in for the gate's. The third was `make gate`
+# itself piped into `tail`, which makes the pipeline's status `tail`'s — so the
+# `&&` chain that `gate` was built to stop carried on anyway.
+#
+# Fixing the instance three times has not worked, so the check moves to where it
+# cannot be routed around: the commit itself. `gate` writes `.gate.ok` on success
+# with the tree hash it passed against; this refuses anything else.
+set -eu
+STAMP=".gate.ok"
+if [ -n "${NOD_SKIP_GATE_STAMP:-}" ]; then
+    echo "pre-commit: stamp check skipped by NOD_SKIP_GATE_STAMP" >&2
+    exit 0
+fi
+if [ ! -f "$STAMP" ]; then
+    echo "pre-commit: REFUSED — no $STAMP. Run 'make gate' (not piped)." >&2
+    exit 1
+fi
+want=$(sh tools/gate-stamp.sh)
+have=$(cat "$STAMP")
+if [ "$want" != "$have" ]; then
+    echo "pre-commit: REFUSED — $STAMP is for a different tree." >&2
+    echo "  gate passed on: $have" >&2
+    echo "  tree is now:    $want" >&2
+    echo "  Run 'make gate' again." >&2
+    exit 1
+fi
+echo "pre-commit: gate stamp matches this tree."
