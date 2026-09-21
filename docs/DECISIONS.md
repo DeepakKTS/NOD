@@ -2095,3 +2095,65 @@ write, so it is written and noted here in case it is missed in review. And the c
 **second-tier coverage** by CLAUDE.md §5: it fails visibly, and the tests that matter are
 the ones asserting the server puts INV-4's fields on the wire, which live in
 `tests/integration/test_console_loop.py` and do not depend on the browser.
+
+## ADR-039 — A spoken digit is not a word; the identifier classes are gap-poor
+2026-09-21 · Status: accepted — measured at Gate 8, invalidates TRACK_C_SCRIPT §1 move 1
+Context: the Gate 8 dry run returned **84 finalised words against script A's 111**. Treated
+as a uniform 76 % haircut that looked survivable — every script still crossed
+`MIN_GAPS_FOR_WARM` by turn 3. It is not uniform, and the per-turn breakdown is the finding:
+
+| class | scripted | transcribed | ratio | what came back |
+|---|---|---|---|---|
+| `free` (×3) | 22, 10, 5 | 22, 10, 5 | **1.00** | verbatim |
+| `entity_list` | 16 | 16 | **1.00** | verbatim |
+| `boolean` | 8 | 8 | **1.00** | verbatim |
+| `number` | 9 | 7 | 0.78 | "thirty five dollars" → "35" |
+| `entity_address` | 14 | 8 | 0.57 | "Forty two … oh two one one six" → "42 … 02116" |
+| `entity_date` | 6 | 3 | 0.50 | "March the fourteenth nineteen fifty two" → "march 14 1952" |
+| `spelling` | 11 | 4 | 0.36 | "M A R L B O R O U G H" → "ma r l borough" |
+| `entity_id` | 10 | **1** | **0.10** | "W seven four one … zero three" → `w741928803` |
+
+**The loss is entirely in the identifier classes and it is not noise — it is text
+normalisation.** The service renders spoken numerals as digits and re-assembles spelled
+letters into words. Deterministic formatting, not transcription error.
+
+This falsifies the load-bearing claim in `docs/TRACK_C_SCRIPT.md` §1, quoted so the
+correction cannot be mistaken for a tweak:
+
+> **1. The identifier classes are the gap-richest turns in the script, not the poorest.**
+> A spoken digit is a word. A member number read aloud as "W seven four one nine two eight
+> eight zero three" is eleven words and ten gaps.
+
+A spoken digit **is** a word to the speaker and is **not** a word to the profiler, which
+counts `words[]` from the transcript (CONTROL_SPEC §2.1). Ten words and nine gaps became
+one word and **zero gaps**. `entity_id` and `spelling` — argued in §1 to be the two richest
+contributors — are the two poorest, and the argument had them exactly inverted.
+
+Why it went unnoticed: script A's margin was large enough to absorb it. It crossed at turn
+2 nominally and turn 3 as measured, so the run looked like a pass. **A script that survives
+by margin does not validate the reasoning that sized the margin**, which is the same shape
+as CLAUDE.md §5's predicted-and-observed match.
+Decision: **do not rely on any identifier turn for warming.** Three parts:
+
+1. **Budget identifier classes at zero gaps**, exactly as §2 already budgets `boolean`.
+   `entity_id`, `spelling`, `entity_date`, `entity_address` and `number` keep their place —
+   they are the whole input to the *context axis* and that is unaffected, since the class is
+   declared by the script and not inferred from the transcript — but they contribute nothing
+   to the gap budget and the plan must hold without them.
+2. **Every script crosses by turn 3 on sentence-shaped turns alone.** `free`, `entity_list`
+   and `boolean` transcribe at 1.00; those carry the budget. Scripts B, C, D and E each gain
+   one sentence-shaped turn near the top (`TRACK_C_SCRIPT` §4a); A already satisfies the rule
+   and is unchanged.
+3. **`MIN_GAPS_FOR_WARM` does not move.** ADR-022 derived 24 from estimator error against the
+   pause distribution and has nothing to do with how a transcriber formats numerals. Lowering
+   it to rescue a script would be tuning a control-law constant against a corpus defect, which
+   CLAUDE.md §7 forbids and ADR-026 forbids again.
+Consequence: four. Under the zero-gap budget all five scripts cross on **turn 2** with nine
+or more warm turns, against turns 3-6 and as few as five before the amendment. The calls get
+one turn longer, roughly fifteen seconds each. **The context axis is untouched** — the eight
+classes still all appear, which was §3's reason for choosing the domain. And the general
+form, which is the part to carry: **ground truth derived from a script is a prediction about
+what a service will return, not a fact about it.** ADR-029 records that hand-authored ground
+truth has no mutation harness; this is the same gap one level out, where the authored thing
+was not a label but an assumed word count. The pilot recording (§9) exists to catch the next
+one before a session rather than after.

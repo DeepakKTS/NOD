@@ -50,13 +50,37 @@ naturally measured in *turn boundaries tolerated*, and §7 reports it that way p
 
 It resolves in three moves, none of which is a workaround:
 
-**1. The identifier classes are the gap-richest turns in the script, not the poorest.**
-A spoken digit is a word. A member number read aloud as "W seven four one nine two eight
-eight zero three" is eleven words and ten gaps. A surname spelled out is one word per
-letter. `entity_id` and `spelling` — the two classes that sound most like "short answers"
-— are the two that contribute most, and they carry the digit-reading pause shape ADR-022
-was derived against. The classes that actually starve the profiler are `boolean` and
-nothing else.
+**1. ~~The identifier classes are the gap-richest turns in the script, not the poorest.~~
+MEASURED FALSE AT GATE 8. They are the poorest.** (ADR-039.)
+
+> The original argument ran: "A spoken digit is a word. A member number read aloud as
+> 'W seven four one nine two eight eight zero three' is eleven words and ten gaps. A
+> surname spelled out is one word per letter." Every sentence of that is true about the
+> *speaker* and false about the *profiler*, which counts `words[]` from the transcript.
+>
+> Measured on the dry run, that exact member number came back as **`w741928803` — one
+> token, zero gaps.** The service normalises spoken numerals to digits and re-assembles
+> spelled letters into words. Per class, one sample each:
+>
+> | class | ratio | | class | ratio |
+> |---|---|---|---|---|
+> | `free` | **1.00** | | `number` | 0.78 |
+> | `entity_list` | **1.00** | | `entity_address` | 0.57 |
+> | `boolean` | **1.00** | | `entity_date` | 0.50 |
+> | | | | `spelling` | 0.36 |
+> | | | | `entity_id` | **0.10** |
+>
+> So the classes that "sound most like short answers" *are* short answers once transcribed,
+> and the two the argument named as richest are the two poorest.
+
+**The corrected rule: only `free`, `entity_list` and `boolean` carry the gap budget.** The
+five identifier classes are budgeted at **zero gaps**, exactly as `boolean` already was in
+§2, and for the same reason — the plan must hold without them. They keep their place in
+every script because they are the entire input to the *context axis*, which is unaffected:
+the class is declared by the script, not inferred from what came back.
+
+`MIN_GAPS_FOR_WARM` stays at 24. Lowering it to rescue a script would be tuning a
+control-law constant against a corpus defect (CLAUDE.md §7, ADR-026).
 
 **2. Prefer prompts whose natural answer is sentence-shaped.** A read-back that invites a
 correction, an open "where should this go", a "what else is on the statement" — each draws
@@ -233,6 +257,31 @@ and all three appear before turn 7.
 
 **124 words, 11 turns, 113 gaps. Crosses 24 on turn 2.**
 
+## 4a. The turn added at Gate 8 (ADR-039)
+
+The five tables above are left exactly as written, including their `w` and `Σ` columns,
+because they are the design targets §0 says to re-derive against a real transcript — and
+`Σ` there is computed on the falsified assumption that identifier turns contribute gaps.
+**Read §4's `Σ` as historical. The live budget is this section plus §7.**
+
+Under the corrected rule only `free`, `entity_list` and `boolean` carry gaps. Scripts B, C,
+D and E then reach 24 too late — turns 4, 6, 5 and 6 — so each gains **one sentence-shaped
+turn, inserted as the new turn 2**. Script A already crosses on sentence-shaped turns alone
+and is unchanged.
+
+An open question is the right instrument here for a second reason: it is the one prompt
+shape the transcriber returns verbatim, so it is the only place the budget can be made
+robust without touching what the call is about.
+
+| Script | New turn 2 prompt | Class | Target answer | w | +g |
+|---|---|---|---|---|---|
+| B | "Before I look that up — what happens if you go a few days without it?" | `free` | "I get headaches by the second day and my doctor said I should not skip it at all" | 18 | 17 |
+| C | "Before I pull the claim — what were you told when you booked the scan?" | `free` | "The woman on the phone said it was fully covered and that I would owe nothing at all" | 18 | 17 |
+| D | "Before I start the record — what cover did you have before this job?" | `free` | "I was on my previous employer's plan until the end of July and then nothing for a month" | 18 | 17 |
+| E | "Before the paperwork — what actually happened out there?" | `free` | "I stepped off a kerb badly and by the time I got back to the hotel I could not walk" | 20 | 19 |
+
+Script A: unchanged, 10 turns.
+
 ## 5. The two conditions
 
 Each of the five scripts is recorded **twice by the same speaker, with the same words**:
@@ -285,22 +334,30 @@ no mid-clause pauses.
 
 ### Crossing turns and margin
 
-Margin is in **turn boundaries tolerated**: each unplanned endpointer split inside the
-turns before crossing costs exactly one gap, so this is how many splits the plan absorbs
-before the crossing turn slips by one.
+**Recomputed at Gate 8 under ADR-039's zero-gap budget for identifier classes.** The
+previous version of this table assumed a spoken digit was a word and is superseded; margin
+is still measured in **turn boundaries tolerated**, since each unplanned endpointer split
+inside the turns before crossing costs exactly one gap.
 
-| Script | Turns | Words | Gaps | Crosses 24 at | Σ there | Margin | Conservative Σ |
+`Σ available` counts gaps from `free`, `entity_list` and `boolean` turns only. Word counts
+are nominal, from §4 plus §4a.
+
+| Script | Turns | Words | Σ available | Crosses 24 at | Σ there | Margin | Turns warm |
 |---|---|---|---|---|---|---|---|
-| A — lost card | 10 | 111 | 101 | **turn 2** | 30 | 6 | 94 |
-| B — pharmacy | 11 | 111 | 100 | **turn 3** | 33 | 9 | 91 |
-| C — claims | 11 | 116 | 105 | **turn 2** | 30 | 6 | 97 |
-| D — enrolment | 12 | 123 | 111 | **turn 2** | 28 | 4 | 100 |
-| E — reimbursement | 11 | 124 | 113 | **turn 2** | 29 | 5 | 104 |
+| A | 10 | 111 | 56 | **turn 3** | 30 | 6 | 7 of 10 |
+| B | 12 | 129 | 67 | **turn 2** | 33 | 9 | 10 of 12 |
+| C | 12 | 134 | 66 | **turn 2** | 35 | 11 | 10 of 12 |
+| D | 13 | 141 | 75 | **turn 2** | 39 | 15 | 11 of 13 |
+| E | 12 | 144 | 85 | **turn 2** | 40 | 16 | 10 of 12 |
 
-"Conservative Σ" re-runs the arithmetic with every `boolean` answer floored to one word
-and zero gaps, per §2. No crossing turn moves: every `boolean` in the set sits at turn 5
-or later, well past warm. That is the check that the plan does not depend on callers
-elaborating on yes/no questions.
+Every script now crosses on **turn 2 or 3** and is warm for **seven turns or more**, which
+is what ROADMAP §0 asks for — "warm for most of the recording rather than only at the end".
+
+**This table is the conservative one and there is no separate conservative recount.** The
+old §7 carried a second column re-running the arithmetic with `boolean` floored to one
+word; that is now the standing assumption for five more classes as well, so the figures
+above already are the floor. Anything the identifier turns actually return is margin on
+top of them.
 
 ### Class coverage
 
@@ -396,85 +453,109 @@ resolve.
 
 ---
 
-## 9. The pilot gate — run this before booking a reader
+## 9. The pilot gate — thirty seconds of audio, before you book anyone
 
-**One short recording, validated, before a full session.** The ingestion path exists
-(`src/nod_bench/trackc.py`, ADR-030 and ADR-034) and the dry run below passed on
-synthesised audio. Synthesised audio is the *easy* case in the one direction that matters,
-so a pass there does not predict a pass on a person in a room. Twenty minutes of pilot buys
-the difference.
+**Run this first.** The ingestion path exists and the dry run passed on synthesised audio,
+which is the easy case in the direction that matters: every floor in the path thresholds at
+**−44.0 dBFS against digital silence, and a room is not digitally silent.** The gap budget
+is not recoverable from a recording afterwards (ADR-031), so a failed session costs the
+session.
 
-### The command
+### Checklist
 
-Record **two or three turns** of any script, edited exactly as a real call would be —
-caller audio only, agent prompts cut, 4.5 s of silence in each seam, 4.5 s of tail. Then:
+- [ ] **1. Record about thirty seconds**, with the real mic, in the real room, at the real
+      distance. One answer, one seam, one answer:
+      - speak any sentence of ten words or so;
+      - **stop, and hold silence for a slow count of six** (≥ 4.5 s);
+      - speak a second sentence.
+      Do not clap, do not talk over it, do not stop the recorder during the seam.
+- [ ] **2. Export** mono, 16 000 Hz, PCM16 WAV. Anything else fails on sample rate.
+- [ ] **3. Write a two-turn script file** — copy `data/trackC/scripts/A-fluent.json`, keep
+      the first two `turns` entries, delete the rest. The check compares the seam count
+      against this, so it has to say two.
+- [ ] **4. Run the check:**
 
-```
-python -m nod_bench.trackc check \
-    --audio pilot.wav --script data/trackC/scripts/A-fluent.json
-```
+      make trackc-check AUDIO=pilot.wav SCRIPT=pilot-script.json
 
-or `make trackc-check AUDIO=pilot.wav SCRIPT=data/trackC/scripts/A-fluent.json`.
+      or, without make:
 
-Trim the script JSON to the number of turns you actually recorded: the check compares the
-seam count against it.
+      uv run --extra bench python -m nod_bench.trackc check \
+          --audio pilot.wav --script pilot-script.json
 
-### What a pass looks like
+- [ ] **5. Confirm the pass.** Exactly this, and exit code 0:
 
-```
-pilot: 2 seams, all clear
-```
+      pilot: 1 seams, all clear
 
-Exit 0, one line, seam count one less than the turn count. Nothing else is a pass.
+      One seam for two turns. Nothing else is a pass — in particular `0 seams` is the
+      room-tone failure below, not a near miss.
+- [ ] **6. Only if step 5 passed**, transcribe and ingest, and read off the word count:
 
-### What each failure means, and what to change
+      uv run --extra bench python -m nod_bench.trackc build \
+          --audio pilot.wav --script pilot-script.json --out /tmp/pilot
 
-| Message | Cause | Fix |
+      Compare the reported word count against what you actually said. **That ratio is the
+      single most useful number the pilot produces** — it scales the whole gap budget, and
+      ADR-039 is what happens when it is assumed instead of measured. Per §1, expect ~1.00
+      on sentence-shaped speech; if a sentence of ten words comes back as six, stop and
+      re-derive §7 before booking.
+
+### Failure modes
+
+| Output | What it means | What to do |
 |---|---|---|
-| `N seam(s) of at least 4500 ms, but ... needs M` with `Longest sub-threshold silences: ...` | A seam was edited short, **or** the room is not quiet enough for the seam to register as silence at all | If the listed silences are near 4500 ms, lengthen the seams. If the list is empty or the durations are tiny, it is the room — see below |
-| `... expects M. An intra-turn pause reached seam length` | A hesitation ran past 4.5 s and now ends the turn on every arm | Retake that turn. §6.2 asks for 1000-2500 ms; do not relabel |
+| `0 seam(s) of at least 4500 ms … needs 1`, and the sub-threshold list is **empty or tiny** | **Room tone.** The seam never drops below −44 dBFS, so nothing downstream can hear it | The two remedies below |
+| `0 seam(s) … needs 1`, sub-threshold list shows something **near 4500 ms** | The pause was just too short | Hold it longer; count six, not four |
+| `2 silences of at least 4500 ms … expects 1` + `retake rather than relabel` | You paused mid-sentence for over 4.5 s, so that pause ends the turn on every arm and the call really has three turns | Retake. Do not relabel — `gaps = words − turns` is void either way |
 | `expected 16000 Hz, found 44100` | Wrong export | Resample to mono 16 kHz PCM16 |
+| `no transcribed words` (at step 6) | Mic was muted, or the file is silent | Check the recording plays |
 
-### The risk this gate exists to catch: room tone
+### The room-tone failure, and the two remedies
 
-**`SEAM_FLOOR_DBFS` is −44.0 dBFS**, asserted equal to what the simulator's `Endpointer`
-hears at the default `vad_threshold`. A seam quieter than that is a seam; a seam above it
-is not, *to every downstream consumer*. ADR-031 measured the direction: over 135 frames of
-`say` speech only 2 reached −44 dBFS, and a human recorded in a room carries room tone,
-breath and mic self-noise that push frame energy further up. So an untreated room can
-produce a recording whose seams are inaudible to the pipeline.
+This is the one to expect, so decide it here rather than at the mic.
 
-**It fails loudly, which is the point.** `check_seams` finds zero seam-length runs, reports
-that it needed M and found 0, and exits non-zero. It does not silently produce a
-single-utterance corpus. But it fails *after* the session unless the pilot is run first,
-and the script's gap budget is not recoverable from the audio afterwards (ADR-031).
+`SEAM_FLOOR_DBFS` is **−44.0 dBFS**, and `test_the_seam_floor_matches_the_simulators`
+asserts it equals what the simulator's `Endpointer` hears at the default `vad_threshold`.
+ADR-031 measured the direction: over 135 frames of `say` speech only **2** reached that
+floor, and a person in a room adds room tone, breath and mic self-noise on top. So a seam
+that sounds silent can sit at −38 dBFS and be, to every consumer in this repository,
+continuous speech.
 
-To diagnose a suspected room-tone failure, print the frame-energy distribution:
+**Measured, so the boundary is not guesswork.** A synthetic seam of white noise at a
+sweep of levels, through the real `check`:
 
-```python
-from nod_bench.trackc import silent_runs
-print(silent_runs(audio, sr))          # at the -44 dBFS floor
-print(silent_runs(audio, sr, floor_dbfs=-30.0))   # a permissive floor
-```
+| seam noise floor | result |
+|---|---|
+| −52, −48, −46 dBFS | `1 seams, all clear` |
+| **−44, −42, −38, −30 dBFS** | **`0 seam(s) … Longest sub-threshold silences: none`** |
 
-If the permissive floor finds the seams and the default does not, the room is the problem,
-not the edit. **Treat the room or gate the seams to digital silence in the editor** — do
-not lower `SEAM_FLOOR_DBFS`, which is pinned to the simulator's floor by
-`test_the_seam_floor_matches_the_simulators` and would decouple the corpus from what any
-arm actually hears.
+The break is clean between −46 and −44, and it is slightly *stricter* than the constant
+suggests: a run counts as silence only if **every** 50 ms frame in it is below the floor,
+so noise hovering at the threshold breaks one long seam into fragments rather than
+shortening it. That is why the failure prints `none` rather than a list of near-misses —
+there is no partial credit, and a seam either registers whole or not at all. Aim at
+**−48 dBFS or quieter**, not at −44.
 
-### After the seam check passes
+**Remedy A — gate the seam to digital zeros at the edit. Prefer this.** In the editor,
+select each seam and silence it outright (not "fade", not "noise reduction" — replace the
+samples with zeros). Thirty seconds of work per call.
 
-Transcribe and ingest the pilot, then confirm the two numbers §8 asks for:
+**Remedy B — lower `SEAM_FLOOR_DBFS`.** Available, and worse. Three reasons, in order:
 
-```
-python -m nod_bench.trackc build --audio pilot.wav --script <trimmed>.json --out /tmp/pilot
-```
+1. **It decouples the corpus from what the arms actually hear.** The floor is pinned to the
+   simulator's, and the simulator's is what decides whether a seam ends a turn. Lower only
+   the ingest's copy and the check starts certifying seams that no arm detects; the turn
+   count the check believed is then not the turn count any arm produces, and by
+   `gaps = words − turns` every profile differs from the one that was validated.
+2. **It moves a constant two other things are calibrated against.** `DEFAULT_VAD` and
+   `corpus.INTRINSIC_FLOOR_DBFS` agree with it by meaning rather than by code — the exact
+   coincidence CLAUDE.md §5 records — so changing one silently recalibrates intrinsic-gap
+   detection on Track A, a corpus already committed and already behind published figures.
+3. **It is global where the problem is local.** One noisy room would loosen the threshold
+   for every recording ever ingested, including the quiet ones.
 
-Read off the reported turn count and promoted-gap count, and check the transcript word
-count against the script's — the dry run below returned **84 words where the script
-predicted 111**, which moved the crossing turn from 2 to 3. That ratio is the single most
-useful number the pilot produces, because it scales the whole gap budget.
+Remedy A changes one call's audio and nothing else. Remedy B changes what silence means
+everywhere, to fix one room. **If Remedy B ever looks necessary, it is an ADR and a
+re-derivation of ADR-018's floor agreement, not a constant edit.**
 
 ### The dry run, recorded (2026-09-21)
 
