@@ -31,6 +31,7 @@ from nod_bench.perturb import (
     Gap,
     PerturbationKind,
     TruthSpan,
+    UtteranceSpan,
     apply,
 )
 
@@ -105,6 +106,17 @@ class GeneratedClip(BaseModel):
 
     total_ms: int
     truth: TruthSpan
+
+    utterances: tuple[UtteranceSpan, ...] = ()
+    """The caller turns in this clip, for a multi-utterance corpus (ADR-034).
+
+    Empty means the clip is a single utterance spanning `0` to
+    `final_word_end_ms`, which is Track A's actual shape and not a fallback
+    standing in for missing data: the generator makes one utterance per clip by
+    construction. `trackc.build` refuses to write a clip with fewer than two,
+    so a Track C clip cannot arrive here empty and be silently scored as one
+    turn.
+    """
 
 
 class BuiltCorpus(BaseModel):

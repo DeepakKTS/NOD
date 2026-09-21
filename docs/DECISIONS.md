@@ -1810,6 +1810,37 @@ Consequence: four, and the second is measured rather than asserted.
    the live service hears a 720 ms inter-word gap that a −44 dBFS threshold cannot; offline
    it is invisible.
 
+   > **Measured at Gate 8, and the prediction was wrong the first time. The failure is
+   > worth more than the eventual agreement, so it is recorded rather than overwritten.**
+   >
+   > First run, promotion applied to Track A in memory: PCR and FRAG unchanged exactly as
+   > predicted, and **TTL p90 moved on every arm** — 186 → 396, 426 → 1276, **826 → 3596**.
+   > Each delta is almost exactly `max_turn_silence − min_turn_silence`, which says the
+   > utterance-end boundary had switched gates on every clip.
+   >
+   > **Cause: the dedup tested containment of the promoted gap's *start*, and `regime_at`
+   > returns the *first* gap covering a time.** In `seed_seg0_pause_000` the transcript's
+   > last word runs 5040–5120 while the acoustic `final_word_end_ms` is 5024, so the
+   > promoted gap 4720–5040 **overlaps** `utterance_end` (5024–9274) by 16 ms without
+   > starting inside it. It was admitted, it sorted first, and every utterance end was
+   > relabelled `fragment` — a label that is simply wrong once the speaker has finished.
+   > `corpus._intrinsic_gaps` guards the same hazard with `start >= final_ms`; that guard
+   > was not carried over.
+   >
+   > Fixed by deduplicating on **overlap** rather than containment. 801 candidate gaps
+   > become **697**; the 104 refused are the ones clipping a described gap's edge.
+   > Re-measured: **PCR, TTL p90 and FRAG identical on all three arms**, 369 → 1066 gaps.
+   >
+   > Two things this cost and one it bought. It cost a prediction stated with more
+   > confidence than the code had earned. It also went **undetected by 21 passing tests**,
+   > because every one of them used non-overlapping fixtures — the overlap only arises
+   > where the acoustic and transcript estimates of the utterance end disagree, which no
+   > hand-written fixture had. `test_a_promoted_gap_that_only_clips_a_described_one_is_
+   > still_refused` now covers it and a mutation guards it. What it bought is the general
+   > lesson, which is ADR-033's read forwards instead of backwards: **the prediction is
+   > what made the defect visible.** An unpredicted TTL move on a metric nobody was
+   > watching would have shipped.
+
    **And an identity here proves nothing on its own.** This is the shape that hid the
    `run_nod_clip` defect (CLAUDE.md §5) — a predicted-and-observed match produced equally by
    a correct no-op and by a promotion that never ran. So the promotion must be demonstrated

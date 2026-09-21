@@ -15,6 +15,8 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
+from nod_core.types import ExpectedAnswer
+
 GENERATOR_VERSION: Final = "0.1.0"
 """Hashed into corpus determinism and recorded in every `.truth.json` sidecar.
 
@@ -150,7 +152,15 @@ class TruthSpan(BaseModel):
 
     start_ms: int
     end_ms: int
-    perturbation: Mapping[str, str | int | float]
+    perturbation: Mapping[str, str | int | float] = {}
+    """What the generator did to this span. Empty for unperturbed material.
+
+    Defaulted for Track C, which is recorded or synthesised speech that the
+    perturbation generator never touched. Writing `{"type": "recorded"}` there
+    was rejected: it would put a perturbation that does not exist into ground
+    truth, and `report` breaks figures down by `perturbation["type"]`.
+    """
+
     gaps: tuple[Gap, ...] = ()
     text: str = ""
     """Filled by `corpus.build` from the source manifest.
@@ -166,6 +176,35 @@ class TruthSpan(BaseModel):
     controlled arm against a clip with no words rather than falling back to
     reconstructing them from gaps: the fallback is what ADR-031 removed, and a
     silent one would put the old behaviour back under the new name.
+    """
+
+
+class UtteranceSpan(BaseModel):
+    """One caller turn inside a multi-utterance clip (ADR-034, Track C).
+
+    **Track A clips hold exactly one utterance and Track C clips hold ten to
+    twelve**, which is the contract mismatch this model resolves.
+    `GeneratedClip` carries a single `final_word_end_ms`, and TTL measured from
+    one utterance end per *call* rather than per *turn* would be meaningless.
+
+    `expected_answer` lives here, per turn, and not on the run. CONTROL_SPEC §3
+    declares it as what the host expects of the *dialogue state*, which changes
+    every turn; `docs/TRACK_C_SCRIPT.md` declares one per prompt. Passing a
+    single value for a whole call would leave the context axis with one input
+    for eleven turns, which is the degenerate case ADR-029 warns about.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    start_ms: int
+    final_word_end_ms: int
+    """When speech stops in this turn. PCR and TTL are both measured from it."""
+
+    expected_answer: ExpectedAnswer | None = None
+    """The class declared for the *prompt* that drew this turn (ADR-029).
+
+    Judged from the prompt and never from the answer. `None` means undeclared
+    and yields the policy default, which is Track A's case.
     """
 
 

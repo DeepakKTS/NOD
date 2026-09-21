@@ -131,6 +131,58 @@ def frames_of(clip: Path, *, frame_ms: int = FRAME_MS) -> list[bytes]:
     return [pcm[at : at + step] for at in range(0, len(pcm) - step + 1, step)]
 
 
+def scored_utterances(clip: GeneratedClip) -> tuple[ScoredUtterance, ...]:
+    """The clip's ground-truth utterances, one or many. Pure. `O(u·g)`.
+
+    Track A clips hold one; Track C clips hold ten to twelve (ADR-034). A gap
+    belongs to the utterance whose span contains its start, so PCR and TTL are
+    scored per *turn* rather than per call.
+
+    Args:
+        clip: The clip and its sidecar.
+
+    Returns:
+        One `ScoredUtterance` per caller turn.
+    """
+    if not clip.utterances:
+        return (
+            ScoredUtterance(
+                start_ms=0,
+                final_word_end_ms=clip.final_word_end_ms,
+                gaps=clip.truth.gaps,
+            ),
+        )
+    bounds = [u.start_ms for u in clip.utterances] + [clip.total_ms]
+    return tuple(
+        ScoredUtterance(
+            start_ms=span.start_ms,
+            final_word_end_ms=span.final_word_end_ms,
+            gaps=tuple(
+                g for g in clip.truth.gaps if bounds[i] <= g.start_ms < bounds[i + 1]
+            ),
+        )
+        for i, span in enumerate(clip.utterances)
+    )
+
+
+def expected_at(clip: GeneratedClip, t_ms: float) -> ExpectedAnswer | None:
+    """The declared class of the turn covering `t_ms`. Pure. `O(u)`.
+
+    Per turn, not per run (ADR-034). `hint_for(None)` is the policy default, so
+    a run that passed one class for a whole call would give the context axis
+    one input for eleven turns.
+
+    Args:
+        clip: The clip and its per-turn spans.
+        t_ms: A stream-relative time inside the turn.
+
+    Returns:
+        The class declared for that turn's prompt, or `None`.
+    """
+    covering = [u for u in clip.utterances if u.start_ms <= t_ms]
+    return covering[-1].expected_answer if covering else None
+
+
 def run_clip(
     clip: GeneratedClip, arm: Arm, *, endpoint_overhead_ms: float = 0.0
 ) -> ClipObservation:
@@ -168,13 +220,7 @@ def run_clip(
     return ClipObservation(
         clip_id=clip.clip_id,
         arm=arm,
-        utterances=(
-            ScoredUtterance(
-                start_ms=0,
-                final_word_end_ms=clip.final_word_end_ms,
-                gaps=clip.truth.gaps,
-            ),
-        ),
+        utterances=scored_utterances(clip),
         emitted_end_ms=tuple(fired),
         emitted_silence_start_ms=tuple(silence_starts),
     )
@@ -349,9 +395,19 @@ def run_nod_clip(
         vad_threshold=None,
     )
     neutral = WindowHint(min_mult=1.0, max_mult=1.0)
-    hint = neutral
-    if axes.context and policy is not None:
-        hint = policy.hint_for(expected_answer)
+
+    def hint_and_class(at_ms: float) -> tuple[WindowHint, ExpectedAnswer | None]:
+        """The context input for the turn covering `at_ms`. `O(u)`.
+
+        Per turn (ADR-034). A clip with per-turn spans takes its class from the
+        span; a Track A clip has none and falls back to the run-level
+        `expected_answer`, which is the only class it has.
+        """
+        declared = expected_at(clip, at_ms) if clip.utterances else expected_answer
+        if not axes.context:
+            return neutral, None
+        hint = policy.hint_for(declared) if policy is not None else neutral
+        return hint, declared
 
     fired: list[float] = []
     silence_starts: list[float] = []
@@ -369,6 +425,7 @@ def run_nod_clip(
         if turn is None:
             continue
         profiler.observe_turn(turn)
+        hint, declared = hint_and_class(turn.words[0].start_ms)
         features = profiler.features()
         if not axes.speaker:
             # The ablation: report the profile cold, which is what §4 already does
@@ -379,7 +436,7 @@ def run_nod_clip(
             ArbiterInput(
                 features=features,
                 hint=hint,
-                expected_answer=expected_answer if axes.context else None,
+                expected_answer=declared,
                 current=current,
                 capabilities=NOD_CAPABILITIES,
                 ceiling_ms=DEFAULT_CEILING_MS,
@@ -400,13 +457,7 @@ def run_nod_clip(
         observation=ClipObservation(
             clip_id=clip.clip_id,
             arm=arm,
-            utterances=(
-                ScoredUtterance(
-                    start_ms=0,
-                    final_word_end_ms=clip.final_word_end_ms,
-                    gaps=clip.truth.gaps,
-                ),
-            ),
+            utterances=scored_utterances(clip),
             emitted_end_ms=tuple(fired),
             emitted_silence_start_ms=tuple(silence_starts),
         ),

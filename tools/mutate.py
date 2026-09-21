@@ -63,6 +63,7 @@ POLICY_TESTS: Final = ("tests/unit/test_policy.py",)
 PROXY_TESTS: Final = ("tests/unit/test_proxy.py",)
 WORDS_TESTS: Final = ("tests/unit/test_replay_words.py",)
 METRICS_TESTS: Final = ("tests/unit/test_metrics.py",)
+TRACKC_TESTS: Final = ("tests/unit/test_trackc.py",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -674,6 +675,20 @@ def _replay_mutations() -> tuple[Mutation, ...]:
         return Mutation(label, src, old, new, WORDS_TESTS)
 
     return (
+        Mutation(
+            "scored_utterances: pool every gap into every turn",
+            src,
+            "                g for g in clip.truth.gaps if bounds[i] <= g.start_ms < bounds[i + 1]",
+            "                g for g in clip.truth.gaps",
+            TRACKC_TESTS,
+        ),
+        Mutation(
+            "expected_at: return the first turn's class for every turn",
+            src,
+            "    return covering[-1].expected_answer if covering else None",
+            "    return covering[0].expected_answer if covering else None",
+            TRACKC_TESTS,
+        ),
         mutation(
             "_turn_from_words: drop the wordless guard",
             "    if not clip.truth.words:",
@@ -776,6 +791,79 @@ def _metrics_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _trackc_mutations() -> tuple[Mutation, ...]:
+    """The Track C ingest. First tier: it manufactures a scored corpus.
+
+    Everything here feeds a published number in the second sense of CLAUDE.md
+    §5 — the corpus ground truth, the seam that decides the turn count, and the
+    regime labels PCR scores. ADR-029 notes that hand-authored ground truth has
+    no mutation harness at all; this is the part of it that *is* code, so it
+    gets one.
+    """
+    src = "src/nod_bench/trackc.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, TRACKC_TESTS)
+
+    return (
+        mutation(
+            "check_seams: accept a seam one frame below the floor",
+            "    seams = tuple((s, e) for s, e in interior if e - s >= MIN_SEAM_MS)",
+            "    seams = tuple((s, e) for s, e in interior if e - s >= MIN_SEAM_MS - 50)",
+        ),
+        mutation(
+            "check_seams: count the trailing silence as a seam",
+            "        (start, end) for start, end in silent_runs(audio, sr) if end <= final_ms",
+            "        (start, end) for start, end in silent_runs(audio, sr)",
+        ),
+        mutation(
+            "check_seams: pass when too many pauses reached seam length",
+            "    if len(seams) < wanted:",
+            "    if len(seams) != wanted:",
+        ),
+        mutation(
+            "MIN_SEAM_MS: shrink below conservative's 3600 ms gate",
+            "MIN_SEAM_MS: Final = 4500",
+            "MIN_SEAM_MS: Final = 3400",
+        ),
+        mutation(
+            "SEAM_FLOOR_DBFS: drift away from the simulator's floor",
+            "SEAM_FLOOR_DBFS: Final = -44.0",
+            "SEAM_FLOOR_DBFS: Final = -40.0",
+        ),
+        mutation(
+            "promote_word_gaps: mark a transcript gap certain (ADR-034 breach)",
+            '                certainty="ambiguous",',
+            '                certainty="certain",',
+        ),
+        mutation(
+            "promote_word_gaps: label a transcript gap complete, not fragment",
+            '                preceding="fragment",',
+            '                preceding="complete",',
+        ),
+        mutation(
+            "promote_word_gaps: drop the dedup, shadowing the seam label",
+            "        if any(start <= g.end_ms and g.start_ms <= end for g in described):",
+            "        if False:",
+        ),
+        mutation(
+            "promote_word_gaps: dedup on containment of the start, not overlap",
+            "        if any(start <= g.end_ms and g.start_ms <= end for g in described):",
+            "        if any(g.start_ms <= start <= g.end_ms for g in described):",
+        ),
+        mutation(
+            "build: accept a single-utterance call",
+            "        if len(clip.utterances) < 2:",
+            "        if False:",
+        ),
+        mutation(
+            "build_clip: give every turn the first turn's declared class",
+            "            expected_answer=turn.expected_answer,",
+            "            expected_answer=script.turns[0].expected_answer,",
+        ),
+    )
+
+
 CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "profiler": _profiler_mutations(),
     "arbiter": _arbiter_mutations(),
@@ -783,6 +871,7 @@ CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "proxy": _proxy_mutations(),
     "replay": _replay_mutations(),
     "metrics": _metrics_mutations(),
+    "trackc": _trackc_mutations(),
     "transcribe": _transcribe_mutations(),
     "selftest": _self_test_mutations(),
 }
