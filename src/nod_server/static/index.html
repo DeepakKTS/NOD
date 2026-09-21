@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nod — live call</title>
+<style>
+  /* DESIGN_SYSTEM.md §3, verbatim. Four functional colours, each meaning one
+     thing. Amber is never decorative: if something is amber the caller has
+     the floor. */
+  :root {
+    --ink-900: #0A0E14; --ink-800: #121821; --ink-700: #1B2430;
+    --floor: #F0A63C; --agent: #64D2FF; --cut: #FF453A; --calm: #30D158;
+    --text-1: rgba(255,255,255,0.92);
+    --text-2: rgba(255,255,255,0.62);
+    --text-3: rgba(255,255,255,0.38);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ink-900); color: var(--text-1);
+    font: 15px/1.5 ui-sans-serif, -apple-system, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar {
+    height: 52px; display: flex; align-items: center; gap: 16px; padding: 0 24px;
+    background: rgba(27,36,48,0.55); backdrop-filter: blur(20px) saturate(1.4);
+    border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0;
+  }
+  .bar h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .01em; }
+  .dot { margin-left: auto; font-size: 13px; color: var(--text-2); }
+  .dot b { color: var(--calm); font-weight: 400; }
+  .dot.degraded b { color: var(--cut); }
+  main { max-width: 1200px; padding: 32px 24px; }
+
+  /* §5: the Floor Meter is the hero and must not sit on glass, or the fill
+     loses contrast. Solid on the field. */
+  .meter-wrap { margin-bottom: 8px; }
+  .meter {
+    position: relative; height: 34px; border-radius: 17px;
+    background: var(--ink-700); overflow: hidden;
+    /* §2: the capsule's LENGTH is max_turn_silence. This is the spring, and
+       it is the only non-user-triggered motion in the app. */
+    transition: width 520ms cubic-bezier(.2,.9,.3,1.2);
+    width: 40%;
+  }
+  .fill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: var(--floor); border-radius: 17px;
+  }
+  .tick {
+    position: absolute; top: 0; bottom: 0; width: 1px;
+    background: rgba(255,255,255,0.5);
+  }
+  .tick.soft { background: rgba(100,210,255,0.45); }
+  .meter-row { display: flex; align-items: baseline; gap: 14px; }
+  .meter-val { font-size: 22px; font-weight: 500; }
+  .reason { font-size: 13px; color: var(--text-2); margin: 6px 0 28px; min-height: 19px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+  .card {
+    background: rgba(27,36,48,0.42); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 16px 18px;
+  }
+  .card h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-3); margin: 0 0 12px; font-weight: 600;
+  }
+  .strip div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
+  .strip span:first-child { color: var(--text-2); }
+  .up { color: var(--agent); }
+  .down { color: var(--text-3); }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .tile .n { font-size: 26px; font-weight: 500; }
+  .tile .l { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--text-3); }
+  #transcript { min-height: 180px; max-height: 320px; overflow-y: auto; font-size: 15px; }
+  #transcript .partial { color: var(--text-3); }
+  .empty { color: var(--text-3); font-size: 13px; }
+  button {
+    font: inherit; color: var(--ink-900); background: var(--floor);
+    border: 0; border-radius: 9px; padding: 8px 16px; cursor: pointer;
+  }
+  button[disabled] { background: var(--ink-700); color: var(--text-3); cursor: default; }
+
+  /* §9: reduced motion jumps to the new length instead of springing. No
+     component library here to do it (ADR-038), so it is written by hand. */
+  @media (prefers-reduced-motion: reduce) {
+    .meter { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Nod</h1>
+  <span style="color:var(--text-2);font-size:13px">Live call</span>
+  <span class="dot" id="status">◉ <b>waiting</b></span>
+</div>
+
+<main>
+  <div class="meter-wrap">
+    <div class="meter" id="meter">
+      <div class="fill" id="fill"></div>
+      <div class="tick" id="tickMin"></div>
+      <div class="tick soft" id="tickConf" hidden></div>
+    </div>
+  </div>
+  <div class="meter-row">
+    <span class="meter-val" id="meterVal">1.28 s</span>
+    <span style="color:var(--text-2);font-size:13px" id="meterState">Waiting for the caller</span>
+  </div>
+  <div class="reason" id="reason"></div>
+  <div style="margin:-14px 0 24px"><button id="mic">Start call</button>
+    <span id="agentLine" style="margin-left:14px;font-size:13px;color:var(--agent)"></span></div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Transcript</h2>
+      <div id="transcript"><div class="empty">Nothing yet.</div></div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Listening window</h2>
+        <div class="strip">
+          <div><span>min</span><span id="cMin">400 ms</span></div>
+          <div><span>max</span><span id="cMax">1 280 ms</span></div>
+          <div><span>state</span><span id="cState">cold</span></div>
+        </div>
+      </div>
+      <div class="tiles">
+        <div class="card tile"><div class="n" id="tCuts">0</div><div class="l">Cuts</div></div>
+        <div class="card tile"><div class="n" id="tPatches">0</div><div class="l">Patches</div></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// The capsule's length is max_turn_silence on a fixed scale, so a widening
+// window is visibly a longer capsule rather than a rescaled one.
+const MAX_SCALE_MS = 4000;
+const $ = (id) => document.getElementById(id);
+
+let maxMs = 1280, minMs = 400, patches = 0, cuts = 0;
+let lastWordEndMs = null, streamT0 = null, wallT0 = null;
+
+function fmt(ms) { return (ms / 1000).toFixed(2) + " s"; }
+function group(ms) { return String(Math.round(ms)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " ms"; }
+
+function layout() {
+  $("meter").style.width = Math.max(6, Math.min(100, (maxMs / MAX_SCALE_MS) * 100)) + "%";
+  $("tickMin").style.left = Math.min(100, (minMs / maxMs) * 100) + "%";
+  $("meterVal").textContent = fmt(maxMs);
+  $("cMin").textContent = group(minMs);
+  $("cMax").textContent = group(maxMs);
+}
+
+// The fill runs on the browser's own clock from the last word's end, so the
+// server never ticks at us for a cosmetic animation.
+function tick() {
+  if (lastWordEndMs !== null && wallT0 !== null) {
+    const silent = performance.now() - wallT0;
+    const pct = Math.max(0, Math.min(100, (silent / maxMs) * 100));
+    $("fill").style.width = pct + "%";
+    $("meterState").textContent = pct >= 100
+      ? "Agent takes the floor" : "Caller holds the floor";
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function addTurn(p, final) {
+  const box = $("transcript");
+  if (box.querySelector(".empty")) box.innerHTML = "";
+  let row = box.querySelector(".partial");
+  if (!row) { row = document.createElement("div"); box.appendChild(row); }
+  row.textContent = p.transcript || "";
+  row.className = final ? "" : "partial";
+  box.scrollTop = box.scrollHeight;
+  lastWordEndMs = p.t_ms;
+  wallT0 = performance.now();
+  if (streamT0 === null) streamT0 = p.t_ms;
+}
+
+function connect(sessionId) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/v1/console?session_id=${sessionId}`);
+  ws.onopen = () => { $("status").innerHTML = "◉ <b>live</b>"; };
+  ws.onclose = () => { $("status").classList.add("degraded"); $("status").innerHTML = "◉ <b>closed</b>"; };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.kind === "config.changed") {
+      // INV-4: no capsule moves without the explanation that came with it.
+      maxMs = m.max_turn_silence ?? maxMs;
+      minMs = m.min_turn_silence ?? minMs;
+      patches += 1;
+      $("tPatches").textContent = patches;
+      $("cState").textContent = m.state ?? "-";
+      $("reason").textContent = reasonLine(m);
+      layout();
+    } else if (m.kind === "turn.partial") {
+      bargeIn();
+      addTurn(m, false);
+    } else if (m.kind === "turn.final") {
+      addTurn(m, true);
+      replyTo(m.transcript);
+    } else if (m.kind === "cut.detected") {
+      cuts += 1; $("tCuts").textContent = cuts;
+    } else if (m.kind === "agent.state" && m.state) {
+      $("meterState").textContent = m.state;
+    } else if (m.kind === "session.ended") {
+      $("status").innerHTML = "◉ <b>ended</b>";
+    }
+  };
+}
+
+// §6's copy rule: plain language, never "p90=1400".
+const TRIGGERS = {
+  pause_p90_rose: "Caller is pausing longer",
+  pause_p90_fell: "Caller is pausing less",
+  context_hint: "Reading out an identifier",
+  cut_detected: "Cut the caller off — widening",
+  cold_start: "Learning this caller's rhythm",
+};
+function reasonLine(m) {
+  const base = TRIGGERS[m.trigger] || m.trigger || "Adjusted";
+  return `${base} — waiting up to ${fmt(m.max_turn_silence)} (${m.rule_id})`;
+}
+
+// ---------------------------------------------------------------------------
+// The thin agent (ADR-035 clause 1): browser TTS, one LLM call, no filler and
+// no false-barge recovery. Barge-in is here because it is three lines.
+// ---------------------------------------------------------------------------
+
+let sessionId = null, stream = null, speaking = false;
+
+function speak(text) {
+  if (!text || !window.speechSynthesis) return;
+  $("agentLine").textContent = "\u201c" + text + "\u201d";
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 1.03;
+  u.onstart = () => { speaking = true; };
+  u.onend = () => { speaking = false; };
+  speechSynthesis.speak(u);
+}
+
+// Barge-in: the caller starting again cuts the agent off mid-word. No
+// false-barge recovery — if the VAD was wrong the agent simply stops, which
+// ADR-035 records as cut rather than pretended.
+function bargeIn() {
+  if (speaking && window.speechSynthesis) { speechSynthesis.cancel(); speaking = false; }
+}
+
+async function replyTo(transcript) {
+  if (!transcript) return;
+  const r = await fetch(`/v1/sessions/${sessionId}/reply`, {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({transcript}),
+  });
+  speak((await r.json()).text);
+}
+
+// Mic capture. The upstream wants mono 16 kHz PCM16 in 50 ms frames, and
+// getUserMedia gives float32 at the device rate, so this decimates and packs.
+async function startMic() {
+  const media = await navigator.mediaDevices.getUserMedia({audio: {
+    channelCount: 1, echoCancellation: true, noiseSuppression: true,
+  }});
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(media);
+  const node = ctx.createScriptProcessor(4096, 1, 1);
+  const RATE = 16000, FRAME = RATE * 0.05;
+  let carry = [];
+  node.onaudioprocess = (e) => {
+    const input = e.inputBuffer.getChannelData(0);
+    const ratio = ctx.sampleRate / RATE;
+    for (let i = 0; i < input.length / ratio; i++) {
+      carry.push(input[Math.floor(i * ratio)]);
+    }
+    while (carry.length >= FRAME) {
+      const chunk = carry.splice(0, FRAME);
+      const pcm = new Int16Array(chunk.length);
+      for (let i = 0; i < chunk.length; i++) {
+        pcm[i] = Math.max(-1, Math.min(1, chunk[i])) * 32767;
+      }
+      if (stream && stream.readyState === 1) stream.send(pcm.buffer);
+    }
+  };
+  src.connect(node); node.connect(ctx.destination);
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  stream = new WebSocket(`${proto}://${location.host}/v1/stream?session_id=${sessionId}`);
+  stream.binaryType = "arraybuffer";
+  $("mic").textContent = "Call running";
+  $("mic").disabled = true;
+}
+
+layout();
+const preset = new URLSearchParams(location.search).get("session_id");
+const ready = preset
+  ? Promise.resolve(preset)
+  : fetch("/v1/sessions", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: "{}",
+    }).then(r => r.json()).then(b => b.session_id);
+
+ready.then((id) => { sessionId = id; connect(id); });
+$("mic").onclick = () => startMic().catch((e) => {
+  $("reason").textContent = "Microphone unavailable: " + e.message;
+});
+</script>
+</body>
+</html>

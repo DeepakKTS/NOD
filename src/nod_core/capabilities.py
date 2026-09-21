@@ -43,6 +43,25 @@ UPDATABLE_FIELDS: Final = (
 )
 """The four knobs `UpdateConfiguration` is documented to cover (CONTROL_SPEC.md §0)."""
 
+MEASURED_CAPABILITIES: Final = Capabilities(
+    knobs=tuple((field, KnobVerdict.LIVE) for field in UPDATABLE_FIELDS),
+    confidence_field=ConfidenceField.VARYING,
+    force_endpoint=KnobVerdict.LIVE,
+    has_word_timings=True,
+)
+"""What ADR-001 measured on `universal-streaming-english`.
+
+Lives here rather than in `nod_bench` so the bench and the live server read the
+**same object**. Two copies agreeing by meaning is ADR-018's hazard, and this is
+the capability gate in front of both silence knobs — a divergence would let the
+bench reward a knob the server filters out, or the reverse.
+
+`end_of_turn_confidence_threshold` is `LIVE` here and still never sent: §4 does
+not emit it (ADR-011). Marking it live rather than `INERT` keeps the gate from
+being the reason it is absent, so a law that started emitting it would show up
+on the chart instead of being silently filtered.
+"""
+
 PROBE_CACHE_SIZE: Final = 16
 """Capability probes retained, keyed on (model, api_version) (ARCHITECTURE.md §5)."""
 

@@ -393,3 +393,105 @@ resolve.
   §8, nothing built on this recording may claim Nod was measured on older callers,
   non-native speakers or people who stutter. The honest claim is that the controller
   responds to pause structure, measured on pause structure.
+
+---
+
+## 9. The pilot gate — run this before booking a reader
+
+**One short recording, validated, before a full session.** The ingestion path exists
+(`src/nod_bench/trackc.py`, ADR-030 and ADR-034) and the dry run below passed on
+synthesised audio. Synthesised audio is the *easy* case in the one direction that matters,
+so a pass there does not predict a pass on a person in a room. Twenty minutes of pilot buys
+the difference.
+
+### The command
+
+Record **two or three turns** of any script, edited exactly as a real call would be —
+caller audio only, agent prompts cut, 4.5 s of silence in each seam, 4.5 s of tail. Then:
+
+```
+python -m nod_bench.trackc check \
+    --audio pilot.wav --script data/trackC/scripts/A-fluent.json
+```
+
+or `make trackc-check AUDIO=pilot.wav SCRIPT=data/trackC/scripts/A-fluent.json`.
+
+Trim the script JSON to the number of turns you actually recorded: the check compares the
+seam count against it.
+
+### What a pass looks like
+
+```
+pilot: 2 seams, all clear
+```
+
+Exit 0, one line, seam count one less than the turn count. Nothing else is a pass.
+
+### What each failure means, and what to change
+
+| Message | Cause | Fix |
+|---|---|---|
+| `N seam(s) of at least 4500 ms, but ... needs M` with `Longest sub-threshold silences: ...` | A seam was edited short, **or** the room is not quiet enough for the seam to register as silence at all | If the listed silences are near 4500 ms, lengthen the seams. If the list is empty or the durations are tiny, it is the room — see below |
+| `... expects M. An intra-turn pause reached seam length` | A hesitation ran past 4.5 s and now ends the turn on every arm | Retake that turn. §6.2 asks for 1000-2500 ms; do not relabel |
+| `expected 16000 Hz, found 44100` | Wrong export | Resample to mono 16 kHz PCM16 |
+
+### The risk this gate exists to catch: room tone
+
+**`SEAM_FLOOR_DBFS` is −44.0 dBFS**, asserted equal to what the simulator's `Endpointer`
+hears at the default `vad_threshold`. A seam quieter than that is a seam; a seam above it
+is not, *to every downstream consumer*. ADR-031 measured the direction: over 135 frames of
+`say` speech only 2 reached −44 dBFS, and a human recorded in a room carries room tone,
+breath and mic self-noise that push frame energy further up. So an untreated room can
+produce a recording whose seams are inaudible to the pipeline.
+
+**It fails loudly, which is the point.** `check_seams` finds zero seam-length runs, reports
+that it needed M and found 0, and exits non-zero. It does not silently produce a
+single-utterance corpus. But it fails *after* the session unless the pilot is run first,
+and the script's gap budget is not recoverable from the audio afterwards (ADR-031).
+
+To diagnose a suspected room-tone failure, print the frame-energy distribution:
+
+```python
+from nod_bench.trackc import silent_runs
+print(silent_runs(audio, sr))          # at the -44 dBFS floor
+print(silent_runs(audio, sr, floor_dbfs=-30.0))   # a permissive floor
+```
+
+If the permissive floor finds the seams and the default does not, the room is the problem,
+not the edit. **Treat the room or gate the seams to digital silence in the editor** — do
+not lower `SEAM_FLOOR_DBFS`, which is pinned to the simulator's floor by
+`test_the_seam_floor_matches_the_simulators` and would decouple the corpus from what any
+arm actually hears.
+
+### After the seam check passes
+
+Transcribe and ingest the pilot, then confirm the two numbers §8 asks for:
+
+```
+python -m nod_bench.trackc build --audio pilot.wav --script <trimmed>.json --out /tmp/pilot
+```
+
+Read off the reported turn count and promoted-gap count, and check the transcript word
+count against the script's — the dry run below returned **84 words where the script
+predicted 111**, which moved the crossing turn from 2 to 3. That ratio is the single most
+useful number the pilot produces, because it scales the whole gap budget.
+
+### The dry run, recorded (2026-09-21)
+
+Script A, `say`-synthesised, 10 turns, 4600 ms seams, 78.8 s. **Not a recording and not a
+published number** — the standing note that `say` is adequate for probing and not for
+numbers applies (ADR-031).
+
+| | script A predicts | dry run |
+|---|---|---|
+| caller words | 111 | 84 |
+| turns | 10 | 10 |
+| gaps | 101 | 74 |
+| crosses `MIN_GAPS_FOR_WARM` (24) | turn 2 | **turn 3** |
+
+Patches emitted: `nod` 8, `nod-nocontext` 4, `nod-nospeaker` 8. The three controlled arms
+differ from each other and from `balanced` for the first time in the project.
+
+**Warming in the dry run is necessary and not sufficient.** It shows the pipeline is not
+broken. It does not show that a recorded call will warm, because every floor in the path is
+calibrated against digital silence and a room is not digitally silent.

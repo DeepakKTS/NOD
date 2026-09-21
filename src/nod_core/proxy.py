@@ -567,3 +567,8 @@ class SessionProxy:
     def config_in_force(self) -> TurnConfig:
         """What the socket is actually running, updated only on a confirmed send."""
         return self._current
+
+    @property
+    def stream_ms(self) -> int:
+        """Stream-relative time from word timings, never wall clock. CLAUDE.md §6."""
+        return self._stream_ms

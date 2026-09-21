@@ -132,6 +132,9 @@ bench: ## Full benchmark offline against FakeAssemblyAI, no API key needed
 bench-live: ## Full benchmark against the real API; needs ASSEMBLYAI_API_KEY
 	$(RUN_BENCH) python -m nod_bench.replay --live --repeats 5 --out bench/runs
 
+trackc-check: ## Pilot gate: validate one recording's seams. AUDIO= SCRIPT=
+	$(RUN_BENCH) python -m nod_bench.trackc check --audio $(AUDIO) --script $(SCRIPT)
+
 bench-clean: ## Drop the bench result cache
 	rm -rf .nodcache
 

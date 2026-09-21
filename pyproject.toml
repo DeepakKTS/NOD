@@ -75,6 +75,11 @@ dev = [
     "pytest-cov==7.1.0",
     # CLAUDE.md §3: property tests catch clamp bugs. CONTROL_SPEC.md §9.
     "hypothesis==6.168.0",
+    # starlette's TestClient transport. Named explicitly because starlette
+    # raises StarletteDeprecationWarning at import time and refuses to fall
+    # back to httpx, so the websocket integration tests cannot collect without
+    # it. Pinned like every other tool here.
+    "httpx2==2.13.0",
     # ARCHITECTURE.md §10 and docs/PROMPTS.md P0: pip-audit runs in CI.
     "pip-audit==2.10.1",
     # Required by starlette.testclient. In-process ASGI, so no socket: INV-7 holds.
@@ -85,6 +90,9 @@ dev = [
 Homepage = "https://github.com/DeepakKTS/NOD"
 
 [tool.hatch.build.targets.wheel]
+# The console is a static asset inside the package (ADR-038), so it has to be
+# included explicitly or the wheel ships an API that 500s on `/`.
+artifacts = ["src/nod_server/static/*.html"]
 packages = [
     "src/nod_core",
     "src/nod_bench",
@@ -193,6 +201,13 @@ disallow_any_explicit = false
 module = ["soundfile", "librosa", "librosa.*"]
 ignore_missing_imports = true
 
+# The Anthropic SDK is an optional runtime dependency of the reference agent
+# (ADR-035 clause 1): the console works without it, falling back to a fixed
+# reply, so it is imported lazily inside the constructor rather than declared.
+[[tool.mypy.overrides]]
+module = ["anthropic"]
+ignore_missing_imports = true
+
 # ---------------------------------------------------------------------------
 # pytest — CLAUDE.md §3 Tests, INV-7
 # ---------------------------------------------------------------------------
@@ -219,6 +234,12 @@ filterwarnings = [
     # re-attributes the warning to its caller, so a module filter never fires.
     # Narrow enough that our own deprecations still fail the build.
     "ignore:The `(n_fft|hop_length)` parameter is deprecated:FutureWarning",
+    # starlette's TestClient module warns at *import* time: it touches
+    # `anyio.abc.BlockingPortal`, which anyio has aliased away. Raised inside a
+    # third-party import, so nothing here can stop it and `error` turns it into
+    # a collection failure for every websocket integration test. Matched on the
+    # exact alias message, so our own DeprecationWarnings still fail the build.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
     # numba, compiling librosa's phase vocoder, warns on an intermediate cast.
     # Order-dependent: numba JITs lazily, so it surfaces only once something
     # else has warmed the registry, which made it a flake rather than a

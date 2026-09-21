@@ -14,17 +14,37 @@ go unexercised until deployment week. Every other route here still raises
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import asyncio
+import secrets
+from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Final
+from pathlib import Path
+from typing import TYPE_CHECKING, Final
 
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, FastAPI, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
+from nod_adapters.llm.anthropic import AnthropicClient
+from nod_adapters.protocols import Message
+from nod_core.arbiter import DEFAULT_CEILING_MS
 from nod_core.config import Settings
-from nod_core.types import JsonValue, Voice
+from nod_core.types import JsonValue, NodMode, Voice
+from nod_server.telemetry import ConsoleTeeSink, TelemetryHub
+from nod_server.ws import console_endpoint, stream_endpoint
+
+if TYPE_CHECKING:  # pragma: no cover - annotations only
+    from nod_core.proxy import SessionProxy
+
+type Runner = Callable[[], Coroutine[None, None, None]]
+"""What a factory hands back to be driven as a task: the proxy's `run`."""
+
+CONSOLE_HTML: Final = Path(__file__).parent / "static" / "index.html"
+"""The one demo screen. Served from the API container; no second deploy target."""
+
+SAMPLE_RATE_HZ: Final = 16000
+"""Caller audio is mono 16 kHz PCM16 (ARCHITECTURE.md §7)."""
 
 router = APIRouter(prefix="/v1")
 health_router = APIRouter()
@@ -73,6 +93,62 @@ being opaque. As each subsystem lands, flip its entry to a live check.
 """
 
 
+def default_proxy_factory(
+    settings: Settings,
+) -> Callable[[SessionRecord, TelemetryHub], Awaitable[tuple[SessionProxy, Runner]]]:
+    """Build the factory that gives each session a proxy over a real upstream.
+
+    Returned rather than inlined so a test can replace `app.state.proxy_factory`
+    with one over `FakeAssemblyAI` and never touch the network (INV-7).
+
+    The sink is a `ConsoleTeeSink`, which is the whole console wiring: the proxy
+    already emits every record INV-4 and INV-8 require, and teeing them costs no
+    change to the controller path.
+
+    Args:
+        settings: Process settings, holding the upstream key and trace dir.
+
+    Returns:
+        An async factory from a session record to `(proxy, run)`.
+    """
+
+    async def factory(
+        record: SessionRecord, hub: TelemetryHub
+    ) -> tuple[SessionProxy, Runner]:
+        from nod_adapters.assemblyai.session import AssemblyAISession
+        from nod_core.arbiter import Arbiter
+        from nod_core.capabilities import MEASURED_CAPABILITIES
+        from nod_core.profiler import Profiler
+        from nod_core.proxy import SessionProxy as _Proxy
+
+        upstream = AssemblyAISession(
+            api_key=(
+                settings.assemblyai_api_key.get_secret_value()
+                if settings.assemblyai_api_key
+                else ""
+            ),
+            model=settings.nod_model,
+            sample_rate=SAMPLE_RATE_HZ,
+            config={},
+        )
+        await upstream.__aenter__()
+        proxy = _Proxy(
+            upstream=upstream,
+            profiler=Profiler(),
+            arbiter=Arbiter(
+                capabilities=MEASURED_CAPABILITIES, ceiling_ms=record.ceiling_ms
+            ),
+            trace=ConsoleTeeSink(
+                record.session_id, hub=hub, directory=settings.nod_trace_dir
+            ),
+            mode=record.mode,
+            ceiling_ms=record.ceiling_ms,
+        )
+        return proxy, proxy.run
+
+    return factory
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the application.
 
@@ -107,15 +183,109 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     app.state.settings = resolved
+    app.state.sessions = {}
+    app.state.hub = TelemetryHub()
+    app.state.proxy_factory = default_proxy_factory(resolved)
+    app.state.llm = AnthropicClient(
+        resolved.llm_api_key.get_secret_value() if resolved.llm_api_key else ""
+    )
     app.include_router(health_router)
     app.include_router(router)
+
+    @app.websocket("/v1/stream")
+    async def _stream(  # pragma: no cover - exercised by the integration test
+        websocket: WebSocket, session_id: str
+    ) -> None:
+        """Route `WS /v1/stream` onto a live `SessionProxy`."""
+        record = app.state.sessions.get(session_id)
+        if record is None:
+            await websocket.close(code=4404)
+            return
+        factory = app.state.proxy_factory
+        proxy, run = await factory(record, app.state.hub)
+        task = asyncio.create_task(run())
+        try:
+            await stream_endpoint(
+                websocket,
+                proxy=proxy,
+                hub=app.state.hub,
+                session_id=session_id,
+                nod_preset=record.preset,
+                nod_mode=record.mode,
+                nod_ceiling_ms=record.ceiling_ms,
+            )
+        finally:
+            task.cancel()
+            await proxy.aclose()
+
+    @app.get("/", include_in_schema=False)
+    async def _console_page() -> Response:
+        """Serve the one demo screen (ROADMAP §3, ADR-038).
+
+        Read per request rather than cached: the file is 8 KB and the demo is
+        edited live during rehearsal, where a stale cache costs more than the
+        read does.
+        """
+        return HTMLResponse(CONSOLE_HTML.read_text(encoding="utf-8"))
+
+    @app.websocket("/v1/console")
+    async def _console(  # pragma: no cover - exercised by the integration test
+        websocket: WebSocket, session_id: str
+    ) -> None:
+        """Route `WS /v1/console` onto the fan-out."""
+        await console_endpoint(websocket, session_id, hub=app.state.hub)
+
     return app
 
 
+@dataclass(frozen=True, slots=True)
+class SessionRecord:
+    """One created session, before its socket connects."""
+
+    session_id: str
+    preset: str
+    mode: NodMode
+    ceiling_ms: int
+
+
+def new_session_id() -> str:
+    """A session id. `O(1)`. Opaque, URL-safe and not guessable."""
+    return f"s-{secrets.token_urlsafe(9)}"
+
+
 @router.post("/sessions")
-async def create_session(body: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    """Create a session. Returns its id and WebSocket URL."""
-    raise NotImplementedError
+async def create_session(
+    body: dict[str, JsonValue], request: Request
+) -> dict[str, JsonValue]:
+    """Create a session. Returns its id and WebSocket URL.
+
+    The record is held in memory: ARCHITECTURE §6's SQLite index is for
+    completed sessions and CLAUDE.md §7 forbids a second state store before
+    the roadmap says so.
+
+    Args:
+        body: Optional `preset`, `mode` and `ceiling_ms`.
+        request: For the app-scoped registry.
+
+    Returns:
+        `session_id`, `ws_url` and `console_url`.
+    """
+    preset = str(body.get("preset", "balanced"))
+    mode = NodMode(str(body.get("mode", NodMode.ADAPT.value)))
+    ceiling = int(body.get("ceiling_ms", DEFAULT_CEILING_MS))  # type: ignore[arg-type]
+    record = SessionRecord(
+        session_id=new_session_id(), preset=preset, mode=mode, ceiling_ms=ceiling
+    )
+    registry: dict[str, SessionRecord] = request.app.state.sessions
+    registry[record.session_id] = record
+    return {
+        "session_id": record.session_id,
+        "ws_url": f"/v1/stream?session_id={record.session_id}",
+        "console_url": f"/v1/console?session_id={record.session_id}",
+        "preset": record.preset,
+        "mode": record.mode.value,
+        "ceiling_ms": record.ceiling_ms,
+    }
 
 
 @router.get("/sessions/{session_id}")
@@ -128,6 +298,38 @@ async def get_session(session_id: str) -> dict[str, JsonValue]:
 async def get_session_trace(session_id: str) -> Response:
     """Download the session trace as JSONL, redacted unless authorised (INV-6)."""
     raise NotImplementedError
+
+
+@router.post("/sessions/{session_id}/reply")
+async def agent_reply(
+    session_id: str, body: dict[str, JsonValue], request: Request
+) -> dict[str, JsonValue]:
+    """The reference intake agent's next line (ADR-035 clause 1, thinned).
+
+    Text in, text out. The browser speaks it with `speechSynthesis`, so no
+    audio crosses this boundary and no TTS key exists to leak (INV-5).
+
+    **Off the turn-timing path by construction** (CLAUDE.md §7): this is a
+    separate request the console makes *after* a turn has already ended. The
+    arbiter has decided and the patch has been sent before this is called.
+
+    Args:
+        session_id: The session, for the console topic.
+        body: `{"transcript": str}` — what the caller just said.
+        request: For the app-scoped client and hub.
+
+    Returns:
+        `{"text": ...}`. Never an error: a broken brain must not drop a call.
+    """
+    transcript = str(body.get("transcript", "")).strip()
+    if not transcript:
+        return {"text": ""}
+    client = request.app.state.llm
+    text = await client.reply([Message(role="user", content=transcript)])
+    request.app.state.hub.publish(
+        session_id, "agent.state", {"state": "speaking", "text": text, "t_ms": 0}
+    )
+    return {"text": text}
 
 
 @router.get("/voices")

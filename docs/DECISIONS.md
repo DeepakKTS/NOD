@@ -2049,6 +2049,13 @@ The stamp hashes the **working tree** and not `git ls-files -s`, which reports i
 a file edited and not staged would hash the same as before the edit and a stamp built from
 it would call a dirty tree clean.
 
+It also covers **untracked-but-not-ignored** files (`-c -o --exclude-standard`), and that
+was a correction made the first time the hook fired in anger. Hashing tracked files only
+meant the set changed the moment `git add` promoted a new file, so the ordinary sequence —
+`make gate`, `git add -A`, `git commit` — was refused with nothing wrong. Refusing is the
+safe direction and it was still a defect: **a guard that cries wolf on the normal workflow
+is a guard someone learns to skip**, which is precisely how the previous two died.
+
 `NOD_SKIP_GATE_STAMP=1` exists as the escape hatch, and is deliberately an environment
 variable that has to be typed rather than a flag that could be habitual.
 Consequence: three. **The failure is now loud and local** — the commit is refused with both
@@ -2058,3 +2065,33 @@ and a stamp for a different tree, each refused with `HEAD` unmoved. A guard whos
 path has never run is the thing CLAUDE.md §5 is about, and a *guard against that class* is
 the worst place to leave one untested. And **`make gate` is still the right command to run**;
 what changed is that forgetting it, or piping it, is no longer silent.
+
+## ADR-038 — The one demo screen is served static, not built with Next.js
+2026-09-21 · Status: accepted — stack deviation, scoped to the console
+Context: CLAUDE.md §3 fixes Next.js 15 / React 19 / Tailwind v4 for the console and requires
+an ADR for any alternative. This is that ADR. ROADMAP §3 cut the console down to **one
+screen** — the live call view with the Floor Meter, the config strip and the reason line —
+and ADR-035 dropped the voice switch and thinned the replay view to a single pane.
+
+What remains is one screen with one WebSocket, four numbers and one animation. Next.js for
+that costs a Node toolchain, a second build in CI, a second image in the Docker build, a
+second thing to deploy and a second thing to debug on the 28th, and the stack table's
+reason for choosing it — "matches owner's existing stack" — is about velocity on a large
+app, which this no longer is. Five days to freeze with the agent and the demo call still
+unbuilt.
+Decision: **one static HTML document with inline CSS and vanilla JS, served by the FastAPI
+app that already exists.** No bundler, no Node in the image, no second deploy target. It
+imports DESIGN_SYSTEM §3's tokens verbatim as CSS custom properties so the screen is the
+designed one and not an improvisation.
+
+Scoped deliberately: **this licenses the console and nothing else.** The stack table stands
+for every other layer, and if the console ever grows past one screen the right move is to
+build it in Next.js rather than to keep extending a static file.
+Consequence: three. The screen ships in the same container as the API, so
+`make run` serves it and DEPLOYMENT.md gains no new step. **`prefers-reduced-motion` is
+honoured by hand** rather than by a framework — DESIGN_SYSTEM §9 requires the Floor Meter to
+jump rather than spring, and with no component library that is a media query someone has to
+write, so it is written and noted here in case it is missed in review. And the console is
+**second-tier coverage** by CLAUDE.md §5: it fails visibly, and the tests that matter are
+the ones asserting the server puts INV-4's fields on the wire, which live in
+`tests/integration/test_console_loop.py` and do not depend on the browser.

@@ -29,14 +29,11 @@ from nod_core.arbiter import (
     Arbiter,
     ArbiterInput,
 )
-from nod_core.capabilities import UPDATABLE_FIELDS
+from nod_core.capabilities import MEASURED_CAPABILITIES
 from nod_core.policy import CompiledPolicy, load_policy
 from nod_core.profiler import Profiler
 from nod_core.types import (
-    Capabilities,
-    ConfidenceField,
     ExpectedAnswer,
-    KnobVerdict,
     Turn,
     TurnConfig,
     WindowHint,
@@ -249,19 +246,8 @@ NOD_ARMS: Final = {
 }
 """The controlled arms of BENCH_SPEC §3, and their two ablations."""
 
-NOD_CAPABILITIES: Final = Capabilities(
-    knobs=tuple((field, KnobVerdict.LIVE) for field in UPDATABLE_FIELDS),
-    confidence_field=ConfidenceField.VARYING,
-    force_endpoint=KnobVerdict.LIVE,
-    has_word_timings=True,
-)
-"""What ADR-001 measured, so the capability gate passes both silence knobs.
-
-`end_of_turn_confidence_threshold` is marked `LIVE` here and still never sent:
-§4 does not emit it (ADR-011). Marking it live rather than `INERT` keeps the
-gate from being the reason it is absent, so a law that started emitting it would
-show up on the chart instead of being silently filtered.
-"""
+NOD_CAPABILITIES: Final = MEASURED_CAPABILITIES
+"""ADR-001's measurement, imported rather than restated (see its docstring)."""
 
 
 def _axes_label(axes: NodAxes) -> str:
