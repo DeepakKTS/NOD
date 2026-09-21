@@ -15,28 +15,33 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
-## Where this stands — 18 Sep, end of day
+## Where this stands — 21 Sep, end of day
 
 Pointers, not restatements. One source of truth; do not copy this elsewhere.
 
-**Phase 0** closed. **Phase 1** exit open on **Track C only** — corpus and clean-clone items
-closed. **Phase 2** implemented, exit blocked.
+**Phase 0** closed. **Phase 1** exit open on **Track C recording only** — the ingestion path
+now exists. **Phase 2** implemented; its exit is no longer blocked on tooling. **Phase 3**
+restated by ADR-035 and largely built.
 
-**Phase 2's four modules done**: `profiler`, `policy`, `arbiter`, `proxy`. 93 mutations killed
-via `make mutate`, twelve §9 properties passing (the thirteenth skipped as vacuous until
-`make bench` measures the endpoint overhead), `decide()` **6 µs p99** against INV-2's 5 ms.
+**Gate 8 cleared the Phase 2 blocker.** The controller had never emitted a patch outside a
+synthetic driver because Track A is per-utterance. `nod_bench.trackc` ingests a multi-turn
+call, and on a `say`-synthesised script-A dry run the profiler **warms on turn 3** and the
+arms emit **8 / 4 / 8** patches. The three controlled arms differ from each other and from
+`balanced` for the first time. That is a dry run on synthetic audio, not a measurement:
+TRACK_C_SCRIPT §9 states why warming there is necessary and not sufficient.
 
-**The blocker.** *The controller has never emitted a patch outside a synthetic driver.* Track A
-is per-utterance and Nod is a per-session adapter: 1–9 gaps per clip against a warm threshold
-of 24, so 0 of 120 clips warm and **Phase 2's chart has three controlled arms that are
-`balanced` under another name.** Not a coverage gap — nothing on the chart to widen. See
-ADR-022, ADR-026, ADR-027, ADR-028 and CLAUDE.md §5.
+**What landed at Gate 8.** ADR-034 (transcript gaps promoted to `Gap`s under the standing
+rule), ADR-035 (Phase 3's exit restated against the cut list), ADR-036 (`certain_only`
+scopes per gap), ADR-037 (the gate check moved into a pre-commit hook after a red gate
+reached a commit a third time), ADR-038 (the one demo screen is static, not Next.js).
+Track A sidecars regenerated with promotion — every figure unchanged, as predicted. The
+context axis is wired into `make bench` for the first time.
 
-**Next: write the Track C script, then record.** Prompts each with a declared
-`expected_answer`, and a `w − 1` gap count per prompt summing past 24 well before the call
-ends. Requirements and the tension between them are at Phase 0's bullet.
+**Phase 3, per ADR-035.** Clause 2 holds at full strength and its server path is tested end
+to end. Clause 1 is thin: browser TTS, one Claude call, no filler, no false-barge recovery.
+Clause 3 is dropped. Clause 4 is **not built** and is downstream of a recorded call.
 
-**Freeze 26 Sep.** Phase 3 is the agent and the console; **the console is unstarted.**
+**What Phase 4 inherits is listed at Phase 4 below. Freeze 26 Sep.**
 
 ---
 
@@ -258,6 +263,21 @@ committed trace with no API key.
 ---
 
 ## Phase 4 — Freeze and finish (Sep 26–28)
+
+**Inherited from Phase 3, explicitly, so none of it is discovered on the 27th:**
+
+1. **No Track C recording exists.** The ingestion path, the seam check and the pilot gate
+   do (TRACK_C_SCRIPT §9). A session has to be booked, and the pilot run *first* — room
+   tone against the −44 dBFS floors is the one risk the dry run cannot bound.
+2. **Replay mode (ADR-035 clause 4) is unbuilt and needs a committed Nod trace**, which
+   needs one real call first. 118 committed traces carry zero `config_decision` records.
+3. **No live bench run.** `--live` still exits 2. INV-9 routes every published figure
+   through it, so `docs/RESULTS.md` and the README table cannot be written until it runs.
+4. **ADR-032's patch census** and ADR-027's per-session count, collected together.
+5. **`ENDPOINT_OVERHEAD_MS` is still 0**, so CONTROL_SPEC §9 property 3 stays skipped and
+   every simulated TTL is optimistic by the overhead.
+6. **`/metrics`, `configure_logging` and auth are stubs.** Only `/metrics` is on
+   DEPLOYMENT.md §4's path.
 
 - **26 Sep: feature freeze.** Only bug fixes, docs and polish after this point.
 - Full bench run, live, `N = 5`. Regenerate `docs/RESULTS.md` and the README table.
