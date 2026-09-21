@@ -764,6 +764,11 @@ def _metrics_mutations() -> tuple[Mutation, ...]:
             "        if False:",
         ),
         mutation(
+            "total_utterances: count observations instead of utterances",
+            "    return sum(len(obs.utterances) for obs in runs)",
+            "    return len(runs)",
+        ),
+        mutation(
             "ClipObservation: drop the parallel-length validator",
             "        if self.emitted_silence_start_ms and len(self.emitted_silence_start_ms) != len(",
             "        if False and len(self.emitted_silence_start_ms) != len(",

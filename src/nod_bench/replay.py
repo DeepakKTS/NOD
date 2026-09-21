@@ -499,6 +499,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         certain_utterances,
         frag,
         pcr,
+        total_utterances,
     )
     from nod_bench.report import render_all
     from nod_core.arbiter import MAX_PATCHES
@@ -593,7 +594,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # "PCR of nothing is not 0.0" is their job and is not softened here — so the
     # guard lives in the caller, which is the only place that knows a missing
     # column is reportable rather than fatal.
-    certain_n = certain_utterances(by_arm[arms[0]])
+    certain_n = certain_utterances(everything)
     try:
         certain_pcr: float | None = pcr(everything, certain_only=True)
         certain_frag: float | None = frag(everything, certain_only=True)
@@ -645,7 +646,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             pcr_certain_only=certain_pcr,
             frag_all=frag(everything),
             frag_certain_only=certain_frag,
-            utterances_all=len(by_arm[arms[0]]),
+            utterances_all=total_utterances(everything),
             utterances_certain_only=certain_n,
         ),
     )

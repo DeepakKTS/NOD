@@ -30,6 +30,7 @@ from nod_bench.metrics import (
     frag,
     pcr,
     quantile,
+    total_utterances,
     ttl,
 )
 from nod_bench.perturb import Gap
@@ -474,6 +475,31 @@ def test_certainty_is_scoped_by_attribution_not_pooled_across_utterances() -> No
     assert certain_utterances(clips) == 1
     assert pcr(clips, certain_only=True) == 0.0
     assert frag(clips, certain_only=True) == 1.0
+
+
+def test_the_denominator_counts_utterances_not_observations() -> None:
+    """`pcr` is a rate over utterances, so its denominator must be one too.
+
+    One observation holding two utterances. `len(runs)` would say 1 and make
+    `ProxyDivergence` report a rate over 2 against a denominator of 1 — the
+    defect ADR-036 corrects. No single-utterance fixture can see this, which is
+    why it is written against a two-utterance one.
+    """
+    clips = [
+        _clip(
+            "two-turn",
+            (
+                ScoredUtterance(start_ms=0, final_word_end_ms=1000),
+                ScoredUtterance(start_ms=2000, final_word_end_ms=3000),
+            ),
+            (900.0, 3100.0),
+            (850.0, 3050.0),
+        )
+    ]
+    assert total_utterances(clips) == 2
+    assert len(clips) == 1
+    # The rate and its denominator now agree: one of the two fired early.
+    assert pcr(clips) == pytest.approx(1 / 2)
 
 
 def test_certain_only_with_nothing_certain_is_refused_not_zero() -> None:

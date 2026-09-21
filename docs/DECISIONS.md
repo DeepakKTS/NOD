@@ -1966,9 +1966,26 @@ Consequence: four.
    `test_an_utterance_that_emitted_nothing_is_certain` (0 == 1). They fail in **both**
    directions, which is what distinguishes a definition change from a loosening.
 
-4. **Noted and deliberately not fixed here: `ProxyDivergence`'s rates and denominators are
-   computed over different pools.** `pcr_all` is over all six arms' utterances (720) while
-   `utterances_all` reports one arm's (120). That predates this ADR, it makes a manifest
-   field misleading against `pcr`'s own "never report it without its denominator", and
-   fixing it changes a published number from 120 to 720. Left for an explicit decision
-   rather than folded into this change. **It is a real defect, not a stylistic quibble.**
+4. **`ProxyDivergence`'s rates and denominators came from different pools. Corrected at
+   this gate**, after being recorded here as a deferred decision and then taken.
+   `pcr_all` and `frag_all` were computed over all six arms' utterances while
+   `utterances_all` reported **120** — one arm's observation count — against a rate whose
+   pool was **720**. `utterances_certain_only` had the same split, reporting **23**.
+
+   **The old values are named here so a later reader does not mistake the change for the
+   pool having changed.** It did not. The manifest now reads `utterances_all` **720** and
+   `utterances_certain_only` **290**, over exactly the pool the rates use. No rate moved:
+   `pcr_all` is 0.318 before and after.
+
+   Two reasons it was fixed rather than left. The field **contradicted `pcr`'s own
+   documented rule** — "Never report it without its denominator" — by printing a
+   denominator that belonged to a different population, which is worse than printing none.
+   And **nothing is published yet**: INV-9 routes every published figure through Phase 4's
+   live runs, so correcting it now costs a manifest regeneration and correcting it later
+   would mean retracting a number.
+
+   Two further defects fell out of the same read and are fixed with it: `utterances_all`
+   counted **observations**, not utterances, which is identical only while every clip holds
+   exactly one — true of Track A and false of Track C, where a clip holds ten to twelve —
+   and `utterances_certain_only` was counted for `arms[0]` alone rather than the pool.
+   `total_utterances` now does the counting and carries a mutation.

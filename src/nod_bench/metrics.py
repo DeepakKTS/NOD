@@ -333,6 +333,22 @@ class RunManifest(BaseModel):
     proxy_divergence: ProxyDivergence
 
 
+def total_utterances(runs: Sequence[ClipObservation]) -> int:
+    """How many ground-truth utterances these observations hold. Pure. `O(n)`.
+
+    The denominator behind `pcr(runs)`. Counts *utterances*, not observations:
+    a Track C clip carries ten to twelve, and `len(runs)` would under-report it
+    by an order of magnitude.
+
+    Args:
+        runs: The observations to count.
+
+    Returns:
+        The count.
+    """
+    return sum(len(obs.utterances) for obs in runs)
+
+
 def certain_utterances(runs: Sequence[ClipObservation]) -> int:
     """How many utterances survive per-gap certainty scoping. Pure. `O(n·b·g)`.
 
