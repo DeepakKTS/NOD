@@ -20,11 +20,13 @@ from nod_bench.metrics import (
     SIMULATED_TAG,
     ArmConfig,
     ClipObservation,
+    MissingSilenceStartsError,
     ProxyDivergence,
     Quantiles,
     RunManifest,
     ScoredUtterance,
     artifact_name,
+    certain_utterances,
     frag,
     pcr,
     quantile,
@@ -54,9 +56,26 @@ def _clip(
     clip_id: str,
     utterances: tuple[ScoredUtterance, ...],
     emitted: tuple[float, ...],
+    silence_starts: tuple[float, ...] = (),
 ) -> ClipObservation:
     return ClipObservation(
-        clip_id=clip_id, arm="balanced", utterances=utterances, emitted_end_ms=emitted
+        clip_id=clip_id,
+        arm="balanced",
+        utterances=utterances,
+        emitted_end_ms=emitted,
+        emitted_silence_start_ms=silence_starts,
+    )
+
+
+def _gap(start: int, end: int, certainty: str) -> Gap:
+    """A gap spanning a real interval, so a silence start can land inside it."""
+    return Gap(
+        start_ms=start,
+        end_ms=end,
+        origin="pause" if certainty == "ambiguous" else "repeat",
+        preceding="fragment",
+        certainty=certainty,  # type: ignore[arg-type]
+        basis="test fixture",
     )
 
 
@@ -297,32 +316,164 @@ def test_certain_only_scoring_excludes_ambiguous_regime_utterances() -> None:
     clips = [
         _clip(
             "a",
-            (ScoredUtterance(start_ms=0, final_word_end_ms=1000, gaps=(AMBIGUOUS,)),),
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(800, 1000, "ambiguous"),),
+                ),
+            ),
             (900.0,),
+            (850.0,),
         ),
         _clip(
             "b",
-            (ScoredUtterance(start_ms=0, final_word_end_ms=1000, gaps=(CERTAIN,)),),
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(1000, 1200, "certain"),),
+                ),
+            ),
             (1100.0,),
+            (1050.0,),
         ),
         _clip(
             "c",
-            (ScoredUtterance(start_ms=0, final_word_end_ms=1000, gaps=(AMBIGUOUS,)),),
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(800, 1000, "ambiguous"),),
+                ),
+            ),
             (900.0,),
+            (850.0,),
         ),
     ]
     assert pcr(clips) == pytest.approx(2 / 3)
     assert pcr(clips, certain_only=True) == 0.0
     assert frag(clips) == 1.0
     assert frag(clips, certain_only=True) == 1.0
+    assert certain_utterances(clips) == 1
 
 
-def test_an_utterance_with_no_gaps_counts_as_certain() -> None:
-    """An unperturbed utterance rests on no proxy, so it is always in scope."""
+def test_an_ambiguous_gap_that_governed_no_boundary_does_not_exclude() -> None:
+    """The whole of ADR-036, in one fixture.
+
+    An utterance with a long ambiguous pause early on and a certain gap at the
+    end, where the only boundary fired in the certain one. The ambiguous label
+    was never consulted for this verdict, so the utterance is in scope.
+
+    **This is the assertion that goes red under the rule ADR-036 replaced.**
+    Utterance-level certainty required *every* gap to be certain, so the
+    ambiguous gap at 300-800 ms excluded this utterance and the certain-only
+    scope was empty. Verified red by reverting `_selected` to
+    `if not certain_only or all(g.certainty == "certain" for g in utterance.gaps)`.
+    """
     clips = [
-        _clip("a", (ScoredUtterance(start_ms=0, final_word_end_ms=1000),), (1100.0,))
+        _clip(
+            "a",
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(
+                        _gap(300, 800, "ambiguous"),
+                        _gap(1000, 1400, "certain"),
+                    ),
+                ),
+            ),
+            (1200.0,),
+            (1050.0,),
+        )
     ]
+    assert certain_utterances(clips) == 1
     assert pcr(clips, certain_only=True) == 0.0
+
+
+def test_an_utterance_whose_boundary_no_gap_covers_is_not_certain() -> None:
+    """An uncovered boundary took its regime from a fallback, not from a label.
+
+    `regime_at` returns `complete` where no gap covers the silence. That is a
+    rule the simulator applies, not a fact the sidecar recorded, so a verdict
+    resting on it is not `certain`. Measured on Track A: 45 boundaries per arm
+    land here, all within 14 ms of `final_word_end_ms` (ADR-034).
+    """
+    clips = [
+        _clip(
+            "a",
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(1000, 1400, "certain"),),
+                ),
+            ),
+            (1100.0,),
+            (960.0,),
+        )
+    ]
+    assert certain_utterances(clips) == 0
+    with pytest.raises(ValueError, match="no utterances"):
+        pcr(clips, certain_only=True)
+
+
+def test_an_utterance_that_emitted_nothing_is_certain() -> None:
+    """No boundary means no label was relied upon, so nothing is in doubt."""
+    clips = [
+        _clip(
+            "a",
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(300, 800, "ambiguous"),),
+                ),
+            ),
+            (),
+            (),
+        )
+    ]
+    assert certain_utterances(clips) == 1
+    assert pcr(clips, certain_only=True) == 0.0
+
+
+def test_certainty_is_scoped_by_attribution_not_pooled_across_utterances() -> None:
+    """A multi-utterance clip: each utterance is judged on *its own* boundaries.
+
+    Two utterances in one clip. The first ends inside an ambiguous gap; the
+    second ends inside a certain one. Correct attribution puts exactly the
+    second in scope. Pooling every boundary into every utterance would exclude
+    both, because each would see the other's ambiguous gap.
+
+    This is the Track C shape — 10-12 utterances per clip (ADR-034) — and no
+    single-utterance fixture can reach it, which is why `make mutate` reported
+    "attribute every boundary to every utterance" as a survivor until this
+    landed.
+    """
+    clips = [
+        _clip(
+            "two-turn",
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(1000, 1400, "ambiguous"),),
+                ),
+                ScoredUtterance(
+                    start_ms=2000,
+                    final_word_end_ms=3000,
+                    gaps=(_gap(3000, 3400, "certain"),),
+                ),
+            ),
+            (1200.0, 3200.0),
+            (1050.0, 3050.0),
+        )
+    ]
+    assert certain_utterances(clips) == 1
+    assert pcr(clips, certain_only=True) == 0.0
+    assert frag(clips, certain_only=True) == 1.0
 
 
 def test_certain_only_with_nothing_certain_is_refused_not_zero() -> None:
@@ -330,12 +481,50 @@ def test_certain_only_with_nothing_certain_is_refused_not_zero() -> None:
     clips = [
         _clip(
             "a",
-            (ScoredUtterance(start_ms=0, final_word_end_ms=1000, gaps=(AMBIGUOUS,)),),
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(800, 1000, "ambiguous"),),
+                ),
+            ),
             (900.0,),
+            (850.0,),
         )
     ]
     with pytest.raises(ValueError, match="no utterances"):
         pcr(clips, certain_only=True)
+
+
+def test_certain_only_without_silence_starts_is_refused_not_guessed() -> None:
+    """A missing input must not fall back to the definition ADR-036 replaced."""
+    clips = [
+        _clip(
+            "a",
+            (
+                ScoredUtterance(
+                    start_ms=0,
+                    final_word_end_ms=1000,
+                    gaps=(_gap(800, 1000, "ambiguous"),),
+                ),
+            ),
+            (900.0,),
+        )
+    ]
+    with pytest.raises(MissingSilenceStartsError, match="ADR-036"):
+        pcr(clips, certain_only=True)
+
+
+def test_silence_starts_must_pair_one_to_one_with_boundaries() -> None:
+    """A half-filled parallel array would mis-attribute every gap after the gap."""
+    with pytest.raises(ValidationError, match="silence starts"):
+        ClipObservation(
+            clip_id="a",
+            arm="balanced",
+            utterances=(ScoredUtterance(start_ms=0, final_word_end_ms=1000),),
+            emitted_end_ms=(900.0, 1100.0),
+            emitted_silence_start_ms=(850.0,),
+        )
 
 
 # ---------------------------------------------------------------------------

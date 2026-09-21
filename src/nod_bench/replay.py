@@ -159,10 +159,12 @@ def run_clip(
         endpoint_overhead_ms=endpoint_overhead_ms,
     )
     fired: list[float] = []
+    silence_starts: list[float] = []
     for frame in frames_of(clip.audio_path):
         boundary = endpointer.feed(frame)
         if boundary is not None:
             fired.append(boundary.fired_at_ms)
+            silence_starts.append(boundary.silence_started_ms)
     return ClipObservation(
         clip_id=clip.clip_id,
         arm=arm,
@@ -174,6 +176,7 @@ def run_clip(
             ),
         ),
         emitted_end_ms=tuple(fired),
+        emitted_silence_start_ms=tuple(silence_starts),
     )
 
 
@@ -351,6 +354,7 @@ def run_nod_clip(
         hint = policy.hint_for(expected_answer)
 
     fired: list[float] = []
+    silence_starts: list[float] = []
     consumed = 0
     patches = 0
     turns = 0
@@ -359,6 +363,7 @@ def run_nod_clip(
         if boundary is None:
             continue
         fired.append(boundary.fired_at_ms)
+        silence_starts.append(boundary.silence_started_ms)
         turns += 1
         turn, consumed = _turn_from_words(clip, consumed, boundary.fired_at_ms, turns)
         if turn is None:
@@ -403,6 +408,7 @@ def run_nod_clip(
                 ),
             ),
             emitted_end_ms=tuple(fired),
+            emitted_silence_start_ms=tuple(silence_starts),
         ),
         patches=patches,
         turns=turns,
@@ -490,6 +496,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ArmConfig,
         ProxyDivergence,
         RunManifest,
+        certain_utterances,
         frag,
         pcr,
     )
@@ -581,12 +588,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     everything = [o for obs in by_arm.values() for o in obs]
+    # ADR-036: an empty certain scope is the absence of a measurement, recorded
+    # as `None` rather than as a float. `pcr` and `frag` still raise on it —
+    # "PCR of nothing is not 0.0" is their job and is not softened here — so the
+    # guard lives in the caller, which is the only place that knows a missing
+    # column is reportable rather than fatal.
+    certain_n = certain_utterances(by_arm[arms[0]])
     try:
-        certain_pcr = pcr(everything, certain_only=True)
-        certain_frag = frag(everything, certain_only=True)
-        certain_n = sum(1 for o in by_arm[arms[0]] for u in o.utterances if u.certain)
+        certain_pcr: float | None = pcr(everything, certain_only=True)
+        certain_frag: float | None = frag(everything, certain_only=True)
     except ValueError:
-        certain_pcr, certain_frag, certain_n = float("nan"), float("nan"), 0
+        certain_pcr, certain_frag = None, None
 
     manifest = RunManifest(
         seed=corpus.seed,

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Final
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from nod_bench.perturb import Gap
 
@@ -83,6 +83,16 @@ def quantile(samples: Sequence[float], q: float) -> float:
 type Samples = NDArray[np.float64]
 
 
+class MissingSilenceStartsError(RuntimeError):
+    """An observation cannot support per-gap certainty scoping (ADR-036).
+
+    Raised rather than silently falling back to the utterance-level rule
+    ADR-036 replaced. A fallback would make `certain_only` report a number
+    computed under a definition the caller did not ask for, which is the class
+    of quiet disagreement CLAUDE.md §5 exists to prevent.
+    """
+
+
 class ScoredUtterance(BaseModel):
     """One ground-truth utterance, and the gaps inside it.
 
@@ -97,10 +107,32 @@ class ScoredUtterance(BaseModel):
     final_word_end_ms: int
     gaps: tuple[Gap, ...] = ()
 
-    @property
-    def certain(self) -> bool:
-        """Whether every gap inside this utterance is unambiguously labelled."""
-        return all(g.certainty == "certain" for g in self.gaps)
+    def governing_certain(self, silence_starts: Sequence[float]) -> bool:
+        """Whether every gap that produced a boundary here is `certain`. `O(b·g)`.
+
+        **Per gap, not per utterance (ADR-036).** The old rule asked whether
+        every gap in the utterance was certain, which was right when an
+        utterance held one or two gaps and says nothing once promotion
+        (ADR-034) puts a dozen in it: one ambiguous gap four seconds from any
+        boundary poisoned the whole utterance.
+
+        A boundary covered by no gap counts as **ambiguous**: its regime came
+        from `regime_at`'s `complete` fallback, which is a rule and not a
+        labelled datum, so nothing certain governed it.
+
+        Args:
+            silence_starts: Where each boundary attributed to this utterance
+                began its silence run. Empty means nothing was judged here, so
+                no label was relied upon and the utterance is certain.
+
+        Returns:
+            Whether this utterance's verdict rests only on certain labels.
+        """
+        for start in silence_starts:
+            covering = [g for g in self.gaps if g.start_ms <= start <= g.end_ms]
+            if not covering or covering[0].certainty != "certain":
+                return False
+        return True
 
 
 class ClipObservation(BaseModel):
@@ -114,36 +146,84 @@ class ClipObservation(BaseModel):
     emitted_end_ms: tuple[float, ...]
     """Stream-relative times at which `end_of_turn` fired."""
 
+    emitted_silence_start_ms: tuple[float, ...] = ()
+    """Where each boundary's silence run began, parallel to `emitted_end_ms`.
 
-def _attribute(utterance_index: int, obs: ClipObservation) -> tuple[float, ...]:
-    """Emitted turns belonging to one utterance. Pure. `O(u + e)`.
+    Needed because a gap is looked up at the silence *start*, exactly as
+    `fake_assemblyai.regime_at` does, not at the time the boundary fired
+    (ADR-036). Defaulted empty so an observation that never scores
+    `certain_only` need not carry it; requesting `certain_only` without it
+    raises rather than guessing.
+    """
+
+    @model_validator(mode="after")
+    def _starts_align(self) -> ClipObservation:
+        """Silence starts, when present, pair one-to-one with boundaries."""
+        if self.emitted_silence_start_ms and len(self.emitted_silence_start_ms) != len(
+            self.emitted_end_ms
+        ):
+            msg = (
+                f"{self.clip_id}: {len(self.emitted_silence_start_ms)} silence "
+                f"starts against {len(self.emitted_end_ms)} boundaries"
+            )
+            raise ValueError(msg)
+        return self
+
+
+def _attribute_indices(utterance_index: int, obs: ClipObservation) -> tuple[int, ...]:
+    """Indices of the emitted turns belonging to one utterance. Pure. `O(u + e)`.
 
     A turn belongs to the last utterance that had started when it fired. A turn
     before the first utterance starts is attributed to it rather than dropped,
     because a boundary that early is a failure worth counting, not noise.
     """
     starts = [u.start_ms for u in obs.utterances]
-    owned: list[float] = []
-    for fired in obs.emitted_end_ms:
+    owned: list[int] = []
+    for position, fired in enumerate(obs.emitted_end_ms):
         owner = 0
         for index, start in enumerate(starts):
             if start <= fired:
                 owner = index
         if owner == utterance_index:
-            owned.append(fired)
+            owned.append(position)
     return tuple(owned)
+
+
+def _attribute(utterance_index: int, obs: ClipObservation) -> tuple[float, ...]:
+    """Emitted turns belonging to one utterance. Pure. `O(u + e)`."""
+    return tuple(
+        obs.emitted_end_ms[i] for i in _attribute_indices(utterance_index, obs)
+    )
 
 
 def _selected(
     runs: Sequence[ClipObservation], *, certain_only: bool
 ) -> list[tuple[ClipObservation, int, ScoredUtterance]]:
-    """Utterances in scope. Pure. `O(n)`."""
-    return [
-        (obs, index, utterance)
-        for obs in runs
-        for index, utterance in enumerate(obs.utterances)
-        if not certain_only or utterance.certain
-    ]
+    """Utterances in scope. Pure. `O(n)`.
+
+    Raises:
+        MissingSilenceStartsError: `certain_only` was asked of an observation
+            that emitted boundaries but recorded no silence starts.
+    """
+    scope: list[tuple[ClipObservation, int, ScoredUtterance]] = []
+    for obs in runs:
+        if certain_only and obs.emitted_end_ms and not obs.emitted_silence_start_ms:
+            msg = (
+                f"{obs.clip_id} ({obs.arm}): certain_only needs "
+                f"emitted_silence_start_ms to scope per gap (ADR-036), and this "
+                f"observation carries {len(obs.emitted_end_ms)} boundaries without it"
+            )
+            raise MissingSilenceStartsError(msg)
+        for index, utterance in enumerate(obs.utterances):
+            if certain_only:
+                starts = [
+                    obs.emitted_silence_start_ms[i]
+                    for i in _attribute_indices(index, obs)
+                ]
+                if not utterance.governing_certain(starts):
+                    continue
+            scope.append((obs, index, utterance))
+    return scope
 
 
 class Quantiles(BaseModel):
@@ -206,9 +286,18 @@ class ProxyDivergence(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     pcr_all: float
-    pcr_certain_only: float
+    pcr_certain_only: float | None
+    """`None` when no utterance is in the certain scope (ADR-036).
+
+    Not `nan` and not `0.0`. An empty scope is the absence of a measurement,
+    and a manifest that wrote a float there would turn a missing record into a
+    confident one — the failure mode this model exists to prevent.
+    """
+
     frag_all: float
-    frag_certain_only: float
+    frag_certain_only: float | None
+    """`None` when no utterance is in the certain scope (ADR-036)."""
+
     utterances_all: int
     utterances_certain_only: int
 
@@ -244,6 +333,23 @@ class RunManifest(BaseModel):
     proxy_divergence: ProxyDivergence
 
 
+def certain_utterances(runs: Sequence[ClipObservation]) -> int:
+    """How many utterances survive per-gap certainty scoping. Pure. `O(n·b·g)`.
+
+    The denominator behind `pcr(certain_only=True)`. Reported in the manifest
+    because a rate without its denominator is not a measurement, and because
+    this is the number that says whether the certain-only column exists at all
+    (ADR-036).
+
+    Args:
+        runs: The observations to scope.
+
+    Returns:
+        The count, possibly zero.
+    """
+    return len(_selected(runs, certain_only=True))
+
+
 def pcr(runs: Sequence[ClipObservation], *, certain_only: bool = False) -> float:
     """Premature cutoff rate. Lower is better.
 
@@ -252,11 +358,11 @@ def pcr(runs: Sequence[ClipObservation], *, certain_only: bool = False) -> float
 
     Args:
         runs: The results to aggregate.
-        certain_only: Restrict to utterances whose every gap is labelled
-            `certain`. The default scores everything, including gaps whose
-            regime rests on the construction proxy rather than on semantics
-            (ADR-017). Report both; a material divergence is a finding about
-            the corpus, not a rounding detail.
+        certain_only: Restrict to utterances whose every **boundary-governing**
+            gap is labelled `certain` (ADR-036). The default scores
+            everything, including gaps whose regime rests on the construction
+            proxy rather than on semantics (ADR-017). Report both; a material
+            divergence is a finding about the corpus, not a rounding detail.
 
     Returns:
         The rate in [0, 1]. Never report it without its denominator.
@@ -277,11 +383,11 @@ def ttl(runs: Sequence[ClipObservation], *, certain_only: bool = False) -> Quant
 
     Args:
         runs: The results to aggregate.
-        certain_only: Restrict to utterances whose every gap is labelled
-            `certain`. The default scores everything, including gaps whose
-            regime rests on the construction proxy rather than on semantics
-            (ADR-017). Report both; a material divergence is a finding about
-            the corpus, not a rounding detail.
+        certain_only: Restrict to utterances whose every **boundary-governing**
+            gap is labelled `certain` (ADR-036). The default scores
+            everything, including gaps whose regime rests on the construction
+            proxy rather than on semantics (ADR-017). Report both; a material
+            divergence is a finding about the corpus, not a rounding detail.
 
     Returns:
         p50, p90 and p99. Negative values are preserved.
@@ -306,11 +412,11 @@ def frag(runs: Sequence[ClipObservation], *, certain_only: bool = False) -> floa
 
     Args:
         runs: The results to aggregate.
-        certain_only: Restrict to utterances whose every gap is labelled
-            `certain`. The default scores everything, including gaps whose
-            regime rests on the construction proxy rather than on semantics
-            (ADR-017). Report both; a material divergence is a finding about
-            the corpus, not a rounding detail.
+        certain_only: Restrict to utterances whose every **boundary-governing**
+            gap is labelled `certain` (ADR-036). The default scores
+            everything, including gaps whose regime rests on the construction
+            proxy rather than on semantics (ADR-017). Report both; a material
+            divergence is a finding about the corpus, not a rounding detail.
 
     Returns:
         The mean. `PERFECT_FRAG` is perfect.

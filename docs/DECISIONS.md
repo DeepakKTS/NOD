@@ -1409,13 +1409,47 @@ contributes none at all. This is the defect CLAUDE.md §5 already records — "s
 silences were undescribed in the sidecar, and every PCR figure in the run was wrong" — and
 the fix applied then was partial: it caught the 4 and left the 45.
 
-**What is and is not claimed.** The simulated path is internally consistent: the `Endpointer`
-is driven by the sidecar's gaps, so it cannot fire where the sidecar is silent, and **no
-simulated figure is wrong through a disagreement with the audio.** The exposure is that the
-ground truth is incomplete, and that Phase 4's live runs will fire boundaries inside silences
-the scorer does not know exist. Gate 5's numbers are **not** re-derived here and **no
-direction is asserted** — establishing the sign means re-running the regime labelling, which
-is Gate 7's work, not this ADR's.
+**What is and is not claimed.**
+
+> **Corrected 2026-09-21 at Gate 8, measured. The sentence this paragraph opened with was
+> wrong and Phase 4 will read this document, so it is replaced rather than annotated.** It
+> read: "the `Endpointer` is driven by the sidecar's gaps, so it cannot fire where the
+> sidecar is silent". It is not, and it can.
+>
+> `Endpointer.feed` detects silence **acoustically**, frame by frame, against
+> `SILENCE_FLOOR_DBFS + vad_threshold × VAD_RANGE_DB`. It consults `regime_at` only to
+> **select the gate** — `min_turn_silence` for `complete`, `max_turn_silence` for
+> `fragment` — and `regime_at` falls back to `complete` where no gap covers the silence.
+> So an undescribed silence does not go unmeasured. It is measured **under the wrong
+> regime**: `min_turn_silence` judges a pause that `max_turn_silence` should have, on the
+> narrower gate of the two on every arm (160 vs 400, 400 vs 1280, 800 vs 3600).
+>
+> Measured on the committed corpus: **45 boundaries per arm fire at silences no sidecar gap
+> covers**, on all three static arms. On Track A all 45 begin within 14 ms of
+> `final_word_end_ms` — the utterance-end silence starting one frame before the
+> `utterance_end` gap — so the `complete` fallback happens to be the correct label there and
+> no Track A figure is affected. That is a property of this corpus, not of the mechanism.
+>
+> `corpus._intrinsic_gaps`'s own docstring had it right all along and should have been read:
+> "`regime_at` falls back to `complete` for every natural inter-word pause — so a pause in
+> the middle of an utterance is scored as if the speaker had finished, and
+> `min_turn_silence` governs where `max_turn_silence` should."
+
+The simulated path is internally consistent in the narrower sense that remains true: **no
+simulated figure is wrong through a disagreement with the audio**, because the same acoustic
+floor drives the `Endpointer` and `_intrinsic_gaps`, so on Track A every silence the one can
+detect the other has already described. The exposure is that the ground truth is incomplete,
+and that Phase 4's live runs will fire boundaries inside silences the scorer does not know
+exist. Gate 5's numbers are **not** re-derived here and **no direction is asserted** —
+establishing the sign means re-running the regime labelling, which is Gate 7's work, not
+this ADR's.
+
+**The consequence for Track C is severe and is the reason ADR-034 exists.** The two floors
+coinciding is what makes Track A safe, and Track C breaks it: `_intrinsic_gaps` finds almost
+nothing on recorded speech (0 of 21 measured above), so a hesitant pause the `Endpointer`
+*does* detect would find no gap covering it, fall back to `complete`, and be judged by
+`min_turn_silence`. The gate Nod primarily moves is `max_turn_silence` (ADR-011), so it
+would never bind, on any arm.
 
 The stimulus was `say`, per the standing note that it is adequate for probing and not for
 numbers. The direction of that limitation is knowable even where the magnitude is not: a
@@ -1665,6 +1699,26 @@ connected speech runs p05 −36.9 dBFS. A human recorded in a room carries room 
 and mic self-noise, all of which push frame energy further above the floor, so the direction
 on real audio is worse and not better.
 
+**What an undescribed gap costs, stated correctly — this is the whole basis of the decision
+and an earlier framing of it was wrong.** The cost is **not** that nothing fires there, and
+it is not a missing measurement. `Endpointer.feed` detects silence acoustically and consults
+`regime_at` only to select the gate; `regime_at` falls back to `complete` where no gap covers
+the silence. So an undescribed hesitant pause is measured, and measured **under the wrong
+regime**: `min_turn_silence` judges a pause that `max_turn_silence` should have. That is the
+narrower gate on every arm — 160 against 400, 400 against 1280, 800 against 3600 — so the
+endpointer cuts *earlier* than the ground truth says it should, and it does so precisely at
+the mid-utterance pauses the project exists to protect. ADR-031's phrasing to the contrary is
+corrected in place above; `corpus._intrinsic_gaps`'s docstring had it right from the start.
+
+**On Track A this is harmless and on Track C it is fatal**, for one reason: the `Endpointer`
+and `_intrinsic_gaps` share the same −44 dBFS floor and the same 50 ms frames, so on Track A
+every silence the one can detect the other has already described, and the fallback is never
+reached mid-utterance. Track C breaks the coincidence. The detector finds almost nothing on
+recorded speech, the `Endpointer` still detects whatever silence clears the floor, and every
+such pause would fall through to `complete`. `max_turn_silence` — the gate Nod primarily
+moves (ADR-011) — would never bind on any arm, and the corpus would report a controller that
+cannot act because the knob it turns is not the knob being consulted.
+
 The geometry is the easy half and ADR-031 already solved it: the sidecar carries
 `words[].start` and `words[].end`. The hard half is the **label**. On Track A a gap's
 `preceding` and `certainty` come from a record of what the generator cut. Track C has no
@@ -1736,22 +1790,20 @@ Consequence: four, and the second is measured rather than asserted.
    before fixing, so there is something to compare against). The reasoning, which also
    corrects a claim made twice:
 
-   **`Endpointer` is driven by the audio, not by the sidecar.** `feed` detects silence at
-   `SILENCE_FLOOR_DBFS + vad_threshold × VAD_RANGE_DB` and consults `regime_at` only to
-   choose *which gate*; where no gap covers the silence it falls back to `complete`.
-   ADR-031's "the `Endpointer` is driven by the sidecar's gaps, so it cannot fire where the
-   sidecar is silent" is **wrong as written** — it can fire there, it fires on the min gate.
-   Measured: 45 boundaries per arm fire at silences no gap covers, on all three arms.
+   Promotion changes the `Endpointer` only where it flips a silence the detector **actually
+   sees** from `complete` to `fragment`, moving it from the min gate to the max gate. On
+   Track A there is nowhere for that to happen, and the reason is the shared floor: the
+   `Endpointer` and `_intrinsic_gaps` both threshold at −44 dBFS over 50 ms frames, so every
+   mid-utterance silence the one can detect the other has already described and labelled.
+   The 801 newly described gaps sit at intervals below that floor, where no silence run
+   accumulates and `regime_at` is never reached.
 
-   So promotion changes Endpointer behaviour only where it flips a *detected* silence from
-   `complete` to `fragment`, and on Track A there is nowhere for that to happen:
-   `_intrinsic_gaps` already describes every acoustic silence of 100 ms or more before the
-   final word at the *same* −44 dBFS floor and the same 50 ms frames, the Endpointer needs
-   160 ms at minimum to fire at all, and the 801 newly described gaps sit at intervals that
-   detector cannot see. The 45 undescribed-silence boundaries are not mid-utterance: all 45
+   The 45 undescribed-silence boundaries are not the counter-example they look like: all 45
    begin within 14 ms of `final_word_end_ms` — the utterance-end silence starting one frame
-   before the `utterance_end` gap does — and transcript gaps lie strictly between words, so
-   promotion does not cover them either.
+   before the `utterance_end` gap — so the `complete` fallback is the *correct* label there,
+   and transcript gaps lie strictly between words, so promotion does not cover them anyway.
+   Both facts are properties of this corpus. Neither generalises to Track C, where the floors
+   do not coincide.
 
    **Predicted: PCR, TTL and FRAG unchanged on all three static arms — `aggressive` 0.642,
    `balanced` 0.317, `conservative` 0.000.** The closure is real and pays at Phase 4, where
@@ -1769,10 +1821,11 @@ Consequence: four, and the second is measured rather than asserted.
    `certain`; 15 of 120 clips qualify today; after promotion all 120 carry at least one
    ambiguous gap, so the scope is 0 utterances and `pcr(certain_only=True)` raises
    `ValueError("no utterances in scope: PCR of nothing is not 0.0")` — which `replay.main`
-   calls unconditionally. The metric is right to raise and is not changed. The **caller** is
-   what must handle an empty scope and record it as such. The deeper question — whether
-   utterance-level certainty is the right granularity once a typical utterance holds a dozen
-   ambiguous gaps — is left open and named in the Gate 8 report rather than settled here.
+   calls unconditionally. **Settled at this gate by ADR-036**, which scopes `certain_only`
+   per gap rather than per utterance, so the column survives promotion and the
+   "report with and without" this ADR's argument leans on remains available. Without it this
+   ADR would assert that the standing rule's doubt is measurable while shipping a
+   measurement that cannot exist.
 
 4. **Track C's gap geometry becomes wholly service-derived**, as ADR-031 predicted it would.
    There is no generator record to fall back on, so every `Gap` in a Track C sidecar is a
@@ -1845,3 +1898,77 @@ trace, and clause 4 is most of the way done. And **the ordering is now explicit*
 with 3 gone, so cutting from the end of that chain on the 26th degrades the demo gracefully
 instead of leaving a half-built screen. If the whole chain is at risk, clause 2 is what
 survives, because it is the only one of the four that §3 lists among the four that ship.
+
+## ADR-036 — `certain_only` scopes per gap, not per utterance
+2026-09-21 · Status: accepted — supersedes the utterance-level rule in ADR-017's reporting
+Context: ADR-034 promotes every transcript inter-word gap to a `Gap` and marks all of them
+`ambiguous`. `ScoredUtterance.certain` required **every** gap in an utterance to be
+`certain`, so promotion empties the scope: 15 of 120 Track A clips qualified before, and
+after promotion all 120 carry at least one ambiguous gap. `pcr(certain_only=True)` then
+raises `ValueError("no utterances in scope")`, which `replay.main` calls unconditionally, so
+`make bench` would have crashed.
+
+**The crash is the smaller problem.** "Report with and without" is load-bearing in ADR-034's
+argument, not decoration: the standing rule's uniform mislabelling of clause ends as
+fragments is tolerable *because* `Gap.certainty` carries the doubt and a reader can see how
+much of a figure rests on it. A column that is empty by construction leaves that argument
+unsupported — ADR-034 would be asserting that the doubt is measurable while shipping a
+measurement that cannot exist.
+
+**The old rule was correct for the corpus it was written against and stopped meaning
+anything.** With one or two gaps per utterance, "every gap is certain" and "the gap that
+decided this is certain" are nearly the same question. At a dozen gaps they are not: a
+single ambiguous pause four seconds away from any boundary excluded an utterance whose
+verdict never consulted it. The rule did not become wrong — the corpus grew out from under
+it, which is the same shape as ADR-022 and ADR-023 being derived under constants the other
+one changed.
+Decision: **an utterance is in the certain scope iff every gap that *governed a boundary
+attributed to it* is labelled `certain`.** Three parts, each with a reason:
+
+- **The lookup is at the silence start, not the fired time**, matching
+  `fake_assemblyai.regime_at` exactly. A boundary fires at `silence_started + threshold`,
+  which is routinely past the end of the gap that governed it, so looking up at the fired
+  time would read the wrong gap or none.
+- **A boundary no gap covers counts as ambiguous.** Its regime came from `regime_at`'s
+  `complete` fallback, which is a rule this repository applies and not a datum the sidecar
+  recorded. Track A has 45 of these per arm (ADR-034).
+- **An utterance that emitted no boundary is certain.** Nothing was judged, so no label was
+  relied upon, and PCR's verdict of "not premature" rests on no proxy.
+
+`ClipObservation` gains `emitted_silence_start_ms`, parallel to `emitted_end_ms` and
+validated to the same length. Asking for `certain_only` on an observation that emitted
+boundaries without it raises `MissingSilenceStartsError` rather than falling back to the old
+rule: a silent fallback would report a number computed under a definition the caller did not
+ask for.
+
+**The metric's raise is unchanged.** `pcr` and `frag` still refuse an empty scope — "PCR of
+nothing is not 0.0" is their job. The guard lives in `replay.main`, which is the only caller
+that knows a missing column is reportable rather than fatal, and it records `None` in
+`ProxyDivergence` — not `nan`, not `0.0`, because an empty scope is the absence of a
+measurement and a float there would turn a missing record into a confident one.
+Consequence: four.
+
+1. **Measured on the current corpus, before promotion: the certain scope moves from 15
+   utterances to 23**, `pcr_certain_only` 0.0 and `frag_certain_only` 1.0. The column stays
+   informative instead of collapsing, which is the whole point. That 23 is dominated by
+   utterances whose only boundary landed in the `certain` `utterance_end` gap, so PCR of 0.0
+   over it is expected rather than surprising — a premature cutoff inside a `certain` gap is
+   possible (the `repeat` gaps are certain and mid-utterance) and simply does not occur here.
+
+2. **This is a published metric's definition, so it carries first-tier mutation discipline**
+   (CLAUDE.md §5, "anything that feeds a published number"). The scoping rule is in
+   `tools/mutate.py`'s catalogue for `metrics`.
+
+3. **Three tests were confirmed red under the replaced rule**, by reverting `_selected` to
+   `all(g.certainty == "certain" for g in utterance.gaps)` with a source-hash assertion and a
+   `__pycache__` purge: `test_an_ambiguous_gap_that_governed_no_boundary_does_not_exclude`
+   (0 == 1), `test_an_utterance_whose_boundary_no_gap_covers_is_not_certain` (1 == 0) and
+   `test_an_utterance_that_emitted_nothing_is_certain` (0 == 1). They fail in **both**
+   directions, which is what distinguishes a definition change from a loosening.
+
+4. **Noted and deliberately not fixed here: `ProxyDivergence`'s rates and denominators are
+   computed over different pools.** `pcr_all` is over all six arms' utterances (720) while
+   `utterances_all` reports one arm's (120). That predates this ADR, it makes a manifest
+   field misleading against `pcr`'s own "never report it without its denominator", and
+   fixing it changes a published number from 120 to 720. Left for an explicit decision
+   rather than folded into this change. **It is a real defect, not a stylistic quibble.**

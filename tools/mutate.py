@@ -62,6 +62,7 @@ CONTROL_TESTS: Final = (
 POLICY_TESTS: Final = ("tests/unit/test_policy.py",)
 PROXY_TESTS: Final = ("tests/unit/test_proxy.py",)
 WORDS_TESTS: Final = ("tests/unit/test_replay_words.py",)
+METRICS_TESTS: Final = ("tests/unit/test_metrics.py",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -717,12 +718,66 @@ def _transcribe_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _metrics_mutations() -> tuple[Mutation, ...]:
+    """`certain_only`'s per-gap scoping rule (ADR-036). First tier.
+
+    `ProxyDivergence` is how a reader learns how much of a published PCR rests
+    on the construction proxy rather than on a semantic fact, so the rule that
+    decides what is in that scope feeds a published number directly — CLAUDE.md
+    §5's second tier-one rule. ADR-034 makes it load-bearing: the standing
+    fragment/ambiguous rule is tolerable *because* this column exists.
+    """
+    src = "src/nod_bench/metrics.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, METRICS_TESTS)
+
+    return (
+        mutation(
+            "governing_certain: treat an uncovered boundary as certain",
+            '            if not covering or covering[0].certainty != "certain":',
+            '            if covering and covering[0].certainty != "certain":',
+        ),
+        mutation(
+            "governing_certain: accept an ambiguous governing gap",
+            "                return False",
+            "                continue",
+        ),
+        mutation(
+            "governing_certain: look up the gap at the fired time, not the silence start",
+            "            covering = [g for g in self.gaps if g.start_ms <= start <= g.end_ms]",
+            "            covering = [g for g in self.gaps if g.start_ms <= start < g.start_ms]",
+        ),
+        mutation(
+            "_selected: scope per utterance again, the rule ADR-036 replaced",
+            "                if not utterance.governing_certain(starts):",
+            '                if not all(g.certainty == "certain" for g in utterance.gaps):',
+        ),
+        mutation(
+            "_selected: attribute every boundary to every utterance",
+            "                    for i in _attribute_indices(index, obs)",
+            "                    for i in range(len(obs.emitted_silence_start_ms))",
+        ),
+        mutation(
+            "_selected: drop the missing-silence-starts guard",
+            "        if certain_only and obs.emitted_end_ms and not obs.emitted_silence_start_ms:",
+            "        if False:",
+        ),
+        mutation(
+            "ClipObservation: drop the parallel-length validator",
+            "        if self.emitted_silence_start_ms and len(self.emitted_silence_start_ms) != len(",
+            "        if False and len(self.emitted_silence_start_ms) != len(",
+        ),
+    )
+
+
 CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "profiler": _profiler_mutations(),
     "arbiter": _arbiter_mutations(),
     "policy": _policy_mutations(),
     "proxy": _proxy_mutations(),
     "replay": _replay_mutations(),
+    "metrics": _metrics_mutations(),
     "transcribe": _transcribe_mutations(),
     "selftest": _self_test_mutations(),
 }
