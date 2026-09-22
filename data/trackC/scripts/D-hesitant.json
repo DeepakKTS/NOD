@@ -1,0 +1,71 @@
+{
+ "script_id": "D",
+ "condition": "hesitant",
+ "turns": [
+  {
+   "order": 1,
+   "prompt": "Enrolment. What are we setting up today?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 2,
+   "prompt": "Before I start the record, what cover did you have before this job?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 3,
+   "prompt": "I'll start the record. Spell your last name for me, letter by letter?",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 4,
+   "prompt": "And your date of birth?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 5,
+   "prompt": "Where are you living now? Street, unit, town and zip.",
+   "expected_answer": "entity_address"
+  },
+  {
+   "order": 6,
+   "prompt": "Is that the same address your employer has on file?",
+   "expected_answer": "boolean"
+  },
+  {
+   "order": 7,
+   "prompt": "Tell me about the children going on the plan, names and ages.",
+   "expected_answer": "entity_list"
+  },
+  {
+   "order": 8,
+   "prompt": "Your employer gave you a group number on the onboarding packet. Read it to me?",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 9,
+   "prompt": "And I want the older child's name spelled the way it's on the birth certificate.",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 10,
+   "prompt": "How much is coming out of each paycheck on the option you picked?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 11,
+   "prompt": "When does your coverage need to start?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 12,
+   "prompt": "It does. Do you want dental on it as well, or medical only for now?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 13,
+   "prompt": "You're all set. Anything you want to ask before I send the confirmation?",
+   "expected_answer": "free"
+  }
+ ]
+}

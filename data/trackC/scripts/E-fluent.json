@@ -1,0 +1,66 @@
+{
+ "script_id": "E",
+ "condition": "fluent",
+ "turns": [
+  {
+   "order": 1,
+   "prompt": "Member services. What can I help with?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 2,
+   "prompt": "Before the paperwork, what actually happened out there?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 3,
+   "prompt": "I can start a reimbursement. What date did you go in?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 4,
+   "prompt": "How much did you pay, and in what currency?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 5,
+   "prompt": "Where was the clinic? Whatever's printed on the receipt is fine.",
+   "expected_answer": "entity_address"
+  },
+  {
+   "order": 6,
+   "prompt": "I'll need that spelled for the claim. Spell Castilho?",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 7,
+   "prompt": "What did they actually do for you? List it however the receipt has it.",
+   "expected_answer": "entity_list"
+  },
+  {
+   "order": 8,
+   "prompt": "Was any of it paid by a travel insurer?",
+   "expected_answer": "boolean"
+  },
+  {
+   "order": 9,
+   "prompt": "I'll attach it to your record. Member number, when you're ready.",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 10,
+   "prompt": "And in your own words, what were you treated for? I have to put a reason on the claim.",
+   "expected_answer": "free"
+  },
+  {
+   "order": 11,
+   "prompt": "Last one, what's the exchange rate line on your card statement, if it shows one?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 12,
+   "prompt": "That's everything I need. Do you want the reimbursement to the card you paid with, or to the account on file?",
+   "expected_answer": "free"
+  }
+ ]
+}

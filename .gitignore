@@ -27,6 +27,19 @@ data/*
 # clips and their manifest, which is what lets `corpus.build` rebuild the corpus
 # on a machine without macOS.
 !data/corpus/
+
+# The Track C **scripts** are committed; the recordings are not yet a decision.
+# `data/*` had hidden them entirely: script A was written at Gate 8 and has never
+# been in git, so a clone had no scripts at all and the recording session — the
+# one artifact in this project that cannot be regenerated — depended on files
+# that existed on exactly one machine. They are 13 small JSON files.
+# The audio is a separate call, taken when it exists: Track A's precedent
+# (ROADMAP Phase 1, ~38 MB committed directly) argues for committing it, and the
+# consent line in TRACK_C_SCRIPT §8 says the reader must agree to MIT-licensed
+# audio in a public repository before that happens.
+!data/trackC/
+!data/trackC/scripts/
+data/trackC/*.wav
 .nodcache/
 *.db
 *.db-wal

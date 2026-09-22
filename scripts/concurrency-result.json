@@ -1,0 +1,14 @@
+{
+  "max_concurrent_reached": 5,
+  "refusal": {
+    "at_n": 6,
+    "phase": "post-connect",
+    "failed_index": 6,
+    "type": "UpstreamError",
+    "message": "upstream error 1008: Unauthorized Connection: Too many concurrent sessions",
+    "error_code": 1008
+  },
+  "ramp_cap": 80,
+  "model": "universal-streaming-english",
+  "clip": "data/corpus/trackA/seed_seg0_burst_024.wav"
+}

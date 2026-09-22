@@ -259,6 +259,13 @@ and all three appear before turn 7.
 
 ## 4a. The turn added at Gate 8 (ADR-039)
 
+> **All five scripts are now committed data** (ADR-043), as
+> `data/trackC/scripts/{A-E}-{fluent,hesitant}.json` plus `{A-E}-answers.json`. They are
+> emitted by `scripts/build_trackc_scripts.py`, which recomputes §7's four figures per
+> script from the turns and refuses to write if any disagrees. Edit the generator, not the
+> JSON. §4's tables below remain the historical design targets; §4a plus §7 is the live
+> budget.
+
 The five tables above are left exactly as written, including their `w` and `Σ` columns,
 because they are the design targets §0 says to re-derive against a real transcript — and
 `Σ` there is computed on the falsified assumption that identifier turns contribute gaps.

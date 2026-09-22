@@ -26,7 +26,7 @@ RUN := $(UV) run
 # installed from `make install` and hid this completely.
 RUN_BENCH := $(UV) run --extra bench
 PYTHON_VERSION := 3.12
-PATHS := src tests tools
+PATHS := src tests tools scripts
 
 .PHONY: help install fmt lint types test bench-smoke check gate seed-tests run \
         demo probe probe-fake bench bench-live bench-clean metrics report audit clean \

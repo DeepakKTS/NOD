@@ -1,0 +1,66 @@
+{
+ "script_id": "C",
+ "condition": "fluent",
+ "turns": [
+  {
+   "order": 1,
+   "prompt": "Claims. What's the bill you're looking at?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 2,
+   "prompt": "Before I pull the claim, what were you told when you booked the scan?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 3,
+   "prompt": "Let me find it. There's a claim number on the top right of that statement. Read it to me.",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 4,
+   "prompt": "And the date of service on that statement?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 5,
+   "prompt": "What does it say you were billed, and what does it say the plan paid?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 6,
+   "prompt": "Which facility was it at? The name and town is enough.",
+   "expected_answer": "entity_address"
+  },
+  {
+   "order": 7,
+   "prompt": "I see a prior authorisation on file but it expired. Did anyone tell you it needed renewing before the scan?",
+   "expected_answer": "boolean"
+  },
+  {
+   "order": 8,
+   "prompt": "I'll note the ordering physician. Spell the last name as it appears on the order?",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 9,
+   "prompt": "What else is on the statement besides the MRI line?",
+   "expected_answer": "entity_list"
+  },
+  {
+   "order": 10,
+   "prompt": "And the total at the bottom, including those?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 11,
+   "prompt": "I'm going to open an appeal on the authorisation. Do I have your permission to do that on your behalf?",
+   "expected_answer": "boolean"
+  },
+  {
+   "order": 12,
+   "prompt": "It'll take about two weeks. Anything you want me to put in the note?",
+   "expected_answer": "free"
+  }
+ ]
+}

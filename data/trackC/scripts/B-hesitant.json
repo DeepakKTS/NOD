@@ -1,0 +1,66 @@
+{
+ "script_id": "B",
+ "condition": "hesitant",
+ "turns": [
+  {
+   "order": 1,
+   "prompt": "Pharmacy benefits. What's going on with the prescription?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 2,
+   "prompt": "Before I look that up, what happens if you go a few days without it?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 3,
+   "prompt": "Let me look. What's the Rx number on the last bottle you filled?",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 4,
+   "prompt": "And which pharmacy should I be looking at? The name and the cross street will do.",
+   "expected_answer": "entity_address"
+  },
+  {
+   "order": 5,
+   "prompt": "I see the Huntington store on file but not that one. Do you want me to move all your prescriptions over, or just this one?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 6,
+   "prompt": "I'll need the prescribing doctor's last name. Spell it for me?",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 7,
+   "prompt": "And when did they send it over, the date, if you have it?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 8,
+   "prompt": "Which medications are we moving? Name them however you know them.",
+   "expected_answer": "entity_list"
+  },
+  {
+   "order": 9,
+   "prompt": "How many days of the metformin do you have left?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 10,
+   "prompt": "I'll flag it as urgent. Can you confirm your member number for the pharmacy note?",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 11,
+   "prompt": "They can have it ready in two hours. Does that work for you?",
+   "expected_answer": "boolean"
+  },
+  {
+   "order": 12,
+   "prompt": "Anything else while I'm in the account?",
+   "expected_answer": "free"
+  }
+ ]
+}

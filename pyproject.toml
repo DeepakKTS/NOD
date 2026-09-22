@@ -152,6 +152,15 @@ mypy-init-return = true
 # 88 columns would stop it matching, which is the anchor defect CLAUDE.md §5
 # records, introduced by the formatter (E501).
 "tools/**" = ["T20", "E501"]
+# `scripts/` holds committed operator tooling, not library code, and takes the
+# same three exemptions for the same three reasons. T20: these are CLIs whose
+# printed output *is* their product, exactly as the bench CLIs and the mutation
+# harness are. E501: the Track C target answers are verbatim spoken lines
+# (TRACK_C_SCRIPT §4) and wrapping one would change the word count the generator
+# audits against §7 — the same hazard as wrapping a mutation anchor. S101: the
+# generator asserts its transcription against the document and is meant to die
+# loudly when they disagree, which is the whole point of running it.
+"scripts/**" = ["T20", "E501", "S101"]
 "src/**/__init__.py" = ["D104"]
 
 [tool.ruff.format]
@@ -165,7 +174,7 @@ docstring-code-format = true
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-files = ["src", "tests", "tools"]
+files = ["src", "tests", "tools", "scripts"]
 strict = true
 warn_unreachable = true
 warn_unused_configs = true
@@ -199,6 +208,14 @@ disallow_any_explicit = false
 # arrive one at a time rather than as a block of dead config.
 [[tool.mypy.overrides]]
 module = ["soundfile", "librosa", "librosa.*"]
+ignore_missing_imports = true
+
+# scipy.stats, for `metrics.wilcoxon` (ADR-005). Arrives at Gate 4a, the phase
+# that first imports it, per the note above. `scipy-stubs` exists but is not
+# taken: it would pin a stub package against a numeric library we call exactly
+# once, and the call site already narrows both returns to `float`.
+[[tool.mypy.overrides]]
+module = ["scipy", "scipy.*"]
 ignore_missing_imports = true
 
 # The Anthropic SDK is an optional runtime dependency of the reference agent

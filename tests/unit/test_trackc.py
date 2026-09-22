@@ -9,7 +9,9 @@ correct attribution and pooled attribution agree on every input.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Final, get_args
 
 import numpy as np
 import pytest
@@ -30,9 +32,12 @@ from nod_bench.trackc import (
     build,
     build_clip,
     check_seams,
+    load_script,
     promote_word_gaps,
     silent_runs,
 )
+from nod_core.profiler import MIN_GAPS_FOR_WARM
+from nod_core.types import ExpectedAnswer
 
 SR = 16000
 CONSERVATIVE_MAX_TURN_SILENCE_MS = 3600
@@ -518,3 +523,134 @@ def test_a_turn_whose_boundary_lands_in_a_promoted_gap_leaves_the_certain_scope(
         "expected exactly turn 1 to leave the scope; a pooled attribution "
         "would report 0 and a per-utterance rule would too"
     )
+
+
+# --- the five committed scripts (Gate 4a, ADR-043) --------------------------
+#
+# These guard the *recording session*, which is the one artifact in this project
+# that cannot be regenerated. ADR-031: the gap budget is not recoverable from the
+# audio afterwards, so a script that does not cross `MIN_GAPS_FOR_WARM` produces
+# ten calls whose fluent arm never warms and there is no fixing it later.
+
+SCRIPT_DIR: Final = Path(__file__).resolve().parents[2] / "data" / "trackC" / "scripts"
+
+GAP_BEARING: Final = frozenset({"free", "entity_list", "boolean"})
+"""ADR-039 §1: only these three transcribe at 1.00 and carry the gap budget."""
+
+PLANNED_CROSSING: Final = {"A": 3, "B": 2, "C": 2, "D": 2, "E": 2}
+"""TRACK_C_SCRIPT §7's "Crosses 24 at" column, restated (ADR-039 consequence)."""
+
+
+def _answers(script_id: str) -> tuple[str, ...]:
+    return tuple(json.loads((SCRIPT_DIR / f"{script_id}-answers.json").read_text()))
+
+
+@pytest.mark.parametrize("script_id", sorted(PLANNED_CROSSING))
+@pytest.mark.parametrize("condition", ["fluent", "hesitant"])
+def test_every_script_and_condition_parses(script_id: str, condition: str) -> None:
+    """Phase 0 asks for ten calls: five scripts x two conditions (§5)."""
+    script = load_script(SCRIPT_DIR / f"{script_id}-{condition}.json")
+    assert script.script_id == script_id
+    assert script.condition == condition
+    assert [turn.order for turn in script.turns] == list(
+        range(1, len(script.turns) + 1)
+    ), "orders must be contiguous from 1; `gaps = words - turns` assumes it"
+
+
+@pytest.mark.parametrize("script_id", sorted(PLANNED_CROSSING))
+def test_the_two_conditions_hold_the_same_words(script_id: str) -> None:
+    """§5: the same words either way, so only gap durations differ.
+
+    The whole paired design rests on this. If the conditions diverged in wording,
+    a measured difference between them could be content rather than rhythm, and
+    the per-caller claim would be unsupportable from this corpus.
+    """
+    fluent = load_script(SCRIPT_DIR / f"{script_id}-fluent.json")
+    hesitant = load_script(SCRIPT_DIR / f"{script_id}-hesitant.json")
+    assert [(t.order, t.prompt, t.expected_answer) for t in fluent.turns] == [
+        (t.order, t.prompt, t.expected_answer) for t in hesitant.turns
+    ]
+
+
+@pytest.mark.parametrize("script_id", sorted(PLANNED_CROSSING))
+def test_every_script_warms_on_sentence_shaped_turns_alone(script_id: str) -> None:
+    """ADR-039: budget the five identifier classes at zero and still cross.
+
+    This is the assertion the Gate 8 dry run could not make. Script A crossed by
+    *margin* — nominally turn 2, measured turn 3 — and a script that survives by
+    margin does not validate the reasoning that sized the margin. Here the
+    identifier turns contribute nothing by construction, so the crossing turn is
+    the one the plan can actually rely on.
+    """
+    script = load_script(SCRIPT_DIR / f"{script_id}-fluent.json")
+    answers = _answers(script_id)
+    assert len(answers) == len(script.turns), "one answer per prompt"
+
+    gaps = 0
+    crossed_at = 0
+    for turn, answer in zip(script.turns, answers, strict=True):
+        if turn.expected_answer in GAP_BEARING:
+            gaps += len(answer.split()) - 1
+        if not crossed_at and gaps >= MIN_GAPS_FOR_WARM:
+            crossed_at = turn.order
+
+    assert crossed_at == PLANNED_CROSSING[script_id], (
+        f"script {script_id} crosses {MIN_GAPS_FOR_WARM} gaps on turn "
+        f"{crossed_at}, but TRACK_C_SCRIPT §7 plans for turn "
+        f"{PLANNED_CROSSING[script_id]}"
+    )
+    warm_turns = len(script.turns) - crossed_at
+    assert warm_turns >= 7, (
+        f"only {warm_turns} warm turns; ROADMAP §0 asks for the controller to be "
+        "warm for most of the recording rather than only at the end"
+    )
+
+
+def test_the_identifier_classes_are_never_load_bearing(script_id: str = "D") -> None:
+    """ADR-039's rule, asserted as a property rather than trusted.
+
+    Script D is the one that leans hardest on the context axis — `spelling`,
+    `entity_list` and `entity_address` all appear before turn 7 — so it is the
+    most likely to have been planned around an identifier turn by accident.
+    Counting every word of every turn must not move the crossing.
+    """
+    script = load_script(SCRIPT_DIR / f"{script_id}-fluent.json")
+    answers = _answers(script_id)
+    optimistic = 0
+    crossed_optimistically = 0
+    for turn, answer in zip(script.turns, answers, strict=True):
+        optimistic += len(answer.split()) - 1
+        if optimistic >= MIN_GAPS_FOR_WARM:
+            crossed_optimistically = turn.order
+            break
+    assert crossed_optimistically, (
+        "counting every word never reached the threshold, so this test compared "
+        "nothing; the script is shorter than the plan assumes"
+    )
+    assert crossed_optimistically == PLANNED_CROSSING[script_id], (
+        "the plan depends on identifier turns: it crosses on turn "
+        f"{crossed_optimistically} when they are counted and turn "
+        f"{PLANNED_CROSSING[script_id]} when they are not"
+    )
+
+
+def test_all_eight_expected_answer_classes_appear_across_the_set() -> None:
+    """§3's reason for choosing intake: the context axis needs every class.
+
+    `hint_for(None)` returns the policy default, so a class that never appears is
+    a row of CONTROL_SPEC §3 that the recording cannot exercise at all.
+
+    Enumerated through `ExpectedAnswer.__value__`, the same private attribute
+    `test_policy` and `test_control_law` use, so this is stated against the type
+    rather than against a second hand-written copy of its members. A ninth class
+    added to CONTROL_SPEC §1 fails here until a script covers it, which is the
+    behaviour worth having: the recording is what cannot be redone.
+    """
+    seen = {
+        turn.expected_answer
+        for script_id in PLANNED_CROSSING
+        for turn in load_script(SCRIPT_DIR / f"{script_id}-fluent.json").turns
+    }
+    declared = set(get_args(ExpectedAnswer.__value__))
+    assert len(declared) == 8, "CONTROL_SPEC §1 declares eight classes"
+    assert seen == declared, f"missing from the five scripts: {declared - seen}"

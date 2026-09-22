@@ -1,0 +1,56 @@
+{
+ "script_id": "A",
+ "condition": "hesitant",
+ "turns": [
+  {
+   "order": 1,
+   "prompt": "Thanks for calling member services. Before I pull anything up, tell me in your own words what you're calling about today.",
+   "expected_answer": "free"
+  },
+  {
+   "order": 2,
+   "prompt": "I can do that. Read me the member number off your benefits letter.",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 3,
+   "prompt": "Is that the whole number, or is there a suffix after it?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 4,
+   "prompt": "And your date of birth, the way you'd say it out loud?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 5,
+   "prompt": "Where should the new card go? Give me the whole address.",
+   "expected_answer": "entity_address"
+  },
+  {
+   "order": 6,
+   "prompt": "Could you spell Marlborough for me?",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 7,
+   "prompt": "Who else is on the plan with you? First names are fine.",
+   "expected_answer": "entity_list"
+  },
+  {
+   "order": 8,
+   "prompt": "What's the copay on the letter you're holding?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 9,
+   "prompt": "Standard mail takes about a week. Is that soon enough for Thursday?",
+   "expected_answer": "boolean"
+  },
+  {
+   "order": 10,
+   "prompt": "Anything else I should note on the account while I have you?",
+   "expected_answer": "free"
+  }
+ ]
+}

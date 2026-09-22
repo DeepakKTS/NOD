@@ -1,0 +1,46 @@
+{
+ "script_id": "demo",
+ "condition": "hesitant",
+ "turns": [
+  {
+   "order": 1,
+   "prompt": "What's going on with your account today?",
+   "expected_answer": "free"
+  },
+  {
+   "order": 2,
+   "prompt": "Read me the member number off your letter, slowly.",
+   "expected_answer": "entity_id"
+  },
+  {
+   "order": 3,
+   "prompt": "And the new address, including the zip?",
+   "expected_answer": "entity_address"
+  },
+  {
+   "order": 4,
+   "prompt": "Spell Marlborough for me?",
+   "expected_answer": "spelling"
+  },
+  {
+   "order": 5,
+   "prompt": "When did you move?",
+   "expected_answer": "entity_date"
+  },
+  {
+   "order": 6,
+   "prompt": "Who else is on the plan?",
+   "expected_answer": "entity_list"
+  },
+  {
+   "order": 7,
+   "prompt": "What's the copay on your letter?",
+   "expected_answer": "number"
+  },
+  {
+   "order": 8,
+   "prompt": "Standard mail takes a week. Is that soon enough?",
+   "expected_answer": "boolean"
+  }
+ ]
+}
