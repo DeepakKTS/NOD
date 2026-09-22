@@ -12,7 +12,7 @@ import json
 from collections.abc import AsyncIterator, Mapping
 from typing import Final, override
 
-from prometheus_client import Counter, Gauge, Histogram
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
 
 from nod_core.trace import TraceSink
 from nod_core.types import JsonValue
@@ -65,12 +65,16 @@ def configure_logging(level: str) -> None:
 
 
 def render_metrics() -> bytes:
-    """Render the registry in Prometheus text format.
+    """Render the registry in Prometheus text format. `O(series)`.
+
+    The default registry, which is where the module-level counters above
+    registered themselves on import. No argument, because a second registry in
+    this process would be a second answer to "what are the metrics".
 
     Returns:
-        The `/metrics` response body.
+        The `/metrics` response body, UTF-8 Prometheus text exposition.
     """
-    raise NotImplementedError
+    return generate_latest(REGISTRY)
 
 
 class TelemetryHub:

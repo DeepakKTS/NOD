@@ -25,9 +25,9 @@ forwarding is I/O bound. Record any change to this in an ADR.
 | `ASSEMBLYAI_API_KEY` | — | required, server-side only |
 | `NOD_MODEL` | `universal-streaming-english` | confidence-based turn detection |
 | `NOD_API_TOKEN` | — | bearer token for mutating routes |
-| `NOD_AUTH` | `required` | `off` only for local dev |
+| `NOD_AUTH` | `off` | auth is cut and unimplemented (ADR-042); `required` is honoured by no route |
 | `NOD_ALLOWED_ORIGINS` | console origin | CORS allow-list, never `*` |
-| `NOD_MAX_SESSIONS` | `64` | per worker |
+| `NOD_MAX_SESSIONS` | `2` | per worker, refused with 429 above it. Derived: the account permits 5 concurrent upstream streams (measured) and a rotating session holds 2 (ADR-042) |
 | `NOD_CEILING_MS` | `2600` | default latency ceiling |
 | `NOD_PRESET` | `balanced` | default preset |
 | `NOD_MODE_DEFAULT` | `adapt` | default mode for new sessions; §5 rolls out with `observe` |

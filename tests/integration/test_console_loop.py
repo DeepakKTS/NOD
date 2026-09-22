@@ -17,11 +17,12 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import pytest
 from fastapi.testclient import TestClient
 
+from nod_core.config import Settings
 from nod_core.types import NodMode, SessionBegin, Termination, Turn, Word
 from nod_server.app import create_app
 from nod_server.telemetry import CONSOLE_QUEUE_MAXSIZE, ConsoleTeeSink, TelemetryHub
@@ -99,6 +100,10 @@ async def _collect(agen: AsyncIterator[bytes], into: list[str], count: int) -> N
             return
 
 
+ID_SAMPLE: Final = 5
+"""Session ids drawn when checking they are not sequential. Sessions."""
+
+
 # ---------------------------------------------------------------------------
 # POST /v1/sessions
 # ---------------------------------------------------------------------------
@@ -117,12 +122,20 @@ def test_creating_a_session_returns_both_socket_urls() -> None:
 
 
 def test_session_ids_are_not_sequential() -> None:
-    """A guessable id would let one browser subscribe to another's call."""
-    with TestClient(create_app()) as client:
+    """A guessable id would let one browser subscribe to another's call.
+
+    Raises the cap explicitly, because the subject here is id entropy and the
+    default cap is 2 (ADR-042). Left on the default this drew three 429s and
+    failed on a missing `session_id`, which is the cap working and this test
+    asking the wrong question.
+    """
+    settings = Settings(_env_file=None, nod_max_sessions=ID_SAMPLE)  # type: ignore[call-arg]
+    with TestClient(create_app(settings)) as client:
         ids = {
-            client.post("/v1/sessions", json={}).json()["session_id"] for _ in range(5)
+            client.post("/v1/sessions", json={}).json()["session_id"]
+            for _ in range(ID_SAMPLE)
         }
-    assert len(ids) == 5
+    assert len(ids) == ID_SAMPLE
 
 
 def test_an_unknown_session_is_refused_rather_than_served() -> None:

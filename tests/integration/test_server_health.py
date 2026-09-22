@@ -20,19 +20,45 @@ import sys
 import time
 from collections.abc import Iterator
 from http import HTTPStatus
+from pathlib import Path
 
 import httpx
 import pytest
 
 from nod_core.config import Settings
-from nod_server.app import READINESS_CHECKS, create_app
+from nod_server.app import READINESS_PROBES, create_app, readiness
 
 SERVER_BOOT_TIMEOUT_S = 30.0
 SERVER_POLL_INTERVAL_S = 0.2
 
 
-def _client() -> httpx.AsyncClient:
-    transport = httpx.ASGITransport(app=create_app(Settings()))
+def _settings(**overrides: object) -> Settings:
+    """Settings built from explicit values, never from the repository `.env`.
+
+    `_env_file=None` matters: `Settings()` reads `.env`, which on a developer
+    machine carries a real `ASSEMBLYAI_API_KEY` and in CI does not. A readiness
+    test built on that passes locally and fails in CI for reasons that have
+    nothing to do with readiness.
+    """
+    # `_env_file` is a pydantic-settings init kwarg its generated signature does
+    # not declare, and `**overrides` is a heterogeneous splat no annotation fits.
+    # Both are runtime-correct and neither is checkable.
+    return Settings(_env_file=None, **overrides)  # type: ignore[call-arg, arg-type]
+
+
+def _ready_settings(tmp_path: Path) -> Settings:
+    """Every condition of DEPLOYMENT.md §4 satisfiable, on a temp volume."""
+    return _settings(
+        assemblyai_api_key="test-key-not-a-real-one",
+        nod_trace_dir=tmp_path / "traces",
+        nod_db_path=tmp_path / "nod.db",
+    )
+
+
+def _client(settings: Settings | None = None) -> httpx.AsyncClient:
+    transport = httpx.ASGITransport(
+        app=create_app(settings if settings is not None else _settings())
+    )
     return httpx.AsyncClient(transport=transport, base_url="http://nod.test")
 
 
@@ -58,18 +84,111 @@ async def test_healthz_never_touches_upstream() -> None:
 
 
 @pytest.mark.asyncio
-async def test_readyz_is_503_until_every_subsystem_lands() -> None:
-    """Phase 0 meets none of the four conditions of DEPLOYMENT.md §4."""
-    async with _client() as client:
+async def test_readyz_is_200_once_every_condition_is_actually_met(
+    tmp_path: Path,
+) -> None:
+    """ADR-041: the four checks are real, so they can go green.
+
+    This is the direction the previous version of this file could not test at
+    all. `ready` was hardcoded `False` in every entry, so `/readyz` returned 503
+    for any input and the only available assertion was that it did. A check that
+    cannot pass cannot fail either (CLAUDE.md §5).
+    """
+    async with _client(_ready_settings(tmp_path)) as client:
         response = await client.get("/readyz")
 
-    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     body = response.json()
-    assert body["status"] == "not_ready"
+    assert response.status_code == HTTPStatus.OK, body["not_ready"]
+    assert body["status"] == "ready"
+    assert body["not_ready"] == []
+    assert {check["name"] for check in body["checks"]} == {
+        probe(_ready_settings(tmp_path)).name for probe in READINESS_PROBES
+    }
+    assert all(check["ready"] for check in body["checks"])
 
-    reported = {check["name"] for check in body["checks"]}
-    assert reported == {check.name for check in READINESS_CHECKS}
-    assert set(body["not_ready"]) == reported
+
+@pytest.mark.asyncio
+async def test_readyz_is_503_and_names_a_missing_credential(tmp_path: Path) -> None:
+    """DEPLOYMENT.md §4: a 503 has to say which condition failed."""
+    settings = _settings(
+        nod_trace_dir=tmp_path / "traces", nod_db_path=tmp_path / "nod.db"
+    )
+    async with _client(settings) as client:
+        response = await client.get("/readyz")
+
+    body = response.json()
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+    assert body["status"] == "not_ready"
+    assert body["not_ready"] == ["config_loaded"]
+    detail = next(c["detail"] for c in body["checks"] if c["name"] == "config_loaded")
+    assert "ASSEMBLYAI_API_KEY" in detail
+
+
+def test_the_data_volume_check_detects_an_unwritable_path(tmp_path: Path) -> None:
+    """The check writes rather than consulting the permission bits.
+
+    Pointed at a path *under a regular file*, so `mkdir` raises whatever the
+    platform raises and the check has to report it. Chosen over `chmod 0o500`
+    because that is a no-op for root, and a test that silently passes in a
+    container running as root is worth nothing.
+    """
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_bytes(b"")
+    results = {
+        check.name: check
+        for check in readiness(
+            _settings(
+                assemblyai_api_key="k",
+                nod_trace_dir=blocker / "traces",
+                nod_db_path=tmp_path / "nod.db",
+            )
+        )
+    }
+    volume = results["data_volume_writable"]
+    assert not volume.ready
+    assert "not writable" in volume.detail
+
+
+def test_the_sqlite_check_confirms_wal_rather_than_only_opening(
+    tmp_path: Path,
+) -> None:
+    """ARCHITECTURE.md §6 specifies WAL; opening the file does not establish it."""
+    results = {check.name: check for check in readiness(_ready_settings(tmp_path))}
+    sqlite_check = results["sqlite_reachable"]
+    assert sqlite_check.ready
+    assert "journal_mode=wal" in sqlite_check.detail
+    assert "unpopulated" in sqlite_check.detail, (
+        "the detail must not imply the ARCHITECTURE §6 index exists; it does not"
+    )
+
+
+def test_the_capability_check_goes_red_when_a_wire_knob_is_not_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A knob demoted to INERT stops the controller patching, silently.
+
+    The whole reason this condition is on `/readyz` rather than assumed: the
+    verdicts are a committed constant, so the failure arrives by edit rather than
+    by outage, and nothing else in the running process would notice.
+    """
+    from nod_core import capabilities
+    from nod_core.types import Capabilities, ConfidenceField, KnobVerdict
+
+    demoted = Capabilities(
+        knobs=(
+            ("min_turn_silence", KnobVerdict.LIVE),
+            ("max_turn_silence", KnobVerdict.INERT),
+        ),
+        confidence_field=ConfidenceField.VARYING,
+        force_endpoint=KnobVerdict.LIVE,
+        has_word_timings=True,
+    )
+    monkeypatch.setattr(capabilities, "MEASURED_CAPABILITIES", demoted)
+
+    results = {check.name: check for check in readiness(_ready_settings(tmp_path))}
+    probe = results["capability_probe_cached"]
+    assert not probe.ready
+    assert "max_turn_silence" in probe.detail
 
 
 @pytest.mark.asyncio
@@ -84,15 +203,32 @@ async def test_readyz_names_what_is_missing_rather_than_being_opaque() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("path", ["/metrics", "/v1/voices", "/v1/presets"])
-async def test_other_routes_still_raise_not_implemented(path: str) -> None:
-    """The Phase 0 exception covers `/healthz` and `/readyz` only."""
-    transport = httpx.ASGITransport(
-        app=create_app(Settings()), raise_app_exceptions=True
-    )
-    async with httpx.AsyncClient(transport=transport, base_url="http://nod.test") as c:
-        with pytest.raises(NotImplementedError):
-            await c.get(path)
+async def test_metrics_renders_prometheus_text() -> None:
+    """DEPLOYMENT.md §4: `/metrics` is green unconditionally, Prometheus format."""
+    async with _client() as client:
+        response = await client.get("/metrics")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers["content-type"].startswith("text/plain")
+    body = response.text
+    assert "nod_turns_total" in body
+    assert "nod_decide_seconds" in body
+    assert "# HELP" in body and "# TYPE" in body
+
+
+@pytest.mark.asyncio
+async def test_metrics_is_green_even_when_readiness_is_not() -> None:
+    """A scrape endpoint that 503s during an incident removes the telemetry.
+
+    §4's table gives no condition under which `/metrics` may fail, and this is
+    that clause asserted rather than assumed: the same app that returns 503 from
+    `/readyz` must still serve metrics.
+    """
+    async with _client() as client:
+        assert (await client.get("/readyz")).status_code == (
+            HTTPStatus.SERVICE_UNAVAILABLE
+        )
+        assert (await client.get("/metrics")).status_code == HTTPStatus.OK
 
 
 def _free_port() -> int:
@@ -164,3 +300,63 @@ def test_make_run_binds_and_serves_health(uvicorn_server: str) -> None:
     ready = httpx.get(f"{uvicorn_server}/readyz", timeout=5.0)
     assert ready.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert ready.json()["status"] == "not_ready"
+
+
+# --- NOD_MAX_SESSIONS, the cost bound that replaced auth (ADR-042) ----------
+
+
+def test_the_session_cap_is_derived_from_the_measured_upstream_limit() -> None:
+    """ADR-042: the default is arithmetic over two measured facts, not a choice.
+
+    Asserted as the relation rather than as `== 2`, so re-measuring the account
+    limit moves the cap and this test follows. The previous value was `64`, which
+    was twelve times what the account permits and was not derived from anything.
+    """
+    from nod_core.config import (
+        MAX_CONCURRENT_SESSIONS,
+        UPSTREAM_CONCURRENCY_LIMIT,
+        UPSTREAM_SOCKETS_PER_SESSION_PEAK,
+    )
+
+    assert (
+        MAX_CONCURRENT_SESSIONS * UPSTREAM_SOCKETS_PER_SESSION_PEAK
+        <= UPSTREAM_CONCURRENCY_LIMIT
+    ), (
+        "every live session can hold "
+        f"{UPSTREAM_SOCKETS_PER_SESSION_PEAK} upstream sockets during rotation, so "
+        f"{MAX_CONCURRENT_SESSIONS} sessions can exceed the "
+        f"{UPSTREAM_CONCURRENCY_LIMIT}-session account limit and refuse a rotation "
+        "mid-call"
+    )
+    assert _settings().nod_max_sessions == MAX_CONCURRENT_SESSIONS
+
+
+@pytest.mark.asyncio
+async def test_creating_more_sessions_than_the_cap_is_refused_with_429() -> None:
+    """A public URL must not accept unbounded sessions (ADR-042)."""
+    settings = _settings(nod_max_sessions=2)
+    async with _client(settings) as client:
+        first = await client.post("/v1/sessions", json={})
+        second = await client.post("/v1/sessions", json={})
+        third = await client.post("/v1/sessions", json={})
+
+    assert first.status_code == HTTPStatus.OK
+    assert second.status_code == HTTPStatus.OK
+    assert third.status_code == HTTPStatus.TOO_MANY_REQUESTS
+    assert "NOD_MAX_SESSIONS" in third.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_the_cap_admits_sessions_up_to_the_limit() -> None:
+    """The companion direction: a cap that refuses everything is not a cap.
+
+    Written because the test above passes against `nod_max_sessions = 0`, where
+    nothing is ever admitted and the endpoint is simply broken.
+    """
+    settings = _settings(nod_max_sessions=3)
+    async with _client(settings) as client:
+        codes = [
+            (await client.post("/v1/sessions", json={})).status_code for _ in range(3)
+        ]
+
+    assert codes == [HTTPStatus.OK] * 3

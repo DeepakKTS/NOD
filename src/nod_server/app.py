@@ -5,33 +5,41 @@ Routes follow ARCHITECTURE.md §7 exactly. There is deliberately no module-level
 application construction.
 
 Scope exception to the Phase 0 "every stub raises" rule, granted explicitly and
-limited to this file: `create_app`, `/healthz` and `/readyz` are real. Health
+limited to this file: `create_app` and the three health endpoints are real. Health
 endpoints are infrastructure, not business logic, and leaving them unimplemented
 would mean the uvicorn factory, the container healthcheck and the readiness path
-go unexercised until deployment week. Every other route here still raises
-`NotImplementedError`, including `/metrics`.
+go unexercised until deployment week.
+
+`/metrics` joined them at Gate 4a — it is the only stub on DEPLOYMENT.md §4's
+path, and the registry it renders was already fully built. `/readyz`'s four checks
+became real conditions in the same gate (ADR-041); they were hardcoded `False`, so
+it returned 503 unconditionally against an exit criterion that asks for green
+health checks. Every other route here still raises `NotImplementedError`.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import secrets
+import sqlite3
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from fastapi import APIRouter, FastAPI, Request, Response, WebSocket
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from nod_adapters.llm.anthropic import AnthropicClient
 from nod_adapters.protocols import Message
 from nod_core.arbiter import DEFAULT_CEILING_MS
 from nod_core.config import Settings
 from nod_core.types import JsonValue, NodMode, Voice
-from nod_server.telemetry import ConsoleTeeSink, TelemetryHub
+from nod_server.telemetry import ConsoleTeeSink, TelemetryHub, render_metrics
 from nod_server.ws import console_endpoint, stream_endpoint
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only
@@ -45,6 +53,23 @@ CONSOLE_HTML: Final = Path(__file__).parent / "static" / "index.html"
 
 SAMPLE_RATE_HZ: Final = 16000
 """Caller audio is mono 16 kHz PCM16 (ARCHITECTURE.md §7)."""
+
+WS_CLOSE_UNKNOWN_SESSION: Final = 4404
+"""WebSocket close code for an unknown `session_id`. Mirrors HTTP 404."""
+
+WS_CLOSE_AT_CAPACITY: Final = 4429
+"""WebSocket close code when `NOD_MAX_SESSIONS` is reached. Mirrors HTTP 429.
+
+A WebSocket cannot carry an HTTP status once the upgrade has been accepted, so the
+code is refused before `accept()` and the number is chosen to read as the status it
+stands for, exactly as `WS_CLOSE_UNKNOWN_SESSION` does.
+"""
+
+SQLITE_BUSY_TIMEOUT_S: Final = 5.0
+"""Busy timeout on the index connection. Seconds (ARCHITECTURE.md §6)."""
+
+SQLITE_SYNCHRONOUS: Final = "NORMAL"
+"""`PRAGMA synchronous` for the index (ARCHITECTURE.md §6)."""
 
 router = APIRouter(prefix="/v1")
 health_router = APIRouter()
@@ -60,37 +85,159 @@ class ReadinessCheck:
     implemented_in: str
 
 
-READINESS_CHECKS: Final = (
-    ReadinessCheck(
-        name="config_loaded",
-        ready=False,
-        detail="nod_core.config.get_settings is not implemented",
-        implemented_in="P0",
-    ),
-    ReadinessCheck(
-        name="data_volume_writable",
-        ready=False,
-        detail="NOD_TRACE_DIR writability is unchecked; the trace sink lands in P6",
-        implemented_in="P6",
-    ),
-    ReadinessCheck(
-        name="sqlite_reachable",
-        ready=False,
-        detail="the SQLite index of ARCHITECTURE.md §6 is not opened yet",
-        implemented_in="P6",
-    ),
-    ReadinessCheck(
-        name="capability_probe_cached",
-        ready=False,
-        detail="nod_core.capabilities.probe lands in P1 (ADR-001 is still pending)",
-        implemented_in="P1",
-    ),
-)
-"""The four conditions of DEPLOYMENT.md §4, none of them met at Phase 0.
+type ReadinessProbe = Callable[[Settings], ReadinessCheck]
+"""A condition evaluated per request, against the settings actually in force."""
 
-`/readyz` reports every one of them so the 503 says what is missing rather than
-being opaque. As each subsystem lands, flip its entry to a live check.
+
+def _check_config_loaded(settings: Settings) -> ReadinessCheck:
+    """Settings parsed, and the one credential with no default is present."""
+    missing = [] if settings.assemblyai_api_key else ["ASSEMBLYAI_API_KEY"]
+    return ReadinessCheck(
+        name="config_loaded",
+        ready=not missing,
+        detail=(
+            f"parsed; model {settings.nod_model}, "
+            f"mode {settings.nod_mode_default.value}"
+            if not missing
+            else f"missing required setting(s): {', '.join(missing)}"
+        ),
+        implemented_in="P4",
+    )
+
+
+def _check_path_writable(name: str, path: Path) -> ReadinessCheck:
+    """Create `path` and write a probe file into it, then remove the probe.
+
+    Asserting writability by *writing* rather than by `os.access`, which reports
+    the permission bits and not the outcome: a read-only mount, a full disk and an
+    SELinux denial all pass `os.access` and fail the first write. The check that
+    matters is the one the trace sink will actually perform.
+    """
+    probe = path / ".readyz-probe"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe.write_bytes(b"")
+    except OSError as exc:
+        return ReadinessCheck(
+            name=name,
+            ready=False,
+            detail=f"{path} not writable: {exc}",
+            implemented_in="P4",
+        )
+    finally:
+        with contextlib.suppress(OSError):
+            probe.unlink()
+    return ReadinessCheck(
+        name=name, ready=True, detail=f"{path} writable", implemented_in="P4"
+    )
+
+
+def _check_data_volume_writable(settings: Settings) -> ReadinessCheck:
+    """`NOD_TRACE_DIR` exists and accepts a write (DEPLOYMENT.md §4)."""
+    return _check_path_writable("data_volume_writable", settings.nod_trace_dir)
+
+
+def _check_sqlite_reachable(settings: Settings) -> ReadinessCheck:
+    """Open `NOD_DB_PATH`, set the §6 pragmas, and read one back.
+
+    **Reachability only. The index is not populated in this build**, and saying so
+    here is the point: ARCHITECTURE §6 specifies `sessions`, `config_changes` and
+    `bench_runs`, nothing writes them, and traces are JSONL on disk. Reporting
+    "ready" for a schema that does not exist would be the flattering direction, so
+    the detail names what was actually verified — that the file opens, WAL mode
+    takes, and the directory accepts a write.
+
+    Uses stdlib `sqlite3` rather than `aiosqlite` because this opens and closes one
+    connection and awaits nothing; the call is wrapped in `to_thread` by the route.
+    """
+    try:
+        settings.nod_db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(settings.nod_db_path, timeout=SQLITE_BUSY_TIMEOUT_S) as db:
+            mode = str(db.execute("PRAGMA journal_mode=WAL").fetchone()[0])
+            db.execute(f"PRAGMA synchronous={SQLITE_SYNCHRONOUS}")
+    except (OSError, sqlite3.Error) as exc:
+        return ReadinessCheck(
+            name="sqlite_reachable",
+            ready=False,
+            detail=f"{settings.nod_db_path} unreachable: {exc}",
+            implemented_in="P4",
+        )
+    if mode.lower() != "wal":
+        return ReadinessCheck(
+            name="sqlite_reachable",
+            ready=False,
+            detail=f"WAL refused; journal_mode is {mode!r} (ARCHITECTURE.md §6)",
+            implemented_in="P4",
+        )
+    return ReadinessCheck(
+        name="sqlite_reachable",
+        ready=True,
+        detail=(
+            f"{settings.nod_db_path} opens, journal_mode=wal; "
+            "reachability only, the §6 index is unpopulated in this build"
+        ),
+        implemented_in="P4",
+    )
+
+
+def _check_capability_probe_cached(settings: Settings) -> ReadinessCheck:
+    """ADR-001's verdicts are available, and cover both knobs §4 emits.
+
+    The "cache" is `capabilities.MEASURED_CAPABILITIES`, a committed constant
+    rather than a live probe result — ADR-001 measured it once and the bench and
+    the server deliberately read the same object. So this asserts the thing that
+    can actually go wrong: that the verdicts still cover every field `WIRE_FIELDS`
+    intends to send. A knob dropped to `INERT` there would silently stop the
+    controller patching, which is the product failing quietly.
+    """
+    from nod_core.arbiter import WIRE_FIELDS
+    from nod_core.capabilities import MEASURED_CAPABILITIES
+    from nod_core.types import KnobVerdict
+
+    verdicts = dict(MEASURED_CAPABILITIES.knobs)
+    not_live = [
+        wire for wire, _ in WIRE_FIELDS if verdicts.get(wire) is not KnobVerdict.LIVE
+    ]
+    return ReadinessCheck(
+        name="capability_probe_cached",
+        ready=not not_live,
+        detail=(
+            f"ADR-001 verdicts for {settings.nod_model}; "
+            f"{len(verdicts)} knobs, both wire fields LIVE"
+            if not not_live
+            else f"knob(s) not LIVE, the controller cannot patch them: {not_live}"
+        ),
+        implemented_in="P4",
+    )
+
+
+READINESS_PROBES: Final[tuple[ReadinessProbe, ...]] = (
+    _check_config_loaded,
+    _check_data_volume_writable,
+    _check_sqlite_reachable,
+    _check_capability_probe_cached,
+)
+"""The four conditions of DEPLOYMENT.md §4, each evaluated per request (ADR-041).
+
+They were a static tuple with `ready=False` written into every entry, which made
+`/readyz` return 503 unconditionally — against a Phase 4 exit criterion that asks
+for green health checks, and worse, with no way for any of them to ever go green
+or for a *real* failure to be distinguished from the placeholder. A check whose
+result does not depend on the system is the §5 shape: it cannot fail, because it
+cannot pass either.
 """
+
+
+def readiness(settings: Settings) -> tuple[ReadinessCheck, ...]:
+    """Evaluate every condition. `O(1)` calls, each doing one small disk probe.
+
+    Args:
+        settings: The settings in force for this process.
+
+    Returns:
+        One result per probe, in `READINESS_PROBES` order.
+    """
+    return tuple(probe(settings) for probe in READINESS_PROBES)
 
 
 def default_proxy_factory(
@@ -153,12 +300,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the application.
 
     Wires CORS deny-by-default from `NOD_ALLOWED_ORIGINS` (never `*`) and the
-    routes of ARCHITECTURE.md §7. Bearer auth on mutating routes lands with
-    `nod_server.auth` in P6.
+    routes of ARCHITECTURE.md §7.
+
+    **There is no bearer auth and that is a decision** (ADR-042). `nod_server.auth`
+    stays a stub and `NOD_AUTH` now defaults to `off` rather than to a `required`
+    nothing honoured. What a public URL actually needed was a bound on cost, not on
+    access, so `NOD_MAX_SESSIONS` refuses over its limit instead.
 
     Args:
         settings: Process settings. Built from the environment when omitted;
-            `get_settings` is the cached accessor and is still a stub.
+            `get_settings` is the cached accessor.
 
     Returns:
         The configured application.
@@ -184,6 +335,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.settings = resolved
     app.state.sessions = {}
+    app.state.live_streams = 0
     app.state.hub = TelemetryHub()
     app.state.proxy_factory = default_proxy_factory(resolved)
     app.state.llm = AnthropicClient(
@@ -196,13 +348,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _stream(  # pragma: no cover - exercised by the integration test
         websocket: WebSocket, session_id: str
     ) -> None:
-        """Route `WS /v1/stream` onto a live `SessionProxy`."""
+        """Route `WS /v1/stream` onto a live `SessionProxy`.
+
+        **This is where the cap has to bind**, not on `POST /v1/sessions`. That
+        route only adds a dict entry and costs nothing; the upstream socket — and
+        therefore the credit — is opened by the factory below. Capping only the
+        POST would leave a deployed URL able to spend the key from any browser.
+        """
         record = app.state.sessions.get(session_id)
         if record is None:
-            await websocket.close(code=4404)
+            await websocket.close(code=WS_CLOSE_UNKNOWN_SESSION)
+            return
+        limit: int = app.state.settings.nod_max_sessions
+        if app.state.live_streams >= limit:
+            await websocket.close(code=WS_CLOSE_AT_CAPACITY)
             return
         factory = app.state.proxy_factory
         proxy, run = await factory(record, app.state.hub)
+        app.state.live_streams += 1
         task = asyncio.create_task(run())
         try:
             await stream_endpoint(
@@ -215,6 +378,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 nod_ceiling_ms=record.ceiling_ms,
             )
         finally:
+            app.state.live_streams -= 1
             task.cancel()
             await proxy.aclose()
 
@@ -270,6 +434,16 @@ async def create_session(
     Returns:
         `session_id`, `ws_url` and `console_url`.
     """
+    settings: Settings = request.app.state.settings
+    registry_now: dict[str, SessionRecord] = request.app.state.sessions
+    if len(registry_now) >= settings.nod_max_sessions:
+        raise HTTPException(
+            status_code=HTTPStatus.TOO_MANY_REQUESTS,
+            detail=(
+                f"at capacity: {len(registry_now)} of {settings.nod_max_sessions} "
+                "sessions (NOD_MAX_SESSIONS)"
+            ),
+        )
     preset = str(body.get("preset", "balanced"))
     mode = NodMode(str(body.get("mode", NodMode.ADAPT.value)))
     ceiling = int(body.get("ceiling_ms", DEFAULT_CEILING_MS))  # type: ignore[arg-type]
@@ -382,19 +556,22 @@ async def healthz() -> Response:
 
 
 @health_router.get("/readyz")
-async def readyz() -> Response:
+async def readyz(request: Request) -> Response:
     """Readiness: config loaded, `/data` writable, SQLite reachable, probe cached.
 
     Deliberately does not call AssemblyAI. An upstream outage must not take the
     container out of rotation, because `observe` mode and replay mode still work
     (DEPLOYMENT.md §4).
 
-    At Phase 0 none of the four conditions is met, so this reports every one of
-    them by name rather than returning a bare 503.
+    Each condition is evaluated against the settings actually in force (ADR-041),
+    so a 503 now means a real failure and names it. The probes touch the disk, so
+    they run in a thread rather than on the event loop.
 
     Returns:
         `200` once every check passes, otherwise `503` listing what is missing.
     """
+    settings: Settings = request.app.state.settings
+    results = await asyncio.to_thread(readiness, settings)
     checks = [
         {
             "name": check.name,
@@ -402,15 +579,15 @@ async def readyz() -> Response:
             "detail": check.detail,
             "implemented_in": check.implemented_in,
         }
-        for check in READINESS_CHECKS
+        for check in results
     ]
-    ready = all(check.ready for check in READINESS_CHECKS)
+    ready = all(check.ready for check in results)
     status = HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE
     return JSONResponse(
         status_code=status,
         content={
             "status": "ready" if ready else "not_ready",
-            "not_ready": [c.name for c in READINESS_CHECKS if not c.ready],
+            "not_ready": [c.name for c in results if not c.ready],
             "checks": checks,
         },
     )
@@ -418,5 +595,12 @@ async def readyz() -> Response:
 
 @health_router.get("/metrics")
 async def metrics() -> Response:
-    """Prometheus metrics. Always green (DEPLOYMENT.md §4)."""
-    raise NotImplementedError
+    """Prometheus metrics. Always green (DEPLOYMENT.md §4).
+
+    "Always" is the contract: §4's table gives no condition under which this is
+    allowed to fail, because a scrape endpoint that 503s during an incident
+    removes the telemetry exactly when it is needed. It reads a process-local
+    registry and touches neither upstream nor disk, so there is nothing here to
+    be unavailable.
+    """
+    return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)

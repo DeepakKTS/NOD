@@ -1,4 +1,18 @@
-"""Bearer auth for mutating routes, and short-lived per-session tokens."""
+"""Bearer auth for mutating routes, and short-lived per-session tokens.
+
+**Both functions are stubs and stay stubs through the freeze** (ADR-042). Auth is
+post-hackathon work (ROADMAP §4, "per-tenant policy management and auth") and this
+module is referenced by no route. It is kept rather than deleted because the
+signatures are the contract ARCHITECTURE §7 and §10 describe, and an empty file
+would say nothing about what is missing.
+
+What matters is that nothing now *claims* it is active: `NOD_AUTH` defaults to
+`off`, and the exposure a public URL actually has — anyone opening the demo socket
+spends the upstream key — is bounded by `NOD_MAX_SESSIONS` in `nod_server.app`,
+which is a cost bound and not an access bound. INV-5 is unaffected either way: the
+browser receives relative WebSocket paths and no credential, which is why
+`mint_session_token` being unimplemented costs nothing today.
+"""
 
 from __future__ import annotations
 
