@@ -70,6 +70,38 @@ def unknown_frame_types(frames: Iterable[Mapping[str, JsonValue]]) -> frozenset[
     )
 
 
+INTEGER_FIELDS: Final = frozenset({"min_turn_silence", "max_turn_silence"})
+"""Knobs the service parses with `int()`. Milliseconds, and integral.
+
+**Measured, at Gate 4b, by a live smoke that failed on the first frame.** The
+service answered `3006 User Input Validation Error: Invalid 'min_turn_silence':
+invalid literal for int() with base 10: '160.0'`. Everything upstream of the
+socket carries these as floats — `SttSession.update_configuration` is typed
+`Mapping[str, float]`, `TurnConfig` holds `int` but the proxy widens it, and
+`STATIC_ARMS` is built from ints that the driver floats on the way in — so the
+value arrives here as `160.0` and `str()` renders it `"160.0"`.
+
+Nothing caught it because `FakeProbeSession` reads the config through
+`float(settings.get(...))` and is perfectly happy with either. A fake that is
+more permissive than the service is a fake that cannot fail this way.
+
+The other two updatable knobs, `end_of_turn_confidence_threshold` and
+`vad_threshold`, are genuine floats in `[0, 1]` and must not be coerced. So the
+set is named rather than inferred from whether a value happens to be integral:
+`vad_threshold=1.0` is integral and is not an integer.
+"""
+
+
+def _typed(field: str, value: float) -> JsonValue:
+    """One config value in the type the service parses it as. Pure. `O(1)`."""
+    return int(value) if field in INTEGER_FIELDS else float(value)
+
+
+def _wire(field: str, value: float) -> str:
+    """One config value as a query-string parameter. Pure. `O(1)`."""
+    return str(_typed(field, value))
+
+
 class UpstreamError(ExplainedUpstreamError):
     """The server sent an `Error` frame and closed the socket.
 
@@ -167,7 +199,7 @@ class AssemblyAISession:
             "speech_model": self._model,
             "format_turns": "false",
         }
-        params.update({k: str(v) for k, v in self._config.items()})
+        params.update({k: _wire(k, v) for k, v in self._config.items()})
         return f"{STREAMING_URL}?{urlencode(params)}"
 
     async def __aenter__(self) -> AssemblyAISession:
@@ -205,7 +237,7 @@ class AssemblyAISession:
         change took effect; see `nod_core.capabilities`.
         """
         message: dict[str, JsonValue] = {"type": "UpdateConfiguration"}
-        message.update(patch)
+        message.update({k: _typed(k, v) for k, v in patch.items()})
         await self._send_json(message)
 
     async def force_endpoint(self) -> None:

@@ -13,7 +13,6 @@ import asyncio
 import sys
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import mkdtemp
@@ -23,7 +22,7 @@ import numpy as np
 import soundfile as sf
 from pydantic import BaseModel, ConfigDict
 
-from nod_adapters.assemblyai.session import AssemblyAISession
+from nod_adapters.assemblyai.session import AssemblyAISession, UpstreamError
 from nod_bench.corpus import BuiltCorpus, GeneratedClip
 from nod_bench.fake_assemblyai import Endpointer
 from nod_bench.feeder import FeedReport, PacedFeeder
@@ -99,6 +98,38 @@ never rotates — every clip is under thirteen seconds and rotation fires near
 `expires_at` — so the halving is not required here and this is the conservative
 default rather than the derived one. `--concurrency` raises it up to the limit.
 """
+
+CONCURRENCY_REFUSED_CODE: Final = 1008
+"""AssemblyAI's `Error` code for "Too many concurrent sessions". Measured.
+
+Recorded as a constant because the number is the *only* thing distinguishing an
+over-subscribed sweep from a healthy one: the refusal arrives **after** a
+successful WebSocket upgrade (ADR-042), so the socket, the handshake and the
+session object all look fine.
+"""
+
+
+class LiveRunAbortedError(RuntimeError):
+    """The upstream errored mid-clip, so this clip has no score. `O(1)`.
+
+    Raised rather than returning the boundaries collected so far, which is the
+    whole point. A clip that lost its socket half way through produces *fewer*
+    boundaries, and fewer boundaries on a PCR denominator that comes from the
+    sidecar reads as **an arm that cut nobody off** — the flattering direction,
+    arrived at by the run failing rather than by the arm behaving.
+    """
+
+
+class ConcurrencyRefusedError(LiveRunAbortedError):
+    """Error 1008: the account refused a session because too many were open.
+
+    Fatal to the sweep, not just to the clip. An over-subscribed sweep does not
+    recover on its own — every later clip is competing for the same slots — and
+    each refusal costs a clip that scores as silence. So this aborts everything
+    and exits non-zero rather than leaving a partially-scored corpus that looks
+    complete.
+    """
+
 
 TERMINATION_TIMEOUT_S: Final = 10.0
 """How long to wait for the upstream to finish after `Terminate`. Seconds.
@@ -660,6 +691,42 @@ class LiveBoundary:
     words: tuple[Word, ...]
 
 
+def is_caller_turn(turn: Turn) -> bool:
+    """Whether a finalised turn is something the caller actually said. `O(1)`.
+
+    **A finalised turn carrying no words is not a caller turn.** Measured at
+    Gate 4b against the real service: feeding a 9274 ms clip whose speech ends at
+    5024 ms produced turn 0 at 5628 ms with 17 words and the right transcript,
+    then turn 1 at 9980 ms with **zero words and an empty transcript** — 706 ms
+    after the last audio frame and immediately after our own `Terminate`. It is
+    the service closing an open-but-empty turn at session end.
+
+    Counting it corrupted two metrics at once and did so on every arm, which is
+    why it did not look like a defect: FRAG was exactly 2.000 for all six arms
+    (two emitted turns per one ground-truth utterance), and TTL p90 measured
+    flush-minus-speech-end, about 4.9 s, instead of the real 376 ms. A number
+    identical across arms invites the reading that no arm differs.
+
+    **Filtering moves both figures in the flattering direction** — FRAG toward
+    1.0, TTL p90 down by an order of magnitude — and that is named here rather
+    than left for a reader to notice. It is done because the flush is
+    demonstrably an artifact of the harness ending the session and not a
+    behaviour of any arm, not because of where it moves the number. The count of
+    what was dropped travels with the run (`LiveRun.flush_turns`) so the decision
+    is auditable instead of invisible.
+
+    An empty turn is also inert for all three metrics by construction: it cannot
+    be a premature cut, because the caller said nothing to cut.
+
+    Args:
+        turn: A finalised upstream turn.
+
+    Returns:
+        Whether it carries any words.
+    """
+    return bool(turn.words)
+
+
 def score_live_clip(
     clip: GeneratedClip, arm: Arm, boundaries: Sequence[LiveBoundary]
 ) -> ClipObservation:
@@ -758,6 +825,15 @@ class LiveRun:
     decide_ms: tuple[float, ...]
     wall_s: float
     feed_report: FeedReport | None
+    flush_turns: int = 0
+    """Wordless finalised turns dropped by `is_caller_turn`. See there.
+
+    Carried rather than discarded because dropping a boundary changes FRAG and
+    TTL, and a silent filter on the input to a published number is the thing
+    CLAUDE.md §5 is about. One per session is the expected shape — the
+    `Terminate` flush — and a run reporting materially more has something else
+    happening.
+    """
 
 
 async def run_live_clip(
@@ -848,6 +924,7 @@ async def _run_live_static(
     """One static arm: configure at connect, feed, collect boundaries."""
     settings = STATIC_ARMS[arm]
     boundaries: list[LiveBoundary] = []
+    dropped: list[Turn] = []
     session = session_factory(
         api_key=api_key,
         model=model,
@@ -860,7 +937,7 @@ async def _run_live_static(
         },
     )
     async with session:
-        report = await _feed_and_drain(session, feeder, frames, boundaries)
+        report = await _feed_and_drain(session, feeder, frames, boundaries, dropped)
     return LiveRun(
         observation=score_live_clip(clip, arm, boundaries),
         patches=0,
@@ -868,6 +945,7 @@ async def _run_live_static(
         decide_ms=(),
         wall_s=0.0,
         feed_report=report,
+        flush_turns=len(dropped),
     )
 
 
@@ -894,6 +972,7 @@ async def _run_live_controlled(
     """
     axes = NOD_ARMS[arm]
     boundaries: list[LiveBoundary] = []
+    dropped: list[Turn] = []
 
     upstream = session_factory(
         api_key=api_key,
@@ -926,7 +1005,9 @@ async def _run_live_controlled(
             ),
         )
         driver = asyncio.create_task(proxy.run())
-        collector = asyncio.create_task(_collect_from_proxy(proxy, feeder, boundaries))
+        collector = asyncio.create_task(
+            _collect_from_proxy(proxy, feeder, boundaries, dropped)
+        )
         try:
             report = await feeder.feed(frames, _sync_feed(proxy))
             await upstream.terminate()
@@ -934,11 +1015,25 @@ async def _run_live_controlled(
         except TimeoutError:
             collector.cancel()
             report = None
+        except OSError:
+            # As in `_feed_and_drain`: the socket dying under the feeder is the
+            # symptom, and `proxy.run()` is holding the diagnosis. Fall through
+            # to the `finally`, which harvests it and raises with the reason.
+            report = None
         finally:
+            collector.cancel()
             driver.cancel()
-            with suppress(BaseException):
-                await driver
+            # `proxy.run()` awaits `pump_events_down` inside a TaskGroup, and
+            # `AssemblyAISession.events` raises `UpstreamError` on an `Error`
+            # frame — so an upstream refusal lands *here*, in a task nothing
+            # was inspecting. `suppress(BaseException)` then discarded it, the
+            # collector waited out its ten seconds, and the clip scored on
+            # however many boundaries had arrived before the socket died. That
+            # is the silent-clip failure ADR-042 warned about, one layer in.
+            driver_error = await _harvest(driver)
             await proxy.aclose()
+    if driver_error is not None:
+        raise _abort_for(driver_error) from driver_error
 
     return LiveRun(
         observation=score_live_clip(clip, arm, boundaries),
@@ -947,6 +1042,7 @@ async def _run_live_controlled(
         decide_ms=tuple(controller.samples),
         wall_s=0.0,
         feed_report=report,
+        flush_turns=len(dropped),
     )
 
 
@@ -1018,32 +1114,62 @@ async def _feed_and_drain(
     feeder: PacedFeeder,
     frames: Sequence[bytes],
     into: list[LiveBoundary],
+    dropped: list[Turn],
 ) -> FeedReport | None:
-    """Feed a static session and collect its boundaries."""
+    """Feed a static session and collect its caller turns.
+
+    Args:
+        session: The upstream.
+        feeder: The paced feeder, also the stream clock boundaries are timed on.
+        frames: PCM16 frames.
+        into: Collected boundaries, appended as they arrive.
+        dropped: Wordless finalised turns, for the audit count.
+
+    Returns:
+        The feed report, or `None` if the upstream never finished.
+    """
 
     async def drain() -> None:
         async for event in session.events():
             if isinstance(event, Turn) and event.end_of_turn:
+                if not is_caller_turn(event):
+                    dropped.append(event)
+                    continue
                 # `append`, not the `extend`-with-comprehension PERF401 asks for.
                 # This task is cancelled on `TERMINATION_TIMEOUT_S`, and `extend`
                 # only mutates the list once the comprehension completes — so a
                 # cancelled collector would discard every boundary it had already
                 # seen and the clip would score as though the socket said nothing.
-                into.append(_boundary(event, feeder))  # noqa: PERF401
+                into.append(_boundary(event, feeder))
 
     reader = asyncio.create_task(drain())
     try:
         report = await feeder.feed(frames, session.send_audio)
         await session.terminate()
         await asyncio.wait_for(reader, timeout=TERMINATION_TIMEOUT_S)
+    except UpstreamError as exc:
+        reader.cancel()
+        raise _abort_for(exc) from exc
     except TimeoutError:
         reader.cancel()
         return None
+    except OSError as exc:
+        # The socket died under the feeder. Whatever closed it said *why* on the
+        # reader's side an instant earlier, so the reader's exception is the
+        # real diagnosis and this one is the symptom. Observed at Gate 4b: a
+        # rejected config produced `ConnectionClosedError: received 3006` here
+        # and `UpstreamError: Invalid 'min_turn_silence'` there, and only the
+        # second says what to fix. Without this the useful one surfaced as an
+        # unretrieved-task warning, by luck.
+        raise _abort_for(await _harvest(reader) or exc) from exc
     return report
 
 
 async def _collect_from_proxy(
-    proxy: SessionProxy, feeder: PacedFeeder, into: list[LiveBoundary]
+    proxy: SessionProxy,
+    feeder: PacedFeeder,
+    into: list[LiveBoundary],
+    dropped: list[Turn],
 ) -> None:
     """Collect boundaries from the proxy's client-facing event stream.
 
@@ -1052,9 +1178,56 @@ async def _collect_from_proxy(
     """
     async for event in proxy.client_events():
         if isinstance(event, Turn) and event.end_of_turn:
+            if not is_caller_turn(event):
+                dropped.append(event)
+                continue
             # See `_feed_and_drain`: `append` survives cancellation, `extend` does
             # not, and this collector is cancelled on timeout.
-            into.append(_boundary(event, feeder))  # noqa: PERF401
+            into.append(_boundary(event, feeder))
+
+
+async def _harvest(task: asyncio.Task[None]) -> BaseException | None:
+    """Await a cancelled task and return the exception it was hiding. `O(1)`.
+
+    `CancelledError` is the expected outcome and is not an error; anything else
+    is something the task raised before the cancel reached it, and is exactly
+    what the caller needs to see.
+    """
+    try:
+        await task
+    except asyncio.CancelledError:
+        return None
+    except BaseException as exc:
+        return _unwrap(exc)
+    return None
+
+
+def _unwrap(exc: BaseException) -> BaseException:
+    """The first non-group exception inside a possibly-nested group. `O(n)`.
+
+    `asyncio.TaskGroup` re-raises as an `ExceptionGroup`, so the `UpstreamError`
+    carrying error 1008 can arrive wrapped one or two deep. Matching on the group
+    would miss the code and the sweep would treat a concurrency refusal as an
+    ordinary abort.
+    """
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return exc
+
+
+def _abort_for(exc: BaseException) -> LiveRunAbortedError:
+    """Classify an upstream failure. Pure. `O(1)`."""
+    code = getattr(exc, "error_code", None)
+    if code == CONCURRENCY_REFUSED_CODE:
+        return ConcurrencyRefusedError(
+            f"upstream refused with {CONCURRENCY_REFUSED_CODE} "
+            f"(too many concurrent sessions): the sweep is over-subscribed. "
+            f"The account permits {UPSTREAM_CONCURRENCY_LIMIT} concurrent "
+            f"streams and the refusal arrives after a successful upgrade, so "
+            f"every affected clip would otherwise score as silence. Lower "
+            f"--concurrency and re-run; partial results are not usable."
+        )
+    return LiveRunAbortedError(f"upstream errored mid-clip, so it has no score: {exc}")
 
 
 def _boundary(turn: Turn, feeder: PacedFeeder) -> LiveBoundary:
@@ -1210,6 +1383,13 @@ def _live_main(args: argparse.Namespace, out: TextIO) -> int:
         f"{len(corpus.clips)} clips x {len(arms)} arms x {args.repeats} repeats "
         f"= {sessions} live sessions, {audio_s / 3600:.2f} h of audio, "
         f"~${audio_s / 3600 * STREAMING_USD_PER_HOUR:.2f} at the published rate.\n"
+        # Printed, always, because a concurrency that quietly differs from the
+        # one the operator planned for changes the wall clock by a factor and
+        # nothing else would say so. `make bench-live` passes it explicitly for
+        # the same reason; the default is the safe value, not the intended one.
+        f"concurrency {args.concurrency} of {UPSTREAM_CONCURRENCY_LIMIT} "
+        f"permitted (default {LIVE_CONCURRENCY}"
+        f"{', OVERRIDDEN' if args.concurrency != LIVE_CONCURRENCY else ''}).\n"
         f"At {args.concurrency} concurrent, expect at least "
         f"{audio_s / args.concurrency / 3600:.2f} h wall clock: the feeder is "
         f"real time by construction (BENCH_SPEC §4), so this is a floor.\n"
@@ -1224,8 +1404,23 @@ async def _live_sweep(
     api_key: str,
     policy: CompiledPolicy | None,
     out: TextIO,
+    session_factory: SessionFactory | None = None,
 ) -> int:
-    """Run every (clip, arm) pair live, `args.concurrency` at a time."""
+    """Run every (clip, arm) pair live, `args.concurrency` at a time.
+
+    Args:
+        corpus: The built corpus.
+        arms: Every arm to sweep.
+        args: Parsed CLI arguments.
+        api_key: Upstream credential.
+        policy: The compiled context policy.
+        out: Where progress is written.
+        session_factory: Builds each upstream. Injected so the abort path can be
+            tested without a socket (INV-7); `None` is the real one.
+
+    Returns:
+        `0` on a complete sweep, `1` when an upstream failure aborted it.
+    """
     from nod_bench.report import render_all
 
     gate = asyncio.Semaphore(args.concurrency)
@@ -1239,16 +1434,33 @@ async def _live_sweep(
                 endpoint=LIVE_ENDPOINT_LABEL,
                 repeats=args.repeats,
                 corpus_clip=clip,
+                session_factory=session_factory,
                 api_key=api_key,
                 policy=policy,
                 out=args.out / "traces",
             )
 
-    tasks = [one(clip, arm) for arm in arms for clip in corpus.clips]
-    for done in asyncio.as_completed(tasks):
-        results.append(await done)
-        out.write(f"\r{len(results)}/{len(tasks)} pairs")
-        out.flush()
+    pending = [
+        asyncio.ensure_future(one(clip, arm)) for arm in arms for clip in corpus.clips
+    ]
+    try:
+        for done in asyncio.as_completed(pending):
+            results.append(await done)
+            out.write(f"\r{len(results)}/{len(pending)} pairs")
+            out.flush()
+    except LiveRunAbortedError as exc:
+        # Nothing is salvageable from a partial sweep: `bootstrap_points` and
+        # `repeat_points` both pair arms clip-by-clip, and a corpus missing the
+        # clips that happened to be in flight is not the same corpus on every
+        # arm. Writing artifacts from it would publish a table whose rows were
+        # measured over different subsets.
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        out.write(f"\n\nABORTED after {len(results)} of {len(pending)} pairs.\n")
+        out.write(f"{exc}\n")
+        out.write("No artifacts written; a partially-scored corpus is not one.\n")
+        return 1
     out.write("\n")
 
     # `as_completed` yields in finishing order, which is not the corpus order.

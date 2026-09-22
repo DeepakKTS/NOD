@@ -130,7 +130,14 @@ bench: ## Full benchmark offline against FakeAssemblyAI, no API key needed
 	$(RUN_BENCH) python -m nod_bench.replay --fake --out bench/runs
 
 bench-live: ## Full benchmark against the real API; needs ASSEMBLYAI_API_KEY
-	$(RUN_BENCH) python -m nod_bench.replay --live --repeats 5 --out bench/runs
+	@# --concurrency is passed explicitly and must stay that way. The default is
+	@# LIVE_CONCURRENCY = 2, the safe value derived for the *server*, where a
+	@# rotating session holds two upstream sockets. A bench session never rotates
+	@# (every clip is under 13 s), so 2 is not the intended figure here — it just
+	@# doubles the wall clock, silently, with nothing complaining. 4 leaves one
+	@# slot of the measured 5 spare for a socket still closing as the next opens.
+	$(RUN_BENCH) python -m nod_bench.replay --live --repeats 5 --concurrency 4 \
+		--out bench/runs
 
 trackc-check: ## Pilot gate: validate one recording's seams. AUDIO= SCRIPT=
 	$(RUN_BENCH) python -m nod_bench.trackc check --audio $(AUDIO) --script $(SCRIPT)

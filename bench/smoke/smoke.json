@@ -1,0 +1,74 @@
+{
+  "aggressive": {
+    "boundaries": 1,
+    "patches": 0,
+    "decides": 0,
+    "pcr": 0.0,
+    "ttl_p90": 367.0,
+    "frag": 1.0,
+    "emitted_end_ms": [
+      5391.0
+    ],
+    "dec_p99_ms": null
+  },
+  "balanced": {
+    "boundaries": 1,
+    "patches": 0,
+    "decides": 0,
+    "pcr": 0.0,
+    "ttl_p90": 633.0,
+    "frag": 1.0,
+    "emitted_end_ms": [
+      5657.0
+    ],
+    "dec_p99_ms": null
+  },
+  "conservative": {
+    "boundaries": 1,
+    "patches": 0,
+    "decides": 0,
+    "pcr": 0.0,
+    "ttl_p90": 1035.0,
+    "frag": 1.0,
+    "emitted_end_ms": [
+      6059.0
+    ],
+    "dec_p99_ms": null
+  },
+  "nod": {
+    "boundaries": 1,
+    "patches": 0,
+    "decides": 23,
+    "pcr": 0.0,
+    "ttl_p90": 660.0,
+    "frag": 1.0,
+    "emitted_end_ms": [
+      5684.0
+    ],
+    "dec_p99_ms": 0.1045
+  },
+  "nod-nocontext": {
+    "boundaries": 1,
+    "patches": 0,
+    "decides": 23,
+    "pcr": 0.0,
+    "ttl_p90": 695.0,
+    "frag": 1.0,
+    "emitted_end_ms": [
+      5719.0
+    ],
+    "dec_p99_ms": 0.0571
+  },
+  "nod-nospeaker": {
+    "boundaries": 1,
+    "patches": 0,
+    "decides": 23,
+    "pcr": 0.0,
+    "ttl_p90": 676.0,
+    "frag": 1.0,
+    "emitted_end_ms": [
+      5700.0
+    ],
+    "dec_p99_ms": 0.0638
+  }
+}
