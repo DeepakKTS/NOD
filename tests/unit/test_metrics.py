@@ -34,6 +34,7 @@ from nod_bench.metrics import (
     ttl,
 )
 from nod_bench.perturb import Gap
+from nod_bench.replay import RunResult
 
 CERTAIN = Gap(
     start_ms=0,
@@ -670,3 +671,121 @@ def test_the_manifest_and_the_filename_cannot_disagree() -> None:
         manifest = RunManifest.model_validate(fields)
         name = artifact_name("pareto", simulated=manifest.simulated, suffix="svg")
         assert (SIMULATED_TAG in name) is manifest.simulated
+
+
+# --- the five that were stubs (Gate 4a, ADR-046) ---------------------------
+
+
+def _run(
+    arm: str = "nod",
+    *,
+    patches: tuple[int, ...],
+    decide_ms: tuple[float, ...],
+) -> RunResult:
+    return RunResult(
+        run_id="r",
+        clip_id="c",
+        arm=arm,  # type: ignore[arg-type]
+        repeats=len(patches),
+        trace_paths=(),
+        patches=patches,
+        decide_ms=decide_ms,
+    )
+
+
+def test_tct_refuses_rather_than_returning_the_clip_duration() -> None:
+    """ADR-046: BENCH_SPEC §5 includes repeats caused by cuts; audio cannot repeat.
+
+    The impossible-value question applied before publishing: what could TCT
+    report here? Only the clip's duration plus overhead, identical on every arm.
+    A number that is equal across arms by construction, printed in a column that
+    invites comparison, is worse than no column.
+    """
+    from nod_bench.metrics import UnmeasurableOnReplayError, tct
+
+    with pytest.raises(UnmeasurableOnReplayError, match="repeats caused by cuts"):
+        tct([_run(patches=(0,), decide_ms=())])
+
+
+def test_res_refuses_rather_than_reporting_a_structural_zero() -> None:
+    """ADR-046: a recorded caller never recovers, so 0.0 is not a measurement.
+
+    And 0.0 is the *flattering* value — it reads as the controller never forcing
+    anyone to repeat themselves.
+    """
+    from nod_bench.metrics import UnmeasurableOnReplayError, res
+
+    with pytest.raises(UnmeasurableOnReplayError, match="cannot react"):
+        res([_run(patches=(0,), decide_ms=())])
+
+
+def test_patch_count_is_the_mean_over_sessions_not_over_pairs() -> None:
+    """ADR-027 wants per-session counts; a (clip, arm) pair holds N sessions."""
+    from nod_bench.metrics import patch_count
+
+    runs = [
+        _run(patches=(2, 4, 6), decide_ms=()),
+        _run(patches=(0, 0, 0), decide_ms=()),
+    ]
+    assert patch_count(runs) == pytest.approx(2.0)
+
+
+def test_patch_max_reports_the_busiest_single_session() -> None:
+    """ADR-027: the cap's reachability turns on the maximum, not the mean."""
+    from nod_bench.metrics import patch_max
+
+    assert patch_max([_run(patches=(2, 17, 3), decide_ms=())]) == 17
+
+
+def test_patch_count_refuses_an_empty_scope() -> None:
+    """The mean of no sessions is not 0.0, which reads as "never patched"."""
+    from nod_bench.metrics import patch_count
+
+    with pytest.raises(ValueError, match=r"not 0\.0"):
+        patch_count([_run(patches=(), decide_ms=())])
+
+
+def test_dec_p99_uses_the_module_quantile_definition() -> None:
+    """Not numpy's interpolation: every percentile here is `QUANTILE_METHOD`."""
+    from nod_bench.metrics import dec_p99, quantile
+
+    samples = tuple(float(n) for n in range(1, 101))
+    runs = [_run(patches=(0,), decide_ms=samples)]
+    assert dec_p99(runs) == quantile(samples, 0.99)
+
+
+def test_dec_p99_refuses_an_empty_scope() -> None:
+    """INV-2 is not satisfied by an absent measurement reported as 0.0."""
+    from nod_bench.metrics import dec_p99
+
+    with pytest.raises(ValueError, match=r"not 0\.0"):
+        dec_p99([_run(patches=(0,), decide_ms=())])
+
+
+def test_wilcoxon_refuses_unpaired_samples() -> None:
+    """BENCH_SPEC §9 pairs on the clip; a length mismatch means it did not."""
+    from nod_bench.metrics import wilcoxon
+
+    with pytest.raises(ValueError, match="paired samples"):
+        wilcoxon(np.array([1.0, 2.0]), np.array([1.0]))
+
+
+def test_wilcoxon_refuses_identical_samples() -> None:
+    """ADR-019: against the simulator every pair is identical and the test is
+    undefined — which is also the signal it should not have been run."""
+    from nod_bench.metrics import wilcoxon
+
+    same = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="all identical"):
+        wilcoxon(same, same.copy())
+
+
+def test_wilcoxon_reports_a_statistic_and_a_p_value() -> None:
+    """The happy path, on samples with a real difference."""
+    from nod_bench.metrics import wilcoxon
+
+    a = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0])
+    b = a + 3.0
+    statistic, p_value = wilcoxon(a, b)
+    assert statistic >= 0.0
+    assert 0.0 <= p_value <= 1.0

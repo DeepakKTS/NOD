@@ -64,6 +64,10 @@ PROXY_TESTS: Final = ("tests/unit/test_proxy.py",)
 WORDS_TESTS: Final = ("tests/unit/test_replay_words.py",)
 METRICS_TESTS: Final = ("tests/unit/test_metrics.py",)
 TRACKC_TESTS: Final = ("tests/unit/test_trackc.py",)
+HEALTH_TESTS: Final = ("tests/integration/test_server_health.py",)
+SCRIPT_TESTS: Final = ("tests/unit/test_trackc.py",)
+LIVE_TESTS: Final = ("tests/integration/test_live_path.py",)
+REPORT_TESTS: Final = ("tests/unit/test_replay_report.py",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,6 +380,21 @@ def _arbiter_mutations() -> tuple[Mutation, ...]:
             "law: drop the invariant repair",
             "    max_ms = max(max_ms, min_ms + INVARIANT_GAP_MS)\n    max_ms = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)",
             "    max_ms = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)",
+        ),
+        # §4, the ceiling clamp. Both of these were unkillable while
+        # `ENDPOINT_OVERHEAD_MS` was 0 (ADR-040): §9 property 3 reduced to
+        # `max_ms <= ceiling_ms`, which the max clamp already gave, so the
+        # property was skipped and nothing else asserted the clamp existed. They
+        # are here because the constant moved, and they are the reason it had to.
+        mutation(
+            "law/ceiling: drop the clamp entirely",
+            "    max_ms = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)",
+            "    pass",
+        ),
+        mutation(
+            "law/ceiling: ignore the measured overhead",
+            "    max_ms = min(max_ms, ceiling_ms - ENDPOINT_OVERHEAD_MS)",
+            "    max_ms = min(max_ms, ceiling_ms)",
         ),
         # ADR-020 step 4: repair after decay
         mutation(
@@ -733,6 +752,46 @@ def _transcribe_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _health_mutations() -> tuple[Mutation, ...]:
+    """`/readyz`'s four conditions (ADR-041). Second tier, deliberately.
+
+    CLAUDE.md §5 puts "the rest of the server plumbing" in the accepted-thinner
+    list and that has not changed. These four are here for one narrow reason: the
+    checks they guard *were* `ready=False` literals, so every test over them
+    asserted a constant. Three mutations is enough to establish that the
+    replacements are load-bearing in both directions — that a check stuck green
+    fails the 503 test and a check stuck red fails the 200 test. Adding more of
+    `app.py` would be diluting the first tier, which §5 forbids.
+    """
+    src = "src/nod_server/app.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, HEALTH_TESTS)
+
+    return (
+        mutation(
+            "readyz/config: report ready with the credential missing",
+            "        ready=not missing,",
+            "        ready=True,",
+        ),
+        mutation(
+            "readyz/volume: trust the path without writing to it",
+            '        path.mkdir(parents=True, exist_ok=True)\n        probe.write_bytes(b"")',
+            "        pass",
+        ),
+        mutation(
+            "readyz/capability: ignore a knob that is not LIVE",
+            "        ready=not not_live,",
+            "        ready=True,",
+        ),
+        mutation(
+            "readyz: never aggregate to not_ready",
+            "    ready = all(check.ready for check in results)",
+            "    ready = True",
+        ),
+    )
+
+
 def _metrics_mutations() -> tuple[Mutation, ...]:
     """`certain_only`'s per-gap scoping rule (ADR-036). First tier.
 
@@ -787,6 +846,192 @@ def _metrics_mutations() -> tuple[Mutation, ...]:
             "ClipObservation: drop the parallel-length validator",
             "        if self.emitted_silence_start_ms and len(self.emitted_silence_start_ms) != len(",
             "        if False and len(self.emitted_silence_start_ms) != len(",
+        ),
+    )
+
+
+def _trackc_script_mutations() -> tuple[Mutation, ...]:
+    """The committed Track C scripts. First tier, under the ground-truth rule.
+
+    CLAUDE.md §5's second bullet covers "the corpus ground truth", and these are
+    the input to a corpus that **cannot be regenerated**: ADR-031 established that
+    the gap budget is not recoverable from the audio afterwards, so a script that
+    silently stops crossing `MIN_GAPS_FOR_WARM` costs the recording session and
+    there is no repair. Every other guarded artifact in this repository can be
+    rebuilt by re-running something.
+
+    Two directions, because the failure has two. Shortening a gap-bearing answer
+    pushes the crossing later than the plan; the conditions drifting apart breaks
+    §5's paired design, under which a measured difference between fluent and
+    hesitant would be content rather than rhythm.
+    """
+
+    def mutation(label: str, target: str, old: str, new: str) -> Mutation:
+        return Mutation(label, target, old, new, SCRIPT_TESTS)
+
+    return (
+        mutation(
+            "B-answers: gut the inserted sentence turn (ADR-039 §2)",
+            "data/trackC/scripts/B-answers.json",
+            '"I get headaches by the second day and my doctor said I should not skip it at all"',
+            '"It hurts"',
+        ),
+        mutation(
+            "D-answers: shorten the opener below its planned contribution",
+            "data/trackC/scripts/D-answers.json",
+            '"I started a new job in August and I need to get myself and my two kids on the plan before the deadline"',
+            '"New job in August"',
+        ),
+        mutation(
+            "C-hesitant: reword a prompt, breaking §5's paired design",
+            "data/trackC/scripts/C-hesitant.json",
+            '"prompt": "Claims. What\'s the bill you\'re looking at?"',
+            '"prompt": "Claims. Tell me about the charge."',
+        ),
+        mutation(
+            "E-fluent: drop a class the context axis needs",
+            "data/trackC/scripts/E-fluent.json",
+            '"expected_answer": "spelling"',
+            '"expected_answer": "free"',
+        ),
+    )
+
+
+def _live_mutations() -> tuple[Mutation, ...]:
+    """The live path, which produces every published figure. First tier.
+
+    CLAUDE.md §5's second rule covers "anything that feeds a published number",
+    and after Gate 4a that is this code rather than the simulated driver — INV-9
+    routes the README table and `docs/RESULTS.md` through `--live`. The two
+    proxy mutations are ADR-044's: the context axis reaching `decide` at all is
+    what makes `nod` differ from `nod-nocontext`, and an arm measured under the
+    wrong label is the failure §5 names for this module.
+    """
+
+    def mutation(label: str, target: str, old: str, new: str) -> Mutation:
+        return Mutation(label, target, old, new, LIVE_TESTS)
+
+    proxy = "src/nod_core/proxy.py"
+    replay = "src/nod_bench/replay.py"
+
+    return (
+        # ADR-044: the context axis in the production controller path.
+        mutation(
+            "proxy/context: never ask the context source (pre-ADR-044)",
+            proxy,
+            "            declared = (\n                self._context(turn.turn_order) "
+            "if self._context is not None else None\n            )",
+            "            declared = None",
+        ),
+        mutation(
+            "proxy/context: compute the hint and discard it",
+            proxy,
+            "            self._hint = (\n                self._context.hint_for(declared)\n"
+            "                if self._context is not None\n"
+            "                else NEUTRAL_HINT\n            )",
+            "            self._hint = NEUTRAL_HINT",
+        ),
+        # The live scorer: both arrays reach PCR's arithmetic.
+        mutation(
+            "live scorer: drop the silence starts (ADR-036 cannot scope)",
+            replay,
+            "        emitted_silence_start_ms=tuple(b.silence_started_ms for b in boundaries),",
+            "        emitted_silence_start_ms=(),",
+        ),
+        mutation(
+            "live scorer: time the boundary from the word end, not the frame",
+            replay,
+            "        emitted_end_ms=tuple(b.fired_at_ms for b in boundaries),",
+            "        emitted_end_ms=tuple(b.silence_started_ms for b in boundaries),",
+        ),
+        # The ablations, which are arm labels as much as behaviour.
+        mutation(
+            "ClipContext: ignore the nocontext ablation",
+            replay,
+            "        if not self._enabled:\n            return None\n"
+            "        return self._by_turn.get(turn_order, self._fallback)",
+            "        return self._by_turn.get(turn_order, self._fallback)",
+        ),
+        mutation(
+            "ClipContext: return a neutral hint even when enabled",
+            replay,
+            "        if not self._enabled or self._policy is None:\n"
+            "            return WindowHint(min_mult=1.0, max_mult=1.0)\n"
+            "        return self._policy.hint_for(declared)",
+            "        return WindowHint(min_mult=1.0, max_mult=1.0)",
+        ),
+        mutation(
+            "nospeaker: run the ablation warm",
+            replay,
+            "    profiler = ColdProfiler() if not axes.speaker else Profiler()",
+            "    profiler = Profiler()",
+        ),
+        mutation(
+            "patches: report the decision count, not what the socket took",
+            replay,
+            "        patches=proxy.patches_sent,",
+            "        patches=len(controller.samples),",
+        ),
+    )
+
+
+def _report_mutations() -> tuple[Mutation, ...]:
+    """The repeat axis and the two required warnings. First tier.
+
+    §5: "the metrics, the quantile definition, the corpus ground truth, the arm
+    configurations, the provenance labelling". `interval_kind` *is* provenance
+    labelling — it says what the error bars mean — and EC-38's `inconclusive`
+    is the one thing standing between a noisy result and a headline claim.
+    """
+
+    def mutation(label: str, target: str, old: str, new: str) -> Mutation:
+        return Mutation(label, target, old, new, REPORT_TESTS)
+
+    src = "src/nod_bench/report.py"
+
+    return (
+        mutation(
+            "EC-38: never call a comparison inconclusive",
+            src,
+            "        if width > difference:",
+            "        if False:",
+        ),
+        mutation(
+            "EC-38: compare against the wrong side of the interval",
+            src,
+            "        width = point.ttl_p90_ci_ms[1] - point.ttl_p90_ci_ms[0]",
+            "        width = 0.0",
+        ),
+        mutation(
+            "EC-41: miss a direction flip between tracks",
+            src,
+            "        if a == 0.0 or c == 0.0 or (a > 0) == (c > 0):",
+            "        if True:",
+        ),
+        mutation(
+            "repeat axis: slice the clip axis instead of the repeat axis",
+            src,
+            "        passes = [observations[r::repeats] for r in range(repeats)]",
+            "        passes = [\n            observations[r * repeats : (r + 1) * repeats]\n"
+            "            for r in range(repeats)\n        ]",
+        ),
+        mutation(
+            "repeat axis: label a live interval as a clip bootstrap",
+            src,
+            '                interval_kind="iqr-over-repeats",',
+            '                interval_kind="bootstrap-ci-over-clips",',
+        ),
+        mutation(
+            "ADR-019: let the simulator report a repeat IQR",
+            src,
+            "    if simulated and repeats > 1:",
+            "    if False:",
+        ),
+        mutation(
+            "INV-9: publish into the README without checking the markers",
+            src,
+            "        if found != 1:",
+            "        if False:",
         ),
     )
 
@@ -910,7 +1155,11 @@ CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "metrics": _metrics_mutations(),
     "trackc": _trackc_mutations(),
     "policyfile": _shipped_policy_mutations(),
+    "trackcscripts": _trackc_script_mutations(),
     "transcribe": _transcribe_mutations(),
+    "health": _health_mutations(),
+    "live": _live_mutations(),
+    "report": _report_mutations(),
     "selftest": _self_test_mutations(),
 }
 """Mutations per module, first tier only (CLAUDE.md §5)."""

@@ -9,31 +9,60 @@ The paced feeder itself and the run-matrix driver land in Phase 1 part two as
 
 from __future__ import annotations
 
+import asyncio
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Awaitable, Callable, Sequence
+from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Final, Literal
+from tempfile import mkdtemp
+from typing import TYPE_CHECKING, Final, Literal, override
 
 import numpy as np
 import soundfile as sf
 from pydantic import BaseModel, ConfigDict
 
+from nod_adapters.assemblyai.session import AssemblyAISession
 from nod_bench.corpus import BuiltCorpus, GeneratedClip
 from nod_bench.fake_assemblyai import Endpointer
-from nod_bench.metrics import ClipObservation, ScoredUtterance
+from nod_bench.feeder import FeedReport, PacedFeeder
+from nod_bench.metrics import (
+    ArmConfig,
+    ClipObservation,
+    RunManifest,
+    ScoredUtterance,
+)
+from nod_bench.probe import (
+    PRIMARY_MODEL,
+    STREAMING_USD_PER_HOUR,
+    ProbeSession,
+    SessionFactory,
+)
+from nod_bench.probe_clip import read_wav
 from nod_core.arbiter import (
     BASE_MAX_MS,
     BASE_MIN_MS,
     DEFAULT_CEILING_MS,
+    ENDPOINT_OVERHEAD_MS,
     Arbiter,
     ArbiterInput,
 )
 from nod_core.capabilities import MEASURED_CAPABILITIES
+from nod_core.config import MAX_CONCURRENT_SESSIONS, UPSTREAM_CONCURRENCY_LIMIT
 from nod_core.policy import CompiledPolicy, load_policy
 from nod_core.profiler import Profiler
+from nod_core.proxy import SessionProxy
+from nod_core.trace import TraceSink
+
+if TYPE_CHECKING:  # pragma: no cover - annotations only
+    import argparse
+    from typing import TextIO
 from nod_core.types import (
+    ConfigPatch,
     ExpectedAnswer,
+    NodMode,
+    SpeakerFeatures,
     Turn,
     TurnConfig,
     WindowHint,
@@ -57,6 +86,28 @@ determinism as precision (ADR-017, ADR-019).
 
 SIMULATED_REPEATS: Final = 1
 """Repeats against the simulator. See `DEFAULT_REPEATS`."""
+
+LIVE_ENDPOINT_LABEL: Final = "assemblyai-universal-streaming"
+"""Recorded in `RunResult.run_id` for provenance, never a URL with a key in it."""
+
+LIVE_CONCURRENCY: Final = MAX_CONCURRENT_SESSIONS
+"""Default concurrent live sessions. Derived from the measured account limit.
+
+`MAX_CONCURRENT_SESSIONS` is `UPSTREAM_CONCURRENCY_LIMIT // 2` because a *server*
+session can hold two upstream sockets during rotation (ADR-042). A bench session
+never rotates — every clip is under thirteen seconds and rotation fires near
+`expires_at` — so the halving is not required here and this is the conservative
+default rather than the derived one. `--concurrency` raises it up to the limit.
+"""
+
+TERMINATION_TIMEOUT_S: Final = 10.0
+"""How long to wait for the upstream to finish after `Terminate`. Seconds.
+
+Bounded rather than open-ended: the last turn's boundary can only arrive after
+the widest arm's silence gate has elapsed, `conservative`'s 3600 ms, and a socket
+that has said nothing for three times that has failed rather than stalled. An
+unbounded wait here would hang a 3600-session sweep on one bad socket.
+"""
 
 
 class ArmSettings(BaseModel):
@@ -105,7 +156,13 @@ type Arm = Literal[
 
 
 class RunResult(BaseModel):
-    """One (clip, arm) result across `N` repeats."""
+    """One (clip, arm) result across `N` repeats.
+
+    Live repeats are **kept separate**, one `ClipObservation` per repeat, rather
+    than pooled. ADR-045: on the simulated path repeats are byte-identical so
+    only the clip axis carries spread; live they are not, and BENCH_SPEC §4 asks
+    for a median and an interquartile range over exactly this axis.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -114,6 +171,29 @@ class RunResult(BaseModel):
     arm: Arm
     repeats: int
     trace_paths: Sequence[Path]
+
+    observations: tuple[ClipObservation, ...] = ()
+    """One per repeat, in order. Empty on a result that was never scored."""
+
+    patches: tuple[int, ...] = ()
+    """`UpdateConfiguration` frames that reached the socket, per repeat.
+
+    ADR-027 and ADR-032 both defer to this: the session cap has never been
+    observed to bind, and the decision to keep or retire it waits on a live count.
+    Counted at the socket rather than at the decision, because a patch computed
+    and never applied is the exact failure CLAUDE.md §5 names for `proxy.py`.
+    """
+
+    decide_ms: tuple[float, ...] = ()
+    """Every `Arbiter.decide` sample across every repeat. Guards INV-2."""
+
+    wall_s: tuple[float, ...] = ()
+    """Wall-clock seconds per repeat. Provenance for the run, not a metric.
+
+    Explicitly **not** TCT: see `metrics.tct`, which refuses. Kept because a
+    repeat that ran materially longer than the clip is a drifted feeder, and
+    EC-37 voids such a run.
+    """
 
 
 def frames_of(clip: Path, *, frame_ms: int = FRAME_MS) -> list[bytes]:
@@ -488,32 +568,754 @@ def run_matrix(
     return out
 
 
+def _arm_config(arm: Arm) -> ArmConfig:
+    """One arm's manifest entry. Pure. `O(1)`.
+
+    **Extracted at Gate 4a, and the reason is the point.** The live sweep needs
+    the same entries as the simulated one, and CLAUDE.md §5 puts "the arm
+    configurations" and "the provenance labelling" on the published-number path.
+    Two copies of this would be two answers to "what was this arm configured
+    with", drifting silently, on a label that appears in the manifest beside
+    every figure. One function with two callers is the whole change.
+
+    Args:
+        arm: Any of `STATIC_ARMS` or `NOD_ARMS`.
+
+    Returns:
+        The manifest entry, with its provenance string.
+    """
+    static = STATIC_ARMS.get(arm)
+    if static is not None:
+        return ArmConfig(
+            name=arm,
+            end_of_turn_confidence_threshold=(static.end_of_turn_confidence_threshold),
+            min_turn_silence=static.min_turn_silence,
+            max_turn_silence=static.max_turn_silence,
+            source=(
+                "AssemblyAI turn-detection docs, accessed 2026-09-17, BENCH_SPEC §3"
+            ),
+        )
+    return ArmConfig(
+        name=arm,
+        end_of_turn_confidence_threshold=0.0,
+        min_turn_silence=BASE_MIN_MS,
+        max_turn_silence=BASE_MAX_MS,
+        source=(
+            f"nod controller, CONTROL_SPEC §4, axes={_axes_label(NOD_ARMS[arm])}"
+            f"; min/max above are the STARTING config, not a fixed one"
+        ),
+    )
+
+
+# --- the live path (ADR-044, ADR-045) --------------------------------------
+#
+# Deliberately a **third** construction site for `ClipObservation`, beside
+# `run_clip` and `run_nod_clip`, rather than a generalisation of either. Those
+# two are on the mutation-guarded published-number path; folding a live branch
+# into them would put live-path bugs inside a guarded path and make every
+# simulated figure depend on code only the live path exercises. The duplication
+# is the cheaper of the two costs and it is bounded — the *scoring* is shared,
+# because `pcr`, `ttl` and `frag` take a `ClipObservation` and neither knows nor
+# should know which driver produced it.
+
+
+@dataclass(frozen=True, slots=True)
+class LiveBoundary:
+    """One `end_of_turn` observed on a real socket.
+
+    The simulator hands back both fields from its own `Endpointer`, which watched
+    the audio. Live, only the first is observed and the second is **derived**, and
+    the difference matters enough to name here rather than in a comment further
+    down.
+    """
+
+    fired_at_ms: float
+    """Feeder stream clock when the `end_of_turn` frame arrived.
+
+    Stream-relative, from `PacedFeeder.now_ms`, never `time.time()` (CLAUDE.md
+    §6). This is the quantity TTL is measured to, so it has to be the arrival of
+    the frame rather than the word timing inside it: the caller waits for the
+    frame, not for the model's opinion about when they stopped talking.
+    """
+
+    silence_started_ms: float
+    """Where the silence run preceding this boundary began. **Derived.**
+
+    Taken as the last word's `end_ms` in the turn. The service does not report
+    where it started counting silence, so this is the best available reading, and
+    it is admissible under exactly the line ADR-031 drew: a word timing is the
+    service *measuring the audio*, not the service *judging the answer*. It
+    reaches PCR's arithmetic — where a gap is looked up (ADR-036) — and it cannot
+    reach what counts as premature, because the gap's label is generator-owned.
+
+    Two consequences to carry into any live figure. It arrives on the service's
+    **80 ms grid** (ADR-031), coarser than the 50 ms acoustic frame the simulator
+    uses. And a turn that finalises with no words has no derivable start, so the
+    boundary is recorded with `silence_started_ms` equal to `fired_at_ms`, which
+    `governing_certain` will read as covered by no gap and therefore ambiguous —
+    the conservative direction.
+    """
+
+    turn_order: int
+    words: tuple[Word, ...]
+
+
+def score_live_clip(
+    clip: GeneratedClip, arm: Arm, boundaries: Sequence[LiveBoundary]
+) -> ClipObservation:
+    """Ground truth plus live boundaries, as one scoreable observation. `O(b)`.
+
+    Pure. The third `ClipObservation` construction site (see the section note).
+
+    Args:
+        clip: The clip and its sidecar. Ground truth stays generator-owned.
+        arm: The arm label this ran under.
+        boundaries: Every `end_of_turn` the socket produced, in order.
+
+    Returns:
+        The observation, ready for `pcr`, `ttl` and `frag`.
+    """
+    return ClipObservation(
+        clip_id=clip.clip_id,
+        arm=arm,
+        utterances=scored_utterances(clip),
+        emitted_end_ms=tuple(b.fired_at_ms for b in boundaries),
+        emitted_silence_start_ms=tuple(b.silence_started_ms for b in boundaries),
+    )
+
+
+class ClipContext:
+    """The context axis for one clip, as `SessionProxy` wants it (ADR-044).
+
+    Satisfies `nod_core.proxy.ContextSource`. Answers per *turn order*, because
+    that is all the proxy knows about a live turn — it has no clip and no
+    sidecar. The mapping from turn order to declared class is built here, where
+    the sidecar is in scope.
+
+    `enabled=False` is the `nod-nocontext` ablation, and it neutralises the
+    **input** rather than skipping the call, exactly as `NodAxes` does in
+    `run_nod_clip`: an ablation that ran different code would measure the
+    difference between two implementations.
+    """
+
+    __slots__ = ("_by_turn", "_enabled", "_fallback", "_policy")
+
+    def __init__(
+        self,
+        clip: GeneratedClip,
+        *,
+        policy: CompiledPolicy | None,
+        enabled: bool,
+        fallback: ExpectedAnswer | None = None,
+    ) -> None:
+        """Build the per-turn class map for one clip.
+
+        Args:
+            clip: The clip, for its per-turn spans.
+            policy: The compiled policy. `None` leaves every hint neutral.
+            enabled: False for the `nod-nocontext` ablation.
+            fallback: The run-level class, for a clip with no per-turn spans.
+        """
+        self._policy = policy
+        self._enabled = enabled
+        self._fallback = fallback
+        self._by_turn: dict[int, ExpectedAnswer | None] = {
+            order: utterance.expected_answer
+            for order, utterance in enumerate(clip.utterances, start=1)
+        }
+
+    def __call__(self, turn_order: int) -> ExpectedAnswer | None:
+        """The declared class for this turn, or the run-level fallback."""
+        if not self._enabled:
+            return None
+        return self._by_turn.get(turn_order, self._fallback)
+
+    def hint_for(self, declared: ExpectedAnswer | None) -> WindowHint:
+        """The multipliers for a class, or neutral without a policy."""
+        if not self._enabled or self._policy is None:
+            return WindowHint(min_mult=1.0, max_mult=1.0)
+        return self._policy.hint_for(declared)
+
+
+def frames_of_pcm(pcm: bytes, *, sample_rate: int) -> list[bytes]:
+    """Split PCM16 into whole `FRAME_MS` frames. Pure. `O(n)`.
+
+    Whole frames only, for the reason `frames_of` gives: a trailing partial frame
+    is fed as a short block and counted as a full one, shifting every later
+    timestamp.
+    """
+    step = int(sample_rate * FRAME_MS / 1000) * 2
+    return [pcm[at : at + step] for at in range(0, len(pcm) - step + 1, step)]
+
+
+@dataclass(frozen=True, slots=True)
+class LiveRun:
+    """What one live pass over one clip produced."""
+
+    observation: ClipObservation
+    patches: int
+    turns: int
+    decide_ms: tuple[float, ...]
+    wall_s: float
+    feed_report: FeedReport | None
+
+
+async def run_live_clip(
+    clip: GeneratedClip,
+    arm: Arm,
+    *,
+    session_factory: SessionFactory,
+    api_key: str,
+    model: str = PRIMARY_MODEL,
+    policy: CompiledPolicy | None = None,
+    expected_answer: ExpectedAnswer | None = None,
+    trace_dir: Path | None = None,
+    ceiling_ms: int = DEFAULT_CEILING_MS,
+) -> LiveRun:
+    """Feed one clip to one upstream session, in paced real time. `O(frames)`.
+
+    **Paced, unlike `run_clip`.** The simulator consumes frames on a stream clock
+    and would produce identical output at any wall-clock rate; a real socket
+    measures arrival, so dumping the wav destroys every silence in it and makes
+    the measurement meaningless (BENCH_SPEC §4).
+
+    Controlled arms run through **`SessionProxy`**, not through a loop written
+    here. That is the point: the arm has to be the production controller on a
+    production socket, or the published number is about the harness. `probe.py`'s
+    `run_session` drives `AssemblyAISession` directly and does not model this.
+
+    Args:
+        clip: The clip and its sidecar.
+        arm: Any of `STATIC_ARMS` or `NOD_ARMS`.
+        session_factory: Builds the upstream. `FakeProbeSession` for offline.
+        api_key: Upstream credential. Ignored by the fake.
+        model: Speech model.
+        policy: The compiled context policy, for the context axis.
+        expected_answer: Run-level class, for a clip with no per-turn spans.
+        trace_dir: Where the session trace lands. A temp sink when omitted.
+        ceiling_ms: Latency ceiling for the controller.
+
+    Returns:
+        The observation and what the controller did.
+
+    Raises:
+        FeederDriftError: The feeder sustained lag past EC-37's threshold, which
+            voids the run rather than reporting a latency measured off a drifted
+            clock.
+    """
+    pcm, sample_rate = read_wav(clip.audio_path)
+    frames = frames_of_pcm(pcm, sample_rate=sample_rate)
+    feeder = PacedFeeder(frame_ms=FRAME_MS)
+    started = time.monotonic()
+
+    if arm in NOD_ARMS:
+        run = await _run_live_controlled(
+            clip,
+            arm,
+            session_factory=session_factory,
+            api_key=api_key,
+            model=model,
+            policy=policy,
+            expected_answer=expected_answer,
+            trace_dir=trace_dir,
+            ceiling_ms=ceiling_ms,
+            feeder=feeder,
+            frames=frames,
+        )
+    else:
+        run = await _run_live_static(
+            clip,
+            arm,
+            session_factory=session_factory,
+            api_key=api_key,
+            model=model,
+            feeder=feeder,
+            frames=frames,
+        )
+    return replace(run, wall_s=time.monotonic() - started)
+
+
+async def _run_live_static(
+    clip: GeneratedClip,
+    arm: Arm,
+    *,
+    session_factory: SessionFactory,
+    api_key: str,
+    model: str,
+    feeder: PacedFeeder,
+    frames: Sequence[bytes],
+) -> LiveRun:
+    """One static arm: configure at connect, feed, collect boundaries."""
+    settings = STATIC_ARMS[arm]
+    boundaries: list[LiveBoundary] = []
+    session = session_factory(
+        api_key=api_key,
+        model=model,
+        config={
+            "min_turn_silence": float(settings.min_turn_silence),
+            "max_turn_silence": float(settings.max_turn_silence),
+            "end_of_turn_confidence_threshold": (
+                settings.end_of_turn_confidence_threshold
+            ),
+        },
+    )
+    async with session:
+        report = await _feed_and_drain(session, feeder, frames, boundaries)
+    return LiveRun(
+        observation=score_live_clip(clip, arm, boundaries),
+        patches=0,
+        turns=len(boundaries),
+        decide_ms=(),
+        wall_s=0.0,
+        feed_report=report,
+    )
+
+
+async def _run_live_controlled(
+    clip: GeneratedClip,
+    arm: Arm,
+    *,
+    session_factory: SessionFactory,
+    api_key: str,
+    model: str,
+    policy: CompiledPolicy | None,
+    expected_answer: ExpectedAnswer | None,
+    trace_dir: Path | None,
+    ceiling_ms: int,
+    feeder: PacedFeeder,
+    frames: Sequence[bytes],
+) -> LiveRun:
+    """One controlled arm, through the production `SessionProxy`.
+
+    `nod-nospeaker` neutralises the profiler's warmth rather than branching, the
+    same way `run_nod_clip` does: a `Profiler` that reports `cold` is what §4
+    already sees below `MIN_GAPS_FOR_WARM`, so the law skips the speaker axis
+    itself instead of the harness skipping the law.
+    """
+    axes = NOD_ARMS[arm]
+    boundaries: list[LiveBoundary] = []
+
+    upstream = session_factory(
+        api_key=api_key,
+        model=model,
+        config={
+            "min_turn_silence": float(BASE_MIN_MS),
+            "max_turn_silence": float(BASE_MAX_MS),
+        },
+    )
+    directory = (
+        trace_dir if trace_dir is not None else Path(mkdtemp(prefix="nod-live-"))
+    )
+    sink = TraceSink(f"{clip.clip_id}-{arm}", directory=directory)
+    profiler = ColdProfiler() if not axes.speaker else Profiler()
+    controller = TimedArbiter(capabilities=NOD_CAPABILITIES, ceiling_ms=ceiling_ms)
+
+    async with upstream:
+        proxy = SessionProxy(
+            upstream=upstream,
+            profiler=profiler,
+            arbiter=controller,
+            trace=sink,
+            mode=NodMode.ADAPT,
+            ceiling_ms=ceiling_ms,
+            context=ClipContext(
+                clip,
+                policy=policy,
+                enabled=axes.context,
+                fallback=expected_answer,
+            ),
+        )
+        driver = asyncio.create_task(proxy.run())
+        collector = asyncio.create_task(_collect_from_proxy(proxy, feeder, boundaries))
+        try:
+            report = await feeder.feed(frames, _sync_feed(proxy))
+            await upstream.terminate()
+            await asyncio.wait_for(collector, timeout=TERMINATION_TIMEOUT_S)
+        except TimeoutError:
+            collector.cancel()
+            report = None
+        finally:
+            driver.cancel()
+            with suppress(BaseException):
+                await driver
+            await proxy.aclose()
+
+    return LiveRun(
+        observation=score_live_clip(clip, arm, boundaries),
+        patches=proxy.patches_sent,
+        turns=len(boundaries),
+        decide_ms=tuple(controller.samples),
+        wall_s=0.0,
+        feed_report=report,
+    )
+
+
+class ColdProfiler(Profiler):
+    """A `Profiler` that never reports warm. The `nod-nospeaker` ablation.
+
+    Subclassed rather than branched for `run_nod_clip`'s stated reason: the law
+    must skip the speaker axis by its own `cold` rule, so what the ablation
+    changes is the *input*. Everything else — gap accumulation, the quantile
+    estimators, the trace — runs exactly as it does on `nod`.
+    """
+
+    @override
+    def features(self) -> SpeakerFeatures:
+        """The real features, forced cold. `O(1)`."""
+        return replace(super().features(), cold=True)
+
+
+class TimedArbiter(Arbiter):
+    """An `Arbiter` that records its own `decide` latency. Guards INV-2.
+
+    A subclass rather than a wrapper assigned over the bound method, because
+    `SessionProxy` reads `arbiter.capabilities` and `arbiter.state` as well as
+    calling `decide`, so what it needs is an `Arbiter` and not a callable.
+
+    `perf_counter`, not the stream clock: this is telemetry about the process,
+    which CLAUDE.md §6 exempts from the stream-relative rule, and a stream clock
+    could not measure a CPU cost anyway.
+
+    The measurement includes this wrapper's own two `perf_counter` calls, which
+    biases `dec_p99` **upward** by tens of nanoseconds against a 5 ms budget. That
+    is the harmless direction and it is stated rather than corrected: a
+    correction would be a number subtracted from a published latency.
+    """
+
+    __slots__ = ("samples",)
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        """As `Arbiter`, plus an empty sample list."""
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        self.samples: list[float] = []
+
+    @override
+    def decide(self, state: ArbiterInput) -> ConfigPatch | None:
+        """`Arbiter.decide`, timed. `O(1)` over the parent's cost."""
+        at = time.perf_counter()
+        try:
+            return super().decide(state)
+        finally:
+            self.samples.append((time.perf_counter() - at) * 1000.0)
+
+
+def _sync_feed(proxy: SessionProxy) -> Callable[[bytes], Awaitable[None]]:
+    """Adapt `feed_audio` to the feeder's async `send`, without awaiting it.
+
+    INV-1: `feed_audio` is synchronous and must not be awaited, so this calls it
+    and returns an already-resolved coroutine. The feeder's contract wants an
+    awaitable; the audio path stays free of controller work.
+    """
+
+    async def send(frame: bytes) -> None:
+        proxy.feed_audio(frame)
+
+    return send
+
+
+async def _feed_and_drain(
+    session: ProbeSession,
+    feeder: PacedFeeder,
+    frames: Sequence[bytes],
+    into: list[LiveBoundary],
+) -> FeedReport | None:
+    """Feed a static session and collect its boundaries."""
+
+    async def drain() -> None:
+        async for event in session.events():
+            if isinstance(event, Turn) and event.end_of_turn:
+                # `append`, not the `extend`-with-comprehension PERF401 asks for.
+                # This task is cancelled on `TERMINATION_TIMEOUT_S`, and `extend`
+                # only mutates the list once the comprehension completes — so a
+                # cancelled collector would discard every boundary it had already
+                # seen and the clip would score as though the socket said nothing.
+                into.append(_boundary(event, feeder))  # noqa: PERF401
+
+    reader = asyncio.create_task(drain())
+    try:
+        report = await feeder.feed(frames, session.send_audio)
+        await session.terminate()
+        await asyncio.wait_for(reader, timeout=TERMINATION_TIMEOUT_S)
+    except TimeoutError:
+        reader.cancel()
+        return None
+    return report
+
+
+async def _collect_from_proxy(
+    proxy: SessionProxy, feeder: PacedFeeder, into: list[LiveBoundary]
+) -> None:
+    """Collect boundaries from the proxy's client-facing event stream.
+
+    Read from the *client* side rather than from the upstream socket, because
+    that is what a caller actually receives and therefore what TTL is about.
+    """
+    async for event in proxy.client_events():
+        if isinstance(event, Turn) and event.end_of_turn:
+            # See `_feed_and_drain`: `append` survives cancellation, `extend` does
+            # not, and this collector is cancelled on timeout.
+            into.append(_boundary(event, feeder))  # noqa: PERF401
+
+
+def _boundary(turn: Turn, feeder: PacedFeeder) -> LiveBoundary:
+    """One `LiveBoundary` from a finalised turn. See `LiveBoundary`. `O(1)`."""
+    fired = float(feeder.now_ms())
+    return LiveBoundary(
+        fired_at_ms=fired,
+        silence_started_ms=(float(turn.words[-1].end_ms) if turn.words else fired),
+        turn_order=turn.turn_order,
+        words=turn.words,
+    )
+
+
 async def replay(
     clip: Path,
     arm: Arm,
     *,
     endpoint: str,
     repeats: int = DEFAULT_REPEATS,
+    corpus_clip: GeneratedClip | None = None,
+    session_factory: SessionFactory | None = None,
+    api_key: str = "",
+    policy: CompiledPolicy | None = None,
+    expected_answer: ExpectedAnswer | None = None,
+    out: Path | None = None,
 ) -> RunResult:
-    """Replay one clip through one arm, in paced real time.
+    """Replay one clip through one arm, in paced real time, `repeats` times.
 
     Frames are emitted on a monotonic deadline schedule, never `sleep(0.05)` in a
     loop, so jitter does not accumulate. Actual send timestamps are recorded, and
     the run aborts above `MAX_DRIFT_MS` cumulative drift (EC-37).
 
-    Results are cached on `sha256(audio, config, code_version)` under `.nodcache/`
-    with atomic writes only, so changing one arm re-runs only that arm (EC-44).
+    **Repeats are kept, not pooled** (ADR-045). One `ClipObservation` per repeat
+    reaches `RunResult`, because a live upstream is non-deterministic and
+    BENCH_SPEC §4's median-and-IQR is stated over exactly this axis.
 
     Args:
         clip: The audio clip.
         arm: Which configuration to run.
-        endpoint: Upstream URL; `FakeAssemblyAI` for offline runs.
+        endpoint: Upstream URL; recorded for provenance. `FakeAssemblyAI` for
+            offline runs, in which case pass its `session_factory` too.
         repeats: Repeats per pair.
+        corpus_clip: The clip's sidecar. Required, and keyword-only so a caller
+            cannot accidentally score against the wrong ground truth.
+        session_factory: Builds each upstream session.
+        api_key: Upstream credential.
+        policy: The compiled context policy.
+        expected_answer: Run-level class fallback.
+        out: Trace directory.
 
     Returns:
-        The run result.
+        The run result, carrying one observation per repeat.
+
+    Raises:
+        ValueError: `corpus_clip` was not supplied, so there is no ground truth.
     """
-    raise NotImplementedError
+    if corpus_clip is None:
+        msg = (
+            f"replay({clip.name}, {arm}) needs `corpus_clip`: an observation "
+            "cannot be scored without the sidecar, and guessing the sidecar from "
+            "the audio path is how a run gets scored against another clip's truth"
+        )
+        raise ValueError(msg)
+    factory: SessionFactory = (
+        session_factory if session_factory is not None else AssemblyAISession
+    )
+    observations: list[ClipObservation] = []
+    patches: list[int] = []
+    decide_ms: list[float] = []
+    wall_s: list[float] = []
+    traces: list[Path] = []
+    directory = out if out is not None else Path(mkdtemp(prefix="nod-replay-"))
+
+    for index in range(repeats):
+        repeat_dir = directory / f"{corpus_clip.clip_id}-{arm}-r{index}"
+        repeat_dir.mkdir(parents=True, exist_ok=True)
+        run = await run_live_clip(
+            corpus_clip,
+            arm,
+            session_factory=factory,
+            api_key=api_key,
+            policy=policy,
+            expected_answer=expected_answer,
+            trace_dir=repeat_dir,
+        )
+        observations.append(run.observation)
+        patches.append(run.patches)
+        decide_ms.extend(run.decide_ms)
+        wall_s.append(run.wall_s)
+        traces.extend(sorted(repeat_dir.glob("*.jsonl")))
+
+    return RunResult(
+        run_id=f"{corpus_clip.clip_id}:{arm}:{endpoint}",
+        clip_id=corpus_clip.clip_id,
+        arm=arm,
+        repeats=repeats,
+        trace_paths=tuple(traces),
+        observations=tuple(observations),
+        patches=tuple(patches),
+        decide_ms=tuple(decide_ms),
+        wall_s=tuple(wall_s),
+    )
+
+
+def _live_main(args: argparse.Namespace, out: TextIO) -> int:
+    """The `--live` sweep. Bounded by the account's concurrency limit.
+
+    Separate from the simulated path rather than a branch inside it, for the same
+    reason `score_live_clip` is a third construction site: the simulated sweep
+    feeds every published-simulated figure and is mutation-guarded, and a live
+    branch threaded through it would put live-path failures inside that guard.
+
+    Returns:
+        Process exit code. `2` on any refusal to run.
+    """
+    import os
+
+    api_key = os.environ.get("ASSEMBLYAI_API_KEY", "")
+    if not api_key:
+        out.write(
+            "--live needs ASSEMBLYAI_API_KEY. It is server-side only (INV-5) and "
+            "is never read from a committed file other than `.env`.\n"
+        )
+        return 2
+    if args.concurrency > UPSTREAM_CONCURRENCY_LIMIT:
+        out.write(
+            f"--concurrency {args.concurrency} exceeds the measured account "
+            f"limit of {UPSTREAM_CONCURRENCY_LIMIT} (ADR-042). The upstream "
+            f"refuses the surplus with error 1008 *after* accepting the socket, "
+            f"so the sessions would look healthy and score as silent clips.\n"
+        )
+        return 2
+
+    corpus_file = args.corpus / "corpus.json"
+    if not corpus_file.exists():
+        out.write(f"no corpus at {corpus_file}.\n")
+        return 2
+    corpus = BuiltCorpus.model_validate_json(corpus_file.read_text())
+    policy = load_policy(args.policy) if args.policy.exists() else None
+    arms: list[Arm] = [
+        "aggressive",
+        "balanced",
+        "conservative",
+        "nod",
+        "nod-nocontext",
+        "nod-nospeaker",
+    ]
+
+    pairs = len(corpus.clips) * len(arms)
+    sessions = pairs * args.repeats
+    audio_s = sum(c.total_ms for c in corpus.clips) / 1000 * len(arms) * args.repeats
+    out.write(
+        f"{len(corpus.clips)} clips x {len(arms)} arms x {args.repeats} repeats "
+        f"= {sessions} live sessions, {audio_s / 3600:.2f} h of audio, "
+        f"~${audio_s / 3600 * STREAMING_USD_PER_HOUR:.2f} at the published rate.\n"
+        f"At {args.concurrency} concurrent, expect at least "
+        f"{audio_s / args.concurrency / 3600:.2f} h wall clock: the feeder is "
+        f"real time by construction (BENCH_SPEC §4), so this is a floor.\n"
+    )
+    return asyncio.run(_live_sweep(corpus, arms, args, api_key, policy, out))
+
+
+async def _live_sweep(
+    corpus: BuiltCorpus,
+    arms: Sequence[Arm],
+    args: argparse.Namespace,
+    api_key: str,
+    policy: CompiledPolicy | None,
+    out: TextIO,
+) -> int:
+    """Run every (clip, arm) pair live, `args.concurrency` at a time."""
+    from nod_bench.report import render_all
+
+    gate = asyncio.Semaphore(args.concurrency)
+    results: list[RunResult] = []
+
+    async def one(clip: GeneratedClip, arm: Arm) -> RunResult:
+        async with gate:
+            return await replay(
+                clip.audio_path,
+                arm,
+                endpoint=LIVE_ENDPOINT_LABEL,
+                repeats=args.repeats,
+                corpus_clip=clip,
+                api_key=api_key,
+                policy=policy,
+                out=args.out / "traces",
+            )
+
+    tasks = [one(clip, arm) for arm in arms for clip in corpus.clips]
+    for done in asyncio.as_completed(tasks):
+        results.append(await done)
+        out.write(f"\r{len(results)}/{len(tasks)} pairs")
+        out.flush()
+    out.write("\n")
+
+    # `as_completed` yields in finishing order, which is not the corpus order.
+    # `report.repeat_points` pairs arms clip-by-clip and refuses a mismatch, so
+    # leaving these unsorted would either lose the pairing BENCH_SPEC §9 rests on
+    # or raise — and the failure would depend on which sockets happened to be
+    # slow, which is the worst kind of intermittent.
+    results.sort(key=lambda r: (r.arm, r.clip_id))
+
+    by_arm: dict[Arm, list[ClipObservation]] = {arm: [] for arm in arms}
+    for result in results:
+        # One observation per repeat, all kept: ADR-045's repeat axis.
+        by_arm[result.arm].extend(result.observations)
+
+    manifest = _live_manifest(corpus, arms, args, by_arm, results)
+    written = render_all(
+        by_arm,
+        out=args.out,
+        simulated=False,
+        manifest=manifest,
+        repeats=args.repeats,
+    )
+    for path in written:
+        out.write(f"wrote {path}\n")
+    return 0
+
+
+def _live_manifest(
+    corpus: BuiltCorpus,
+    arms: Sequence[Arm],
+    args: argparse.Namespace,
+    by_arm: dict[Arm, list[ClipObservation]],
+    results: Sequence[RunResult],
+) -> RunManifest:
+    """The live run's manifest. Every field required, none defaulted (ADR-016)."""
+    from nod_bench.metrics import (
+        QUANTILE_METHOD,
+        ProxyDivergence,
+        RunManifest,
+        certain_utterances,
+        frag,
+        pcr,
+        total_utterances,
+    )
+
+    pooled = [obs for arm in arms for obs in by_arm[arm]]
+    certain = certain_utterances(pooled)
+    return RunManifest(
+        seed=corpus.seed,
+        generator_version=corpus.generator_version,
+        corpus_id=corpus.corpus_id,
+        corpus_sha256=corpus.corpus_sha256,
+        corpus_clips=len(corpus.clips),
+        repeats_per_arm=args.repeats,
+        arms=tuple(_arm_config(arm) for arm in arms),
+        simulated=False,
+        endpoint_overhead_ms=float(ENDPOINT_OVERHEAD_MS),
+        quantile_method=QUANTILE_METHOD,
+        proxy_divergence=ProxyDivergence(
+            pcr_all=pcr(pooled),
+            pcr_certain_only=pcr(pooled, certain_only=True) if certain else None,
+            frag_all=frag(pooled),
+            frag_certain_only=frag(pooled, certain_only=True) if certain else None,
+            utterances_all=total_utterances(pooled),
+            utterances_certain_only=certain,
+        ),
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -530,7 +1332,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from nod_bench.metrics import (
         QUANTILE_METHOD,
-        ArmConfig,
         ProxyDivergence,
         RunManifest,
         certain_utterances,
@@ -545,7 +1346,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--fake", action="store_true", help="run against the simulator (ADR-017)"
     )
-    parser.add_argument("--live", action="store_true", help="not implemented yet")
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="run against the real API; needs ASSEMBLYAI_API_KEY (INV-9)",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=DEFAULT_REPEATS,
+        help=(
+            f"repeats per (clip, arm) on --live. Default {DEFAULT_REPEATS} "
+            f"(BENCH_SPEC §4). Ignored by --fake, which is deterministic."
+        ),
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=LIVE_CONCURRENCY,
+        help=(
+            f"concurrent live sessions. Default {LIVE_CONCURRENCY}; the account "
+            f"permits {UPSTREAM_CONCURRENCY_LIMIT} and refuses the next with "
+            f"error 1008 (ADR-042)"
+        ),
+    )
     parser.add_argument("--corpus", type=Path, default=Path("data/corpus/trackA"))
     parser.add_argument("--out", type=Path, default=Path("bench/runs"))
     parser.add_argument(
@@ -563,21 +1387,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     out = sys.stdout
 
-    if args.live:
-        out.write(
-            "--live is not implemented. BENCH_SPEC §4 reserves live runs for the\n"
-            "published table at Phase 4; this driver runs the simulator only.\n"
-        )
+    if args.live and args.fake:
+        out.write("--live and --fake are exclusive: pick one upstream.\n")
         return 2
+    if args.live:
+        return _live_main(args, out)
 
     corpus_file = args.corpus / "corpus.json"
     if not corpus_file.exists():
         out.write(
             f"no corpus at {corpus_file}.\n"
-            f"Build one with `python -m nod_bench.corpus build`, which needs a\n"
-            f"seed recording. The corpus is not committed (it is ~35 MB of audio)\n"
-            f"and `say` is macOS-only, so this step does not yet run on a clean\n"
-            f"clone. That is an open Phase 1 exit item, not a transient error.\n"
+            f"The Track A corpus **is** committed (120 clips, 38 MB on disk), so\n"
+            f"a clean clone has one and this usually means --corpus points\n"
+            f"somewhere else. Rebuilding needs `python -m nod_bench.corpus build`\n"
+            f"and a seed recording, and `say` is macOS-only — which is why the\n"
+            f"audio is committed rather than generated (Phase 1 exit, closed).\n"
         )
         return 2
 
@@ -664,36 +1488,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         corpus_sha256=corpus.corpus_sha256,
         corpus_clips=len(corpus.clips),
         repeats_per_arm=SIMULATED_REPEATS,
-        arms=tuple(
-            ArmConfig(
-                name=arm,
-                end_of_turn_confidence_threshold=(
-                    STATIC_ARMS[arm].end_of_turn_confidence_threshold
-                    if arm in STATIC_ARMS
-                    else 0.0
-                ),
-                min_turn_silence=(
-                    STATIC_ARMS[arm].min_turn_silence
-                    if arm in STATIC_ARMS
-                    else BASE_MIN_MS
-                ),
-                max_turn_silence=(
-                    STATIC_ARMS[arm].max_turn_silence
-                    if arm in STATIC_ARMS
-                    else BASE_MAX_MS
-                ),
-                source=(
-                    "AssemblyAI turn-detection docs, accessed 2026-09-17, BENCH_SPEC §3"
-                    if arm in STATIC_ARMS
-                    else (
-                        f"nod controller, CONTROL_SPEC §4, axes="
-                        f"{_axes_label(NOD_ARMS[arm])}"
-                        f"; min/max above are the STARTING config, not a fixed one"
-                    )
-                ),
-            )
-            for arm in arms
-        ),
+        arms=tuple(_arm_config(arm) for arm in arms),
         simulated=True,
         endpoint_overhead_ms=args.overhead_ms,
         quantile_method=QUANTILE_METHOD,

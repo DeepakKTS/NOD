@@ -13,7 +13,16 @@
 #    normal workflow is a guard someone learns to skip — which is how the last
 #    two died. `-c -o --exclude-standard` sees the same set either side of the
 #    `git add`.
+# 3. **Sorted.** Fixing (2) at the level of the *set* left the same bug at the
+#    level of the *order*: `git ls-files -c -o` emits cached entries and then
+#    others, each group sorted but the groups concatenated, so `git add`
+#    **moves** a file within the list and the digest changes though not one byte
+#    did. Observed at Gate 4a on `make gate; git add <new file>; git commit`,
+#    which is the exact workflow (2) was written to stop refusing. Same symptom,
+#    same consequence, one level down — so the listing is sorted before hashing
+#    and the digest depends on content alone.
 set -eu
 git ls-files -z -c -o --exclude-standard \
+    | sort -z \
     | xargs -0 shasum -a 256 2>/dev/null \
     | shasum -a 256 | cut -d' ' -f1

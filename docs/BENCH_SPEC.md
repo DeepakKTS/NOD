@@ -134,9 +134,9 @@ v3, EVA-Bench, IHBench and τ-Voice — and the borrowings are cited in the repo
 | **PCR** premature cutoff rate | fraction of ground-truth utterances where `end_of_turn` fired before the utterance's final word ended | lower better |
 | **TTL** turn latency | ms from true utterance end to `end_of_turn`; report p50 / p90 / p99 | lower better |
 | **FRAG** fragmentation | mean number of emitted turns per ground-truth utterance; 1.0 is perfect | → 1.0 |
-| **TCT** task completion time | wall-clock seconds to complete the scripted intake, including repeats caused by cuts | lower better |
-| **RES** resume rate | fraction of cuts the caller had to recover from by repeating | lower better |
-| **PATCH** patches per session | controller activity, a cost measure | context |
+| **TCT** task completion time | wall-clock seconds to complete the scripted intake, including repeats caused by cuts. **Not measurable on a replay corpus — `metrics.tct` refuses** (ADR-046): recorded audio does not repeat itself when the agent cuts in, so what remains is the clip duration, identical on every arm | lower better |
+| **RES** resume rate | fraction of cuts the caller had to recover from by repeating. **Not measurable on a replay corpus — `metrics.res` refuses** (ADR-046): structurally 0.0 on every arm, which is the flattering value and a fact about the corpus rather than the controller | lower better |
+| **PATCH** patches per session | controller activity, a cost measure. Counted at the socket (`SessionProxy.patches_sent`), never at the decision; `patch_max` reports the busiest session, which is what ADR-027's cap decision turns on | context |
 | **DEC** decide latency | p99 of `decide()`, guards INV-2 | < 5 ms |
 
 Negative latencies are physically possible when a turn ends early; they are recorded as

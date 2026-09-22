@@ -15,7 +15,7 @@ import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from contextlib import suppress
-from typing import Final
+from typing import Final, Protocol
 
 from nod_adapters.protocols import SttSession
 from nod_core.arbiter import (
@@ -33,6 +33,7 @@ from nod_core.profiler import Profiler
 from nod_core.trace import TraceSink
 from nod_core.types import (
     ConfigPatch,
+    ExpectedAnswer,
     NodMode,
     SessionBegin,
     Termination,
@@ -69,6 +70,35 @@ HOST_OVERRIDE_FIELDS: Final = frozenset(field for field, _ in _WIRE_FIELDS)
 """The knobs a host can take ownership of (EC-33). Derived from the arbiter."""
 
 
+NEUTRAL_HINT: Final = WindowHint(min_mult=1.0, max_mult=1.0)
+"""The hint when no context is supplied. Multiplies nothing."""
+
+
+class ContextSource(Protocol):
+    """Where the controller's context axis comes from (CONTROL_SPEC §3).
+
+    Injected rather than built in, because the *source* of a declared class
+    differs by caller and the *policy* does not. The server knows it from the
+    agent's dialogue state; the bench knows it from the clip's per-turn spans.
+    Both then multiply through the same `CompiledPolicy`.
+
+    **This exists because the proxy passed `expected_answer=None` and a neutral
+    hint unconditionally** (ADR-044), so the context axis — half the originality
+    by ROADMAP §3's own reckoning — was live in the simulated driver and absent
+    from production. A live sweep would have reported `nod` and `nod-nocontext`
+    as identical and that identity would have read as "the axis contributes
+    nothing", which is a false measurement rather than a null result.
+    """
+
+    def __call__(self, turn_order: int) -> ExpectedAnswer | None:
+        """The class the host expects for this turn, or `None` if unknown."""
+        ...
+
+    def hint_for(self, declared: ExpectedAnswer | None) -> WindowHint:
+        """The multipliers for that class. `hint_for(None)` is the default."""
+        ...
+
+
 class SessionProxy:
     """One caller session: two sockets, four tasks, one controller.
 
@@ -101,6 +131,7 @@ class SessionProxy:
         "_client_audio",
         "_client_events",
         "_closed",
+        "_context",
         "_controller_dropped",
         "_controller_errors",
         "_controller_queue",
@@ -131,6 +162,7 @@ class SessionProxy:
         mode: NodMode,
         ceiling_ms: int,
         reconnect: Callable[[], Awaitable[SttSession]] | None = None,
+        context: ContextSource | None = None,
     ) -> None:
         """Wire one session.
 
@@ -145,6 +177,10 @@ class SessionProxy:
             reconnect: Produces a fresh upstream session for `rotate`. Without it
                 a session cannot rotate and `rotate` says so rather than failing
                 obscurely at `expires_at`.
+            context: The context axis (CONTROL_SPEC §3). Asked, per turn, what
+                class the host expects the caller to answer with. `None` means
+                the axis contributes nothing and every hint is neutral — which
+                is what this proxy did unconditionally before ADR-044.
 
         Raises:
             ValueError: `ceiling_ms` is below `CEILING_FLOOR_MS`.
@@ -178,6 +214,7 @@ class SessionProxy:
             vad_threshold=None,
         )
         self._hint = WindowHint(min_mult=1.0, max_mult=1.0)
+        self._context = context
         self._pending: ConfigPatch | None = None
         self._patches_sent = 0
         self._stream_ms = 0
@@ -364,11 +401,22 @@ class SessionProxy:
         """
         try:
             self._profiler.observe_turn(turn)
+            # The context axis is inside the `try` on purpose. A policy lookup is
+            # controller work, so EC-31's boundary has to cover it: a malformed
+            # class must enter SAFE loudly, not raise out of the turn loop.
+            declared = (
+                self._context(turn.turn_order) if self._context is not None else None
+            )
+            self._hint = (
+                self._context.hint_for(declared)
+                if self._context is not None
+                else NEUTRAL_HINT
+            )
             patch = self._arbiter.decide(
                 ArbiterInput(
                     features=self._profiler.features(),
                     hint=self._hint,
-                    expected_answer=None,
+                    expected_answer=declared,
                     current=self._current,
                     capabilities=self._arbiter.capabilities,
                     ceiling_ms=self._ceiling_ms,
@@ -542,6 +590,18 @@ class SessionProxy:
     def mode(self) -> NodMode:
         """The session's current mode. EC-32 can degrade it to `observe`."""
         return self._mode
+
+    @property
+    def patches_sent(self) -> int:
+        """`UpdateConfiguration` frames the socket **accepted**. `O(1)`.
+
+        Incremented after the upstream answered, not when the patch was decided,
+        and the distinction is the one CLAUDE.md §5 names for this module: a patch
+        computed, traced and never applied produces a run that looks like `nod`
+        and behaves like `balanced`. ADR-027's deferred session-cap decision and
+        ADR-032's census both want this number and not the decision count.
+        """
+        return self._patches_sent
 
     @property
     def controller_errors(self) -> int:

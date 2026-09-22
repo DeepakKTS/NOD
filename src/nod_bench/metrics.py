@@ -445,54 +445,155 @@ def frag(runs: Sequence[ClipObservation], *, certain_only: bool = False) -> floa
     return emitted / len(scope)
 
 
-def tct(runs: Sequence[RunResult]) -> float:
-    """Task completion time in wall-clock seconds. Lower is better.
+class UnmeasurableOnReplayError(RuntimeError):
+    """The metric needs a caller who reacts, and a recording does not (ADR-046).
 
-    Includes repeats caused by cuts.
+    Raised rather than returning a number, because both metrics below *can* be
+    computed from a replay corpus and the value would be meaningless: identical
+    across arms for TCT, structurally zero for RES. CLAUDE.md §5's rule about the
+    flattering direction applies with full force — a wrong number does not fail
+    visibly, it prints a plausible one, and "0 % of cuts required a repeat" reads
+    as a result about the controller when it is a fact about the corpus.
+    """
+
+
+def tct(runs: Sequence[RunResult]) -> float:
+    """Task completion time in wall-clock seconds. **Refuses.** See ADR-046.
+
+    BENCH_SPEC §5 defines it as "wall-clock seconds to complete the scripted
+    intake, **including repeats caused by cuts**". The second clause is the whole
+    metric: without it this is the clip's duration, which is a property of the
+    audio file and identical on every arm.
 
     Args:
         runs: The results to aggregate.
 
     Returns:
-        Seconds to complete the scripted intake.
+        Never returns.
+
+    Raises:
+        UnmeasurableOnReplayError: Always, on a replay corpus.
     """
-    raise NotImplementedError
+    msg = (
+        f"TCT is not measurable on replayed audio ({len(runs)} runs). BENCH_SPEC "
+        "§5 defines it including repeats caused by cuts, and a recording does not "
+        "repeat itself when the agent cuts in — the wav plays on regardless. What "
+        "is computable here is the clip's duration plus socket overhead, which is "
+        "the same on every arm by construction and would print as a real "
+        "comparison. `RunResult.wall_s` carries that duration for drift checking "
+        "(EC-37); it is not this metric. Needs a live caller or a responsive "
+        "caller simulator, both post-freeze (ADR-046)."
+    )
+    raise UnmeasurableOnReplayError(msg)
 
 
 def res(runs: Sequence[RunResult]) -> float:
-    """Resume rate: the fraction of cuts the caller recovered from by repeating.
+    """Resume rate: cuts the caller recovered from. **Refuses.** See ADR-046.
+
+    BENCH_SPEC §5: "fraction of cuts the caller had to recover from by repeating".
+    A recorded caller never recovers, so this is **structurally 0.0** on every arm
+    over both tracks — and 0.0 is the flattering value, so it would read as the
+    controller never forcing a repeat.
+
+    `perturb.repeat` does not supply this. It inserts a repetition at a fixed
+    `at_ms` as a *disfluency*, decided when the clip was generated and unrelated
+    to whether any arm cut anyone off.
 
     Args:
         runs: The results to aggregate.
 
     Returns:
-        The rate in [0, 1]. Lower is better.
+        Never returns.
+
+    Raises:
+        UnmeasurableOnReplayError: Always, on a replay corpus.
     """
-    raise NotImplementedError
+    msg = (
+        f"RES is not measurable on replayed audio ({len(runs)} runs). It is the "
+        "fraction of cuts the caller recovered from by repeating; a recording "
+        "cannot react to being cut off, so the honest value is undefined and the "
+        "computable one is 0.0 on every arm. `perturb.repeat` is a generated "
+        "disfluency at a fixed offset, not a response to a cutoff. Needs a live "
+        "caller or a responsive caller simulator, both post-freeze (ADR-046)."
+    )
+    raise UnmeasurableOnReplayError(msg)
 
 
 def patch_count(runs: Sequence[RunResult]) -> float:
-    """Patches per session. A cost measure, reported as context.
+    """Patches per session. A cost measure, reported as context. `O(n)`.
+
+    Counted at the socket, from `SessionProxy.patches_sent`, not at the decision:
+    a patch computed and never applied is the failure CLAUDE.md §5 names for
+    `proxy.py`, and counting decisions would hide it behind a healthy-looking
+    number.
+
+    One "session" is one repeat of one clip, so a (clip, arm) pair run `N = 5`
+    times contributes five sessions. ADR-027 wants the per-session count and the
+    count for the longest session in the set; pooling repeats would answer
+    neither.
 
     Args:
         runs: The results to aggregate.
 
     Returns:
         Mean patches per session.
+
+    Raises:
+        ValueError: No session in scope. The mean of nothing is not 0.0 — that
+            would report "the controller never patched" for "nothing ran".
     """
-    raise NotImplementedError
+    counts = [n for run in runs for n in run.patches]
+    if not counts:
+        msg = (
+            f"patch_count over {len(runs)} runs carrying no per-repeat counts: "
+            "the mean of no sessions is not 0.0, which would read as a controller "
+            "that never patched"
+        )
+        raise ValueError(msg)
+    return sum(counts) / len(counts)
+
+
+def patch_max(runs: Sequence[RunResult]) -> int:
+    """Patches in the busiest single session. `O(n)`.
+
+    ADR-027 asks for this alongside the mean and is explicit about why: the mean
+    cannot say whether `MAX_PATCHES` came near binding, and the decision to keep
+    the cap as a stated bound or retire it turns on the maximum.
+
+    Args:
+        runs: The results to aggregate.
+
+    Returns:
+        The largest per-session count, or 0 when nothing ran.
+    """
+    return max((n for run in runs for n in run.patches), default=0)
 
 
 def dec_p99(runs: Sequence[RunResult]) -> float:
-    """p99 of `Arbiter.decide`, in milliseconds. Guards INV-2.
+    """p99 of `Arbiter.decide`, in milliseconds. Guards INV-2. `O(n log n)`.
+
+    Uses `quantile`, so the definition is `QUANTILE_METHOD` and matches every
+    other percentile in this module rather than numpy's default interpolation.
 
     Args:
         runs: The results to aggregate.
 
     Returns:
         The p99. Must stay under `DECIDE_BUDGET_MS`.
+
+    Raises:
+        ValueError: No samples. A p99 of nothing is not 0.0, which would read as
+            a controller comfortably inside its budget.
     """
-    raise NotImplementedError
+    samples = [ms for run in runs for ms in run.decide_ms]
+    if not samples:
+        msg = (
+            f"dec_p99 over {len(runs)} runs carrying no decide samples: a p99 of "
+            "nothing is not 0.0, and INV-2 is not satisfied by an absent "
+            "measurement"
+        )
+        raise ValueError(msg)
+    return quantile(samples, 0.99)
 
 
 def wilcoxon(a: Samples, b: Samples) -> tuple[float, float]:
@@ -502,14 +603,42 @@ def wilcoxon(a: Samples, b: Samples) -> tuple[float, float]:
     unpaired test would be wrong (BENCH_SPEC.md §9). Report the effect size and
     the n alongside any p-value.
 
+    **Do not run this on simulated output.** ADR-019 records why: the simulator is
+    deterministic, so a p-value computed over it measures determinism rather than
+    evidence, and the D1 p-values were withdrawn for exactly that. The caller is
+    trusted on this because the function cannot tell which driver produced its
+    arguments — the run manifest's `simulated` flag is where the answer lives.
+
     Args:
         a: One arm's per-clip values.
         b: The paired arm's per-clip values.
 
     Returns:
         The statistic and the two-sided p-value.
+
+    Raises:
+        ValueError: The samples are not the same length, so they are not paired,
+            or every pair is identical and the test is undefined.
     """
-    raise NotImplementedError
+    from scipy.stats import wilcoxon as _wilcoxon
+
+    if len(a) != len(b):
+        msg = (
+            f"wilcoxon needs paired samples: {len(a)} against {len(b)}. "
+            "BENCH_SPEC §9 pairs on the clip, so a length mismatch means the "
+            "arms were not run over the same corpus"
+        )
+        raise ValueError(msg)
+    if all(x == y for x, y in zip(a, b, strict=True)):
+        msg = (
+            f"wilcoxon over {len(a)} pairs that are all identical: the signed-rank "
+            "test is undefined with no non-zero differences. Against the simulator "
+            "this is the expected outcome and the test should not have been run "
+            "(ADR-019)"
+        )
+        raise ValueError(msg)
+    statistic, p_value = _wilcoxon(list(a), list(b))
+    return float(statistic), float(p_value)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
