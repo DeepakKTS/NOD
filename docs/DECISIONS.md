@@ -2157,3 +2157,294 @@ what a service will return, not a fact about it.** ADR-029 records that hand-aut
 truth has no mutation harness; this is the same gap one level out, where the authored thing
 was not a label but an assumed word count. The pilot recording (§9) exists to catch the next
 one before a session rather than after.
+
+## ADR-040 — `ENDPOINT_OVERHEAD_MS` lands at 217, the top of the measured spread
+2026-09-22 · Status: accepted — measured at Gate 4a, and it moved a second constant
+Context: ADR-017 measured the boundary landing **206, 175, 204, 172 and 217 ms** after
+whichever silence gate binds. `ENDPOINT_OVERHEAD_MS` stayed 0 on the grounds that `make
+bench` owed the number (INV-9), which left CONTROL_SPEC §9 property 3 skipped as vacuous —
+CLAUDE.md §5's worked example of an invariant that cannot be violated under the constants
+in force. The measurement already existed; the open question was never measurement but
+**which end of the spread the ceiling subtracts**, and nothing had decided it.
+Decision: **217, the maximum of the five samples.**
+
+The constant is *subtracted* from the ceiling — `max_ms = min(max_ms, ceiling_ms -
+ENDPOINT_OVERHEAD_MS)` — so **a smaller value is the permissive direction.** It widens the
+gate the law is allowed to ask for, and so lets a latency claim pass while the real boundary
+overran the budget `ceiling_ms` promises. The mean, 194.8, would be defensible on its own
+terms and is rejected: it is right on average and optimistic on two of five observed
+sessions, and `ceiling_ms` is a promise about a boundary rather than about an average.
+
+Six of the seven direction-tracked errors on this project so far have flattered the result.
+That is the prior this picks against. The cost is a control law that is slightly more
+conservative than the median service response, which shows up as marginally higher TTL and
+is the error worth making.
+
+**It is not, by itself, INV-9 satisfied.** The value is measured but it comes from ADR-017's
+P1 probe, not from `make bench`, and the live run at Phase 4 must re-derive it with its own
+spread. If that run's maximum exceeds 217 the constant moves again. The test asserts
+membership in the recorded sample *and* that the value is the maximum of it, so replacing the
+sample without replacing the constant fails loudly.
+
+**The part worth recording is the second constant it moved**, which was not anticipated by
+the ROADMAP item and is CLAUDE.md §5's "two decisions can void one another" arriving with a
+five-day gap instead of an hour. ADR-021 set `CEILING_FLOOR_MS = MIN_MS_CEIL +
+INVARIANT_GAP_MS` = 1100, so that §4's ordering — clamps, invariant repair, *then* ceiling —
+could never have the ceiling undo the repair. That derivation is only valid at an overhead of
+**0**. The quantity the repair has to survive is `ceiling_ms - ENDPOINT_OVERHEAD_MS`, so at a
+ceiling of 1100 with a 217 ms overhead the law returned **`max=883` against `min=800`** and
+§9 property 1 went red on the first run after the edit. ADR-021 was not wrong; it was
+measured against a constant that has now changed underneath it.
+
+`CEILING_FLOOR_MS` therefore becomes `MIN_MS_CEIL + INVARIANT_GAP_MS + ENDPOINT_OVERHEAD_MS`
+= **1317 ms**, still derived from the clamps rather than written as a literal. Re-ordering §4
+so the repair runs last was considered and rejected for ADR-021's original reason, unchanged
+by any of this: a law that applies a ceiling and then knowingly lifts `max_ms` back over it
+violates the ceiling on purpose, every turn, silently. Raising the floor is also the stricter
+of the two options — it rejects more configurations and can only widen the gate, never narrow
+it — which is the direction this ADR has already chosen once.
+
+`tests/property/strategies.py` anticipated exactly this re-derivation in a note against
+`CEILING_FLOOR_MS`, and it was right. The note is now discharged.
+Consequence: §9 property 3 is live and no longer skipped — the suite runs 18 property tests
+where it ran 17 and skipped 1. Two mutations were added to the `arbiter` catalogue for the
+ceiling clamp, **which had none**: dropping the clamp, and the vacuous form `min(max_ms,
+ceiling_ms)`. Both were unkillable at an overhead of 0, both are killed now, and the second
+is the defect §5 named. `make mutate MODULE=arbiter` is 37/37. A `NOD_CEILING_MS` between
+1100 and 1316 is now rejected at startup where it was previously accepted and quietly broke
+the invariant; no shipped preset or default is in that band, and `DEFAULT_CEILING_MS` at 2600
+is unaffected.
+
+## ADR-041 — `/readyz`'s four conditions become real checks
+2026-09-22 · Status: accepted — Gate 4a
+Context: DEPLOYMENT §4 lists four readiness conditions. `READINESS_CHECKS` was a static
+tuple with `ready=False` written into every entry and a `detail` naming the phase each was
+waiting on, so `/readyz` returned **503 for any input, in any environment**. Phase 4's exit
+criterion asks for green health checks, and a container behind a load balancer that health
+-checks `/readyz` would never enter rotation.
+
+The deeper problem is the one CLAUDE.md §5 catalogues. A check whose result does not depend
+on the system **cannot fail, because it cannot pass** — and the only test over it asserted
+that it was 503, which is the constant restated. Three of the four entries were also
+attributed to phases (`P0`, `P6`, `P1`) that no longer map onto the roadmap.
+Decision: each condition is a function evaluated per request against the settings in force.
+
+- **`config_loaded`** — settings parsed and `ASSEMBLYAI_API_KEY` present. `get_settings` was
+  never a stub; the `detail` claiming it was had simply gone stale.
+- **`data_volume_writable`** — `mkdir` plus a probe write into `NOD_TRACE_DIR`, then unlink.
+  By *writing*, not by `os.access`, which reports permission bits: a read-only mount, a full
+  disk and an SELinux denial all pass `os.access` and fail the first real write.
+- **`sqlite_reachable`** — opens `NOD_DB_PATH`, asserts `journal_mode` came back `wal`, sets
+  `synchronous=NORMAL` (§6). **Reachability only, and the `detail` says so**: nothing writes
+  the `sessions`/`config_changes`/`bench_runs` schema in this build and traces are JSONL on
+  disk. Reporting "ready" for a schema that does not exist is the flattering direction.
+- **`capability_probe_cached`** — every knob in `arbiter.WIRE_FIELDS` is `LIVE` in
+  `MEASURED_CAPABILITIES`. The "cache" is a committed constant, not a live probe, so this
+  asserts the thing that can actually go wrong: a knob demoted to `INERT` by an edit, which
+  silently stops the controller patching and which nothing else in the process would notice.
+
+The probes touch the disk, so the route runs them in a thread rather than on the event loop.
+Consequence: `/readyz` is 200 on a correctly configured volume and 503 naming the specific
+failure otherwise. Four mutations were added to the harness under a new `health` module and
+all four are killed — including "never aggregate to `not_ready`", which the old tuple made
+unkillable. **This is second-tier coverage and stays second-tier**: §5 puts "the rest of the
+server plumbing" in the accepted-thinner list, and the four exist only because the code they
+replaced was a literal. Adding more of `app.py` would dilute the first tier, which §5 forbids.
+
+## ADR-042 — Auth stays cut; a measured session cap replaces it
+2026-09-22 · Status: accepted — Gate 4a, and it closes a real exposure
+Context: `nod_server.auth.require_bearer` raises `NotImplementedError` and is **referenced by
+no route**, while `NOD_AUTH` defaulted to `required`. A setting that declares a guarantee the
+process does not honour is worse than an honest `off`, because the only person it misleads is
+the one configuring a deployment from the documentation.
+
+Underneath that was an exposure neither DEPLOYMENT §4 nor §9 raises. INV-5 holds — the
+browser gets relative WebSocket paths and no credential — but the Phase 4 exit criterion is a
+**public URL that works from a phone**, and anyone who finds it can `POST /v1/sessions` and
+open `/v1/stream`, each session spending the one upstream key the demo depends on.
+Decision: **auth stays cut, and the cap is sized from a measurement.**
+
+Auth is post-hackathon (ROADMAP §4). Building bearer auth and per-session tokens in freeze
+week to fix a cost problem is the wrong instrument: the risk is spend, not unauthorised
+reads, and there is nothing behind this URL to read. So `NOD_AUTH` defaults to `off`, the
+stubs stay as the contract ARCHITECTURE §7 and §10 describe, and the bound is on cost.
+
+**`NOD_MAX_SESSIONS` was `64`, which was not a measurement of anything.** Measured at Gate 4a
+by ramping concurrent sessions: the account refuses the **sixth** with `error_code 1008`,
+"Unauthorized Connection: Too many concurrent sessions" — so the limit is **5**. The refusal
+arrives as an `Error` frame *after* a successful WebSocket upgrade, which is worth recording
+on its own: a caller checking only the handshake sees a healthy socket. The old default was
+twelve times the real limit.
+
+The cap is `UPSTREAM_CONCURRENCY_LIMIT // UPSTREAM_SOCKETS_PER_SESSION_PEAK` = `5 // 2` =
+**2**, derived rather than written. The divisor is 2 because `SessionProxy.rotate` opens the
+replacement socket *before* closing the one it replaces (EC-03) — it must, since the profiler
+snapshot and the current config are carried across and a gap would reset the caller's window
+mid-call — so a rotating session counts twice.
+
+**2 is the pessimistic reading and is chosen as such.** It assumes every live session rotates
+at the same instant, which sessions started minutes apart do not; 5 would usually work. The
+asymmetry decides it: guessing high fails as a rotation refused mid-call on a live demo,
+guessing low fails as a second browser tab getting a 429.
+
+**The cap binds on `/v1/stream`, not on `POST /v1/sessions`**, and that placement is the
+substantive half. The POST only adds a dict entry and costs nothing; the upstream socket, and
+therefore the credit, is opened by the proxy factory when the stream connects. A cap on the
+POST alone would read as protection and provide none. Both are capped — the POST to bound
+registry growth, the socket to bound spend — and the WebSocket refuses with close code
+`4429`, chosen to read as the status it stands for, as the existing `4404` does.
+Consequence: a deployed URL can be driven by at most two concurrent callers, which is
+adequate for a demo and is a real limit to state rather than discover. `NOD_AUTH=required`
+is now a lie nobody can configure themselves into. The account limit is the number most
+likely to change — it is a plan property, not a protocol one — so it is a named constant with
+`scripts/probe_concurrency.py` recorded beside it as the way to re-measure. Phase 4's live
+bench run is bounded by the same 5 and must not exceed it.
+
+## ADR-043 — The five Track C scripts are committed data, generated and audited
+2026-09-22 · Status: accepted — Gate 4a
+Context: `data/trackC/scripts/` held `A-fluent.json` and `A-answers.json`. TRACK_C_SCRIPT §7
+tabulates **five** scripts and Phase 0 asks for **ten calls** — five scripts recorded twice
+by the same speaker (§5). Scripts B to E existed only as prose tables in §4, and ADR-039's
+amendment inserting one sentence-shaped turn as the new turn 2 existed only as a table in
+§4a. Neither appeared on Phase 4's inheritance list, and the recording session is blocked on
+both.
+Decision: thirteen files, emitted by `scripts/build_trackc_scripts.py`, which audits before
+it writes.
+
+The file list is derived rather than chosen. **Ten script files**, `{A-E}-{fluent,hesitant}`,
+because `CallScript.condition` is a field on the file and §5 records each script under both
+conditions. **Five answer files**, `{A-E}-answers`, keyed on script and *not* on condition,
+because §5 says the words are identical either way and only gap durations differ — the
+existing `A-answers.json` already established that naming.
+
+**A generator, not thirteen hand-written files**, and that is the substantive half. §7
+publishes four figures per script — turns, words, `Σ available`, crossing turn — so the
+transcription is checkable against the document it came from. Hand-written JSON would have
+made those figures assertions about what someone believed they had typed. Computed, they fail
+the run if the transcription drifts. **All twenty reproduce §7 exactly**, with no adjustment,
+and the generator additionally reproduces the committed `A-fluent.json` and `A-answers.json`
+**byte-identically** — an independent check on the reading of §4 that did not have to be
+arranged, because script A was transcribed by someone else at Gate 8.
+Consequence: the recording session is unblocked and needs no further authoring. Four
+mutations over the *data* guard it, in the `trackcscripts` module, and this is **first tier**
+under §5's ground-truth rule rather than second: every other guarded artifact here can be
+rebuilt by re-running something, and ADR-031 established that the gap budget is not
+recoverable from the audio afterwards. A script that silently stops crossing
+`MIN_GAPS_FOR_WARM` costs the session, with no repair.
+
+`MIN_GAPS_FOR_WARM` is **restated** in the generator and the tests, not imported. §5's rule
+applies: the threshold is frozen into a plan for a recording that has not happened, so
+deriving it would silently re-plan the session around a new constant. It has to fail loudly.
+
+Two things the audit found worth recording. Script A crosses on **turn 3**, not turn 2 —
+§7's own column says 3, and ADR-039's consequence paragraph saying "all five cross on turn 2"
+is loose; the other four do. And script C's turn 11 is a one-word `"Yes"`, contributing zero
+gaps, which is correct and deliberate (§4's note: a genuine consent question, seventy gaps
+past warm) but is the one turn in the set that would look like a defect to a later reader.
+
+## ADR-044 — The context axis reaches the production proxy, injected
+2026-09-22 · Status: accepted — Gate 4a, and it was a live measurement defect
+Context: building the live driver exposed that `SessionProxy._handle_turn` called
+`Arbiter.decide` with `expected_answer=None` and a permanently neutral `WindowHint`.
+**The context axis was live in the simulated driver and absent from production.**
+`run_nod_clip` reads each turn's declared class from the sidecar and multiplies through
+`CompiledPolicy`; the proxy did neither, and nothing connected the two.
+
+The consequence is worse than a missing feature. A live sweep would have reported `nod` and
+`nod-nocontext` as **identical**, and that identity would have been read as "the context
+axis contributes nothing" — a false measurement rather than a null result, on the axis
+ROADMAP §3 calls "half the originality" and cuts last. It is the `run_nod_clip` failure
+from CLAUDE.md §5 in mirror image: there a predicted-and-observed match of zeros hid an
+untested closed loop; here the same match would have hidden an unwired one.
+Decision: a `ContextSource` protocol, injected at construction, defaulting to `None`.
+
+Injected rather than built in, because the *source* of a declared class differs by caller
+and the *policy* does not. The server knows the class from the agent's dialogue state; the
+bench knows it from the clip's per-turn spans (`ClipContext`). Both multiply through the
+same `CompiledPolicy`, so there is one policy and two readers of it rather than two
+policies. `None` preserves the old behaviour exactly, which is what the console path still
+uses until the agent declares its state.
+
+Two details that are decisions rather than mechanics. The lookup sits **inside**
+`_handle_turn`'s `except` boundary, so a malformed class enters `SAFE` loudly per INV-8
+instead of raising out of the turn loop — a policy lookup is controller work and EC-31's
+boundary has to cover it. And `ClipContext` answers on **turn order**, not on a timestamp,
+because turn order is all the proxy knows about a live turn; it holds no clip and no
+sidecar, and giving it one would invert the dependency.
+Consequence: `nod` and `nod-nocontext` can differ on a live run. The ablation still
+neutralises the *input* rather than branching (`enabled=False` returns `None` and a neutral
+hint), so BENCH_SPEC §3's requirement that an ablation not run different code is preserved.
+`proxy.py`'s `_handle_turn` is first tier and gains mutation coverage for the new lines.
+
+## ADR-045 — Live runs report an IQR over repeats; simulated keeps the clip bootstrap
+2026-09-22 · Status: accepted — Gate 4a, and the two are deliberately not unified
+Context: BENCH_SPEC §4 says every (clip, arm) pair runs `N = 5` and reports median and
+interquartile range. ADR-019 replaced that with a bootstrap over clips because against
+`FakeAssemblyAI` five repeats are byte-identical and their IQR is exactly zero — a
+zero-width bar reads as precision. That reasoning is sound and it is **conditional on
+determinism**, which the live path does not have.
+Decision: two functions, two statistics, one field saying which.
+
+`bootstrap_points` keeps ADR-019's clip bootstrap for the simulated path. `repeat_points`
+computes the median and IQR across repeats for the live path. `ArmPoint.interval_kind`
+carries `bootstrap-ci-over-clips` or `iqr-over-repeats`, and the table heading and the
+chart's own bar label both follow it — so a live table cannot be printed under a simulated
+legend, which is ADR-019's "the legend travels with the image" applied to a second legend.
+
+**Not unified, and that is the decision rather than the implementation.** A single function
+with a flag would need the flag threaded through the resampling, and the first reader would
+have to reconstruct which half of ADR-019's argument applied to their call. The two answer
+different questions: the bootstrap answers "if the generator had produced a different
+corpus, how much would this move", the IQR answers "how repeatable is this measurement".
+Both are worth having and neither substitutes for the other.
+
+A pass is repeat `r` of **every** clip — the whole corpus measured once — and the IQR is
+taken across passes. Aggregating the other way, per clip across repeats and then pooling,
+would answer "how variable is one clip" where §4 asks for the spread of the result.
+`render_all` **refuses** `simulated=True` with `repeats > 1`, and `repeat_points` refuses
+fewer than two repeats: both are the zero-width-bar defect, mechanised rather than
+remembered.
+Consequence: `RunResult` keeps one `ClipObservation` per repeat instead of pooling them, so
+the repeat axis is recoverable downstream. `_live_sweep` sorts its results before grouping
+— `asyncio.as_completed` yields in finishing order, and unsorted results would either lose
+the clip pairing BENCH_SPEC §9 rests on or raise, intermittently, depending on which
+sockets happened to be slow.
+
+## ADR-046 — TCT and RES are not measurable on a replay corpus, and refuse
+2026-09-22 · Status: accepted — Gate 4a
+Context: `metrics.tct` and `metrics.res` were stubs, to be implemented with the other three
+when the live path landed. Applying CLAUDE.md §5's impossible-value check before writing
+them — name a value the metric could not take, then confirm it does not report it — showed
+that neither is computable from this corpus at all.
+
+BENCH_SPEC §5 defines **TCT** as "wall-clock seconds to complete the scripted intake,
+**including repeats caused by cuts**" and **RES** as "fraction of cuts the caller had to
+recover from by repeating". Both require a caller who *reacts* to being cut off. Replayed
+audio does not react: the wav plays on regardless of what the agent did. So TCT reduces to
+the clip's duration plus socket overhead — identical on every arm by construction — and RES
+is **structurally 0.0** on every arm over both tracks.
+
+`perturb.repeat` does not supply the missing mechanism, and it is the obvious place to look:
+it inserts a repetition at a fixed `at_ms` as a generated *disfluency*, decided when the
+clip was built and unrelated to whether any arm endpointed early.
+Decision: both raise `UnmeasurableOnReplayError`, naming the missing mechanism.
+
+Refusing rather than returning the computable value, because the computable value is
+**flattering and plausible**. "0 % of cuts required a repeat" reads as a result about the
+controller and is a fact about the corpus; a TCT column identical across arms invites a
+comparison it cannot support. CLAUDE.md §5's standing observation applies exactly — a wrong
+number does not fail visibly, it prints a plausible one — and this is the rare case where
+the right implementation of a specified metric is a refusal with an explanation attached.
+
+The other three land properly. `patch_count` is counted at the **socket**, from
+`SessionProxy.patches_sent`, not at the decision: a patch computed, traced and never applied
+is §5's named failure for `proxy.py`, and counting decisions would conceal it behind a
+healthy number. `patch_max` is added beside it because ADR-027 asks for the busiest single
+session and a mean cannot say whether `MAX_PATCHES` came near binding. `dec_p99` goes
+through this module's own `quantile`, so INV-2 is judged by `QUANTILE_METHOD` rather than by
+numpy's interpolation. All three refuse an empty scope rather than returning 0.0, for the
+same reason TCT refuses: zero is the flattering value for each of them.
+Consequence: BENCH_SPEC §5's table keeps seven rows and **two are marked unmeasurable on
+this corpus** rather than quietly dropped — a reader comparing Nod against a benchmark that
+does report them can see which two are missing and why. Both become measurable behind a
+responsive caller simulator, which is post-freeze work and is not on the roadmap.

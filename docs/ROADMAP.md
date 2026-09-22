@@ -274,18 +274,33 @@ committed trace with no API key.
 3. **No live bench run.** `--live` still exits 2. INV-9 routes every published figure
    through it, so `docs/RESULTS.md` and the README table cannot be written until it runs.
 4. **ADR-032's patch census** and ADR-027's per-session count, collected together.
-5. **`ENDPOINT_OVERHEAD_MS` is still 0**, so CONTROL_SPEC §9 property 3 stays skipped and
-   every simulated TTL is optimistic by the overhead.
-6. **`/metrics`, `configure_logging` and auth are stubs.** Only `/metrics` is on
-   DEPLOYMENT.md §4's path.
+5. ~~**`ENDPOINT_OVERHEAD_MS` is still 0**, so CONTROL_SPEC §9 property 3 stays skipped and
+   every simulated TTL is optimistic by the overhead.~~ **Closed at Gate 4a (ADR-040).** Set
+   to **217**, the top of ADR-017's spread, because the constant is subtracted from the
+   ceiling and the smaller value is the permissive one. Property 3 is live and has been seen
+   red against the vacuous form. It moved `CEILING_FLOOR_MS` to 1317 as well — ADR-021's
+   floor was derived at an overhead of 0 and took §9 property 1 red at 1100. Phase 4's live
+   run still owes its own spread.
+6. ~~**`/metrics`, `configure_logging` and auth are stubs.** Only `/metrics` is on
+   DEPLOYMENT.md §4's path.~~ **Resolved at Gate 4a.** `/metrics` is implemented — the
+   registry was already built, so it was one `generate_latest` call. `/readyz`'s four
+   checks became real conditions (ADR-041); they were hardcoded `ready=False`, so it
+   returned 503 for any input and no test over it could pass *or* fail. **Auth stays cut**
+   and `configure_logging` stays a stub, both on purpose (ADR-042): `NOD_AUTH` now defaults
+   to `off` instead of declaring a guarantee no route honoured, and the exposure it was
+   nominally covering — a public URL spending the upstream key — is bounded by
+   `NOD_MAX_SESSIONS`, now **2**, derived from a measured account limit of 5 concurrent
+   streams and the 2 sockets a rotating session holds.
 
 - **26 Sep: feature freeze.** Only bug fixes, docs and polish after this point.
 - Full bench run, live, `N = 5`. Regenerate `docs/RESULTS.md` and the README table.
 - Report card HTML.
 - README with the prior-art and honest-scope section.
 - Deploy per DEPLOYMENT.md. Health checks green. Smoke test against the deployed URL.
-- Demo video: 90 seconds. Cold open on the two-pane replay and the counter. No
-  architecture slides in the first 30 seconds.
+- Demo video: 90 seconds. Cold open on the **one-pane** replay and the counter. No
+  architecture slides in the first 30 seconds. (Was "two-pane"; ADR-035 clause 4 cut the
+  stock-vs-Nod split view and its shared scrubber, against §3's "one screen that shows the
+  loop closing". Corrected at Gate 4a — the bullet had outlived the decision.)
 - Slide deck: problem, the two facts, the loop, the chart, the honest-scope slide.
 
 **Exit:** submission fields are all filled and the deployed URL works from a phone on
