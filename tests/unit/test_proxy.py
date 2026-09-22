@@ -28,7 +28,7 @@ from typing import Final, override
 
 import pytest
 
-from nod_core.arbiter import WIRE_FIELDS, Arbiter
+from nod_core.arbiter import CEILING_FLOOR_MS, WIRE_FIELDS, Arbiter
 from nod_core.capabilities import UPDATABLE_FIELDS
 from nod_core.profiler import Profiler
 from nod_core.proxy import SessionProxy
@@ -538,6 +538,12 @@ async def test_a_per_connection_ceiling_below_the_floor_is_clamped(
     `Voice.pacing_hint_ms` feeds this on a mid-session voice switch, so a value
     below the floor arrives from a real code path. INV-8 forbids dropping the call
     for it, and §4's ordering forbids honouring it.
+
+    Asserted against `CEILING_FLOOR_MS` rather than against a copy of its value.
+    It read `== 1100` and went red when ADR-040 folded `ENDPOINT_OVERHEAD_MS` into
+    the floor, which is the right outcome for a literal and the wrong one for this
+    test: the claim is that a sub-floor ceiling is *clamped to the floor*, and that
+    claim is unchanged by where the floor sits.
     """
     proxy = SessionProxy(
         upstream=FakeUpstream(),
@@ -547,7 +553,8 @@ async def test_a_per_connection_ceiling_below_the_floor_is_clamped(
         mode=NodMode.ADAPT,
         ceiling_ms=200,
     )
-    assert proxy._ceiling_ms == 1100
+    assert proxy._ceiling_ms == CEILING_FLOOR_MS
+    assert proxy._ceiling_ms > 200, "the sub-floor value was honoured, not clamped"
 
 
 # --- gaps found by the Gate 4 mutation run ----------------------------------

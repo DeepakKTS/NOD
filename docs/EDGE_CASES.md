@@ -58,7 +58,7 @@ names (`test_ec_014_upstream_expiry`).
 | EC-34 | Model lacks confidence-based turn detection | Confidence axis disabled by the capability probe; silence axis carries the load; `capability_degraded` emitted once. |
 | EC-35 | Patch budget exhausted (24) | Stop patching, keep profiling, mark the session `budget_exhausted`. This is a signal the constants are wrong, surfaced in the bench. |
 | EC-36 | Profiler cold for the whole call (very short call) | Base + context only. Never adapt on fewer than 8 gaps. |
-| EC-49 | Endpointing overhead on top of the configured gate | The boundary lands `ENDPOINT_OVERHEAD_MS` after whichever silence gate binds (P1 measured 155-290 ms). The ceiling subtracts it, so `ceiling_ms` is a promise about the boundary and not about the knob. The constant is derived by `make bench`, never hand-written (INV-9). |
+| EC-49 | Endpointing overhead on top of the configured gate | The boundary lands `ENDPOINT_OVERHEAD_MS` after whichever silence gate binds. **217 ms since ADR-040**, the top of ADR-017's measured spread (206, 175, 204, 172, 217) — the constant is subtracted from the ceiling, so the smaller value is the permissive one. The ceiling subtracts it, so `ceiling_ms` is a promise about the boundary and not about the knob. Measured, never hand-written (INV-9); Phase 4's live run re-derives it with its own spread. |
 | EC-50 | A knob measured in the wrong regime | Each silence knob binds in one regime only: `min_turn_silence` after a complete utterance, `max_turn_silence` after an incomplete one. A probe or bench arm that offers only one regime reads the other knob as inert. Stimuli name the regime they need and the trace records it. |
 
 ## 5. Bench

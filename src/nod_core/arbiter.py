@@ -79,12 +79,14 @@ computed and logged so the bench can evaluate it. Raising this weight is an ADR,
 and CONTROL_SPEC.md §9 test 10 fails if it is raised silently.
 """
 
-ENDPOINT_OVERHEAD_MS: Final = 0
+ENDPOINT_OVERHEAD_MS: Final = 217
 """Milliseconds the boundary lands after the configured gate (EC-49).
 
-Zero until `make bench` measures it. P1 saw 155-290 ms across eleven single-sample
-configurations, which is directionally clear and not a number to hand-write into
-the control law: INV-9 applies here as much as to the README.
+Measured, not hand-written (ADR-040). ADR-017 recorded the boundary landing
+206, 175, 204, 172 and 217 ms after the gate across five repeats. This is the
+**top** of that spread, chosen against the flattering direction: the constant is
+*subtracted* from the ceiling, so a smaller value is the permissive one and would
+let a latency claim pass while the real boundary missed the budget.
 """
 
 MIN_MS_FLOOR: Final = 160
@@ -99,8 +101,8 @@ INVARIANT_GAP_MS: Final = 200
 DEFAULT_CEILING_MS: Final = 2600
 """Default latency ceiling. Per-deployment via `NOD_CEILING_MS`. Milliseconds."""
 
-CEILING_FLOOR_MS: Final = MIN_MS_CEIL + INVARIANT_GAP_MS
-"""Lowest valid `ceiling_ms`. 1100 ms. Milliseconds (ADR-021).
+CEILING_FLOOR_MS: Final = MIN_MS_CEIL + INVARIANT_GAP_MS + ENDPOINT_OVERHEAD_MS
+"""Lowest valid `ceiling_ms`. 1317 ms. Milliseconds (ADR-021, ADR-040).
 
 §4 applies the latency ceiling *after* the invariant repair, so a ceiling below
 this would undo it: `min_ms` clamps up to `MIN_MS_CEIL`, the repair lifts `max_ms`
@@ -109,7 +111,13 @@ ADR-021 resolves that by making such a ceiling an invalid *configuration* rather
 than by re-ordering §4 — a law that applies a ceiling and then knowingly raises
 `max_ms` back above it violates the ceiling on purpose, every turn, silently.
 
-Derived rather than written as 1100 so it follows the clamps it comes from.
+**`ENDPOINT_OVERHEAD_MS` is part of this sum and was not when ADR-021 derived it**
+(ADR-040). The clamp subtracts the overhead from the ceiling, so the quantity the
+repair must survive is `ceiling_ms - ENDPOINT_OVERHEAD_MS`, not `ceiling_ms`. At
+1100 with a 217 ms overhead the law returned `max=883` against `min=800` and §9
+property 1 went red — the floor guaranteed a headroom the clamp no longer left.
+
+Derived rather than written as 1317 so it follows the clamps it comes from.
 `Settings` enforces it at startup and §9 property 2 is stated over it.
 """
 

@@ -5,11 +5,13 @@ shaped by them rather than measured against them afterwards.
 
 - **Properties 1, 2, 4, 5, 6, 7 and 8** are `hypothesis` properties over the
   domains in `strategies.py`, as §9's opening line specifies.
-- **Property 3** is written and conditionally skipped. It is vacuous while
-  `ENDPOINT_OVERHEAD_MS` is 0 — CLAUDE.md §5 names it as the worked example of an
-  invariant that cannot be violated under the constants in force. The skip is
-  conditional on the constant, so the property activates by itself once `make
-  bench` measures an overhead.
+- **Property 3** is live as of ADR-040 and the conditional skip has fired. It was
+  vacuous while `ENDPOINT_OVERHEAD_MS` was 0 — CLAUDE.md §5 names it as the worked
+  example of an invariant that cannot be violated under the constants in force —
+  and the skip was written conditional on the constant so that it would activate by
+  itself. It did, at 217 ms. It has since been seen red on purpose: the `arbiter`
+  mutation catalogue gained `law/ceiling: ignore the measured overhead`, which is
+  precisely the vacuous form, and property 3 kills it.
 - **Properties 9 and 10** replace §9's original "both axes must move", which went
   vacuous when ADR-011 left only one axis.
 
@@ -36,7 +38,7 @@ import math
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import get_args
+from typing import Final, get_args
 from unittest import mock
 
 import pytest
@@ -170,12 +172,56 @@ def test_the_confidence_axis_has_no_constants_left() -> None:
         assert not hasattr(arbiter, gone), f"{gone} survived the ADR-011 removal"
 
 
+ADR_017_OVERHEAD_SAMPLE_MS: Final = (206, 175, 204, 172, 217)
+"""ADR-017's five measured gate-to-boundary delays. Milliseconds.
+
+Restated here rather than imported because it lives in a document, not in code.
+CLAUDE.md §5 prescribes *asserting* the relation in exactly this situation: the
+sample is frozen into a committed ADR, so deriving the constant from it would make
+the two agree forever and make the disagreement unaskable. Written out, a change
+to either side fails loudly and makes someone decide.
+"""
+
+
 def test_the_ceiling_subtracts_a_measured_overhead() -> None:
-    """EC-49 and INV-9: the constant exists and is not hand-written."""
+    """EC-49 and INV-9: the constant is measured, and is the pessimistic end.
+
+    ADR-040. The constant is *subtracted* from the ceiling, so a smaller value is
+    the permissive direction: it would let a latency claim pass while the real
+    boundary overran the budget. The top of ADR-017's spread is therefore the only
+    defensible choice, and this asserts both halves of that — that the value is in
+    the measured sample at all, and that it is the maximum of it.
+    """
     assert hasattr(arbiter, "ENDPOINT_OVERHEAD_MS")
-    assert arbiter.ENDPOINT_OVERHEAD_MS == 0, (
-        "must stay 0 until `make bench` measures it; a hand-written value here "
-        "is an INV-9 violation in the control law"
+    assert arbiter.ENDPOINT_OVERHEAD_MS in ADR_017_OVERHEAD_SAMPLE_MS, (
+        f"{arbiter.ENDPOINT_OVERHEAD_MS} is not one of ADR-017's measurements "
+        f"{ADR_017_OVERHEAD_SAMPLE_MS}; a hand-written value here is an INV-9 "
+        "violation in the control law"
+    )
+    assert max(ADR_017_OVERHEAD_SAMPLE_MS) == arbiter.ENDPOINT_OVERHEAD_MS, (
+        "must be the top of the spread, not the middle or the bottom (ADR-040): "
+        "the ceiling subtracts it, so a smaller value flatters every TTL figure"
+    )
+
+
+def test_the_ceiling_floor_leaves_room_for_the_invariant_after_the_overhead() -> None:
+    """ADR-040: ADR-021's floor has to absorb the overhead, or property 1 breaks.
+
+    §4 clamps in the order repair-then-ceiling, so the quantity the repair must
+    survive is `ceiling_ms - ENDPOINT_OVERHEAD_MS`. Measured when the constant
+    moved: at a ceiling of 1100 with a 217 ms overhead the law returned `max=883`
+    against `min=800`, and §9 property 1 went red. This asserts the arithmetic
+    that stops it, over the clamps rather than over the literal 1317.
+    """
+    assert (
+        arbiter.CEILING_FLOOR_MS - arbiter.ENDPOINT_OVERHEAD_MS
+        >= arbiter.MIN_MS_CEIL + arbiter.INVARIANT_GAP_MS
+    ), (
+        f"ceiling floor {arbiter.CEILING_FLOOR_MS} less overhead "
+        f"{arbiter.ENDPOINT_OVERHEAD_MS} leaves "
+        f"{arbiter.CEILING_FLOOR_MS - arbiter.ENDPOINT_OVERHEAD_MS} ms, under the "
+        f"{arbiter.MIN_MS_CEIL + arbiter.INVARIANT_GAP_MS} ms the invariant repair "
+        "can demand; §9 property 1 is unsatisfiable in that regime"
     )
 
 
@@ -327,7 +373,7 @@ def test_max_ms_always_clears_min_ms_by_the_invariant_gap(
 
 
 @pytest.mark.skipif(
-    arbiter.ENDPOINT_OVERHEAD_MS == 0,
+    arbiter.ENDPOINT_OVERHEAD_MS == 0,  # type: ignore[comparison-overlap]
     reason=(
         "CONTROL_SPEC §9 property 3 is vacuous at ENDPOINT_OVERHEAD_MS = 0: it "
         "reduces to `max_ms <= ceiling_ms`, which the §4 clamps already give, so "

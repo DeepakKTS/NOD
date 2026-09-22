@@ -85,7 +85,8 @@ runs 147-274 ms across the plain silence-gate cells, so a shift under 100 ms is
 smaller than the unmodelled overhead of the system the knob is meant to steer
 and is not actionable even if real.
 
-Revisit once `make bench` measures `ENDPOINT_OVERHEAD_MS`. Do not inherit it
+Revisit against the Phase 4 live spread. `ENDPOINT_OVERHEAD_MS` is 217 as of
+ADR-040, from ADR-017's P1 measurement rather than from `make bench`. Do not inherit it
 unexamined.
 """
 

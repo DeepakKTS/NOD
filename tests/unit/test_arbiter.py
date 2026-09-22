@@ -61,6 +61,9 @@ def features(
     how a law test goes quietly vacuous — and the first draft of this file was
     pressed against the **ceiling** at `g_p90 = 1000`, so two of these tests
     compared 2600 with 2600 and would have passed under a dropped coefficient.
+
+    The 2600 ms figure is the *effective* ceiling, `EFFECTIVE_LAW_CEILING_MS`. It is
+    reached by passing `LAW_CEILING_MS` — see there for why the two differ.
     """
     return SpeakerFeatures(
         n_gaps=0 if cold else 64,
@@ -119,11 +122,36 @@ def engine(caps: Capabilities = ALL_LIVE, ceiling: int | None = None) -> Arbiter
     )
 
 
+EFFECTIVE_LAW_CEILING_MS: Final = arbiter.DEFAULT_CEILING_MS
+"""What `max_ms` is actually clamped to under `LAW_CEILING_MS`. Milliseconds.
+
+The "is the ceiling masking this term?" guards below must compare against *this*,
+not against `ceiling_ms`. Comparing against the raw ceiling is what let
+`test_the_context_axis_multiplies_max_turn_silence` assert `2383 < 2600` and call the
+multiplier unmasked while the clamp was in fact holding it at 2383 — a guard that
+cannot detect the thing it is named for (CLAUDE.md §5).
+"""
+
+LAW_CEILING_MS: Final = arbiter.DEFAULT_CEILING_MS + arbiter.ENDPOINT_OVERHEAD_MS
+"""The ceiling these fixtures pass, so the *effective* one is `DEFAULT_CEILING_MS`.
+
+§4 clamps `max_ms` to `ceiling_ms - ENDPOINT_OVERHEAD_MS`, so the quantity a fixture
+has to stay clear of is the ceiling **less the overhead**, not the ceiling. While the
+overhead was 0 the two were equal and this file passed the raw default. ADR-040 made
+them differ by 217 ms and the 2.4x headroom the `features` docstring promises stopped
+existing — `test_the_context_axis_multiplies_max_turn_silence` went red against a
+ceiling it had been told was not binding.
+
+Derived from both constants so the headroom survives either moving. The alternative
+was to restate every arithmetic literal below against the smaller effective ceiling,
+which would have left the fixtures pressed against a clamp — precisely the vacuity
+the `features` docstring exists to warn about.
+"""
+
+
 def law(speaker: SpeakerFeatures, hint: WindowHint = NEUTRAL) -> TurnConfig:
     """`control_law` on a warm profile, away from the guards."""
-    return control_law(
-        speaker, hint, cold=speaker.cold, ceiling_ms=arbiter.DEFAULT_CEILING_MS
-    )
+    return control_law(speaker, hint, cold=speaker.cold, ceiling_ms=LAW_CEILING_MS)
 
 
 # --- §4: the max_turn_silence gate, the primary surface (ADR-011) -----------
@@ -153,7 +181,7 @@ def test_disfluency_widens_max_turn_silence() -> None:
     assert calm == 1210
     assert twitchy == int(1210 * (1.0 + arbiter.MAX_MS_DISFLUENCY_GAIN))
     assert twitchy > calm
-    assert twitchy < arbiter.DEFAULT_CEILING_MS, "the ceiling is masking the term"
+    assert twitchy < EFFECTIVE_LAW_CEILING_MS, "the ceiling is masking the term"
 
 
 def test_recent_cuts_widen_max_turn_silence() -> None:
@@ -166,7 +194,7 @@ def test_recent_cuts_widen_max_turn_silence() -> None:
     cut = law(features(recent_cuts=1.0)).max_turn_silence_ms
     assert cut == int(1210 * (1.0 + arbiter.MAX_MS_RECENT_CUTS_GAIN))
     assert cut > none
-    assert cut < arbiter.DEFAULT_CEILING_MS, "the ceiling is masking the term"
+    assert cut < EFFECTIVE_LAW_CEILING_MS, "the ceiling is masking the term"
 
 
 def test_jitter_is_read_nowhere_in_the_law() -> None:
@@ -184,7 +212,7 @@ def test_the_context_axis_multiplies_max_turn_silence() -> None:
     """§4: `max_ms *= hint.max_mult`, for the wide-answer classes of §3."""
     wide = law(features(), WindowHint(min_mult=1.0, max_mult=2.0))
     assert wide.max_turn_silence_ms == 2420
-    assert wide.max_turn_silence_ms < arbiter.DEFAULT_CEILING_MS, (
+    assert wide.max_turn_silence_ms < EFFECTIVE_LAW_CEILING_MS, (
         "the ceiling is masking the multiplier"
     )
     narrow = law(features(), WindowHint(min_mult=1.0, max_mult=0.5))

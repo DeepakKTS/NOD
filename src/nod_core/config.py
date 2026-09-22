@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Final, Literal
 
 from pydantic import BeforeValidator, Field, SecretStr
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -72,6 +72,38 @@ type OptionalText = Annotated[str | None, BeforeValidator(_blank_to_none)]
 """A non-secret optional setting, blank-normalised the same way."""
 
 
+UPSTREAM_CONCURRENCY_LIMIT: Final = 5
+"""Concurrent streaming sessions the AssemblyAI account permits. Sessions.
+
+Measured at Gate 4a, not documented: a ramp of concurrent sessions was refused at
+the sixth with `error_code 1008`, "Unauthorized Connection: Too many concurrent
+sessions". The refusal arrives as an `Error` frame *after* a successful WebSocket
+upgrade, so a caller that only checks the handshake sees a healthy socket.
+
+Re-measure on an account or plan change. `scripts/probe_concurrency.py` is the ramp.
+"""
+
+UPSTREAM_SOCKETS_PER_SESSION_PEAK: Final = 2
+"""Upstream sockets one Nod session can hold at once. Sockets.
+
+`SessionProxy.rotate` opens the replacement socket *before* closing the one it
+replaces (EC-03) — it has to, because the profiler state and the current config
+are carried across and a gap would reset the caller's window mid-call. So a
+rotating session briefly counts twice against `UPSTREAM_CONCURRENCY_LIMIT`.
+"""
+
+MAX_CONCURRENT_SESSIONS: Final = (
+    UPSTREAM_CONCURRENCY_LIMIT // UPSTREAM_SOCKETS_PER_SESSION_PEAK
+)
+"""Default `NOD_MAX_SESSIONS`. 2 sessions (ADR-042).
+
+The pessimistic reading, deliberately: it assumes every live session rotates at
+the same instant. Sessions started apart rotate apart, so 5 would usually work —
+but the failure mode of guessing high is a rotation refused mid-call on a live
+demo, and the failure mode of guessing low is a second browser tab getting a 429.
+"""
+
+
 class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own Any
     """Every variable in DEPLOYMENT.md §2, with its documented default.
 
@@ -95,13 +127,27 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
 
     nod_model: str = "universal-streaming-english"
     nod_api_token: OptionalSecret = None
-    nod_auth: Literal["required", "off"] = "required"
+    nod_auth: Literal["required", "off"] = "off"
+    """Bearer auth on mutating routes. **`off`, and that is a real default.**
+
+    It read `required` while `nod_server.auth.require_bearer` raised
+    `NotImplementedError` and was referenced by no route — a setting declaring a
+    guarantee the process did not honour, which is worse than an honest `off`
+    because a reader configuring a deployment would believe it. Auth stays cut
+    (ADR-042); the open-door problem it was nominally covering is closed by
+    `nod_max_sessions` instead, which bounds the cost rather than the access.
+    """
 
     nod_allowed_origins: CsvTuple = ()
     """CORS allow-list. Never `*` (ARCHITECTURE.md §7)."""
 
-    nod_max_sessions: int = 64
-    """Sessions per worker."""
+    nod_max_sessions: int = MAX_CONCURRENT_SESSIONS
+    """Concurrent streaming sessions per worker. Refused with 429 above this.
+
+    Derived from the measured upstream limit rather than chosen (ADR-042). It was
+    `64`, which was not a measurement of anything and was **twelve times** what
+    the account actually permits.
+    """
 
     nod_ceiling_ms: int = Field(default=DEFAULT_CEILING_MS, ge=CEILING_FLOOR_MS)
     """Default latency ceiling, milliseconds.
@@ -122,7 +168,8 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     read at process start and persisted nowhere, so one source of truth is simply
     correct and a second copy buys nothing but drift.
 
-    `ge=CEILING_FLOOR_MS` is ADR-021's lower bound: a ceiling under 1100 ms cannot
+    `ge=CEILING_FLOOR_MS` is ADR-021's lower bound, 1317 ms since ADR-040 folded
+    `ENDPOINT_OVERHEAD_MS` into it: a ceiling under that cannot
     satisfy §4's invariant repair, and pydantic raises at startup rather than
     letting every turn of every call quietly violate it. Rejection is right at this
     boundary because configuration is not a call; INV-8's "fail soft in a call"

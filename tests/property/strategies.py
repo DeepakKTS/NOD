@@ -118,9 +118,11 @@ property failing on an unreachable state reports a bug that does not exist; unde
 ADR-021 that state is unreachable by construction, and this domain is the whole of
 the valid domain rather than a safe corner of it.
 
-Worth re-deriving when `ENDPOINT_OVERHEAD_MS` lands: the floor is stated against
-the ceiling *before* the overhead is subtracted, so a measured ~200 ms narrows the
-usable headroom. ADR-017's warning about inheriting a bound unexamined applies.
+**Re-derived, and this note was right** (ADR-040). The floor was stated against the
+ceiling *before* the overhead was subtracted, so landing the constant at 217 ms left
+`max=883` against `min=800` at a ceiling of 1100 and took §9 property 1 red.
+`CEILING_FLOOR_MS` now carries `+ ENDPOINT_OVERHEAD_MS` and this domain follows it,
+because it is derived from the constant rather than written as 1100.
 """
 
 CEILING_MAX_MS: Final = 6000
