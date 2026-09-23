@@ -2856,3 +2856,97 @@ run the same ladder against a **human** voice, since every negative so far is on
 output and prosody is a plausible completion cue; and run it with
 `end_of_turn_confidence_threshold` swept, to confirm ADR-001's INERT verdict still holds
 on the current model version rather than the one probed at P1.
+
+## ADR-055 — The regime is reachable, the lever is `min_turn_silence`, and ADR-054 named the wrong knob
+2026-09-23 · Status: accepted — Gate 4e, 16 live sessions, artifacts committed
+Context: ADR-054 concluded from twelve `say` sessions that "`max_turn_silence` does not
+engage at a mid-utterance pause however long the pause or however unfinished the
+sentence", and that "Nod may be a correct controller for a gate that does not engage".
+Gate 4e rebuilt the pilot as committed tooling (`nod_bench.ladder`,
+`scripts/pilot_ladder.py`), re-ran the identical four-hold ladder on the identical `say`
+audio, and then ran a second, pre-registered experiment ADR-054 did not: a sweep of
+`min_turn_silence` at 400 / 900 / 1600 / 2400 ms with `max_turn_silence` held at 3600.
+Decision: **ADR-054's decisive observation reproduces exactly. Its explanation does not,
+and its conclusion is wrong in the direction that matters.**
+
+**What reproduces.** Firing time does not move with the hold. In-hold firing silence
+spreads across holds of 1000 / 2000 / 3500 ms are **14 / 39 / 42 ms** on
+`aggressive` / `balanced` / `conservative`. A service waiting out `max_turn_silence`
+could not fire inside a 1000 ms hold on `balanced`, whose max gate is 1280 ms. That part
+of ADR-054 stands, and stands more firmly than before because the statistic is now
+computed on a single clock (below) rather than inferred from three numbers in prose.
+
+**What does not.** One model with two parameters fits all thirteen in-hold rows:
+
+    fire_at = prefix_end + clamp(C, min_turn_silence, max_turn_silence) + overhead
+
+with **C ≈ 590 ms** and **overhead ≈ 175 ms**. `C` is the service's own end-of-turn
+commit point, and it does not care how long the pause runs or that the prefix ends on a
+preposition. Read off the three presets, whose gates bracket `C` differently:
+
+| arm | min / max | predicted | observed (3 holds) |
+|---|---|---|---|
+| `aggressive` | 160 / **400** | 2800 — **max** binds, `400 < C` | 2829 / 2832 / 2843 |
+| `balanced` | 400 / 1280 | 2990 — neither binds, `C` governs | 2953 / 2973 / 2992 |
+| `conservative` | **800** / 3600 | 3200 — **min** binds, `800 > C` | 3205 / 3231 / 3247 |
+
+So **`max_turn_silence` does bind at a mid-utterance pause** — on `aggressive`, whose
+400 ms gate sits below the commit point. ADR-054's central claim is false as stated. What
+is true is narrower and was not distinguished: the window in which the service is *not
+yet confident* is about 590 ms wide and does not widen with the pause, so `max` can only
+bind inside it, and `balanced`'s 1280 ms and `conservative`'s 3600 ms gates both sit far
+outside. `max` binding there cuts the caller off **sooner**; it cannot be used to grant
+anyone more time.
+
+**The lever that can is `min_turn_silence`, and it works across the whole useful range.**
+Four arms, gates the only thing varying, predictions written and committed before the
+sockets opened:
+
+| `min_turn_silence` | predicted | observed | silence held |
+|---|---|---|---|
+| 400 | 2990 | **3017** | 777 ms |
+| 900 | 3300 | **3410** | 1170 ms |
+| 1600 | 4000 | **4005** | 1765 ms |
+| 2400 | 4800 | **4814** | 2574 ms |
+
+4 / 4 inside the 120 ms tolerance. At 2400 the service held the turn open for **2574 ms**
+after the caller stopped mid-sentence, on a preposition, and then accepted the
+continuation as the same turn. That is the behaviour this project exists to produce, and
+it is now measured on the real service rather than argued for. It also reproduces ADR-001,
+which measured `min_turn_silence` LIVE and continuous to 2175 ms and was never connected
+to the endpointing question.
+
+**What this costs us, stated plainly.** ADR-011 makes `max_turn_silence` the controller's
+primary lever. On this service that is the wrong knob: it is inert above the commit point
+and harmful below it. `arbiter.MIN_MS_CEIL` is **900 ms**, which caps the working lever at
+roughly a third of its demonstrated range — the controller can buy a hesitant caller about
+1.1 s where the service will give 2.6 s. Both are design defects in the controller, found
+by measurement, and neither is a defect in the service.
+
+**`max` does bind at end of stream, every time.** Sixteen sessions, measured from the
+continuation's acoustic end: `aggressive` 502-574 ms, `balanced` 1356-1493 ms,
+`conservative` 3660-3786 ms, and all four swept arms 3763-3794 ms against their 3600 ms
+gate. ADR-054 inferred this and said it was inferred; it is now measured.
+
+**A defect this run exposes in a published number.** `LiveBoundary.silence_started_ms` is
+the service's last-word `end_ms`, and it is not a usable silence anchor. On the same
+clips it reports the prefix ending at **2800 ms** where the audio goes quiet at **2240**
+(+560), and the continuation ending 190-250 ms **early**. It is not a clock offset — the
+sign differs within one session. `pcr` uses that field to decide which gap governs a
+boundary (ADR-036), so live PCR gap attribution carries an error of the same size as the
+gaps it is attributing into, and **every PCR figure in `results.live.md` is suspect**. Not
+fixed in this gate; named, and it is the reason `ladder` anchors everything to the
+acoustic end of the audio it is about to feed instead. That also resolves ADR-054's open
+"impossible 180-435 ms silences": the gate was fine, the anchor was wrong.
+
+**One thing that is not resolved.** `aggressive` emits **two** word-bearing turns where
+the other arms emit one, splitting the prefix, with the second landing within ~10 ms of
+`balanced`'s single boundary on every hold. The max-gate reading above explains the first.
+The internal split point cannot be pinned down, because the only evidence for it is the
+word-end field the paragraph above just disqualified.
+Consequence: ADR-054 is superseded on its conclusion and kept on its observation. The
+README headline changes from "the gate does not engage" to what was actually measured.
+`MIN_MS_CEIL` and ADR-011's choice of primary lever are both now known to be wrong and
+both are **left unchanged inside the freeze** — changing a control-law constant on the
+strength of one clip of synthetic speech would be tuning by ear, which §7 forbids. They
+are recorded as the first thing to fix after it.

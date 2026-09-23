@@ -18,10 +18,30 @@
 > | deployed URL | **does not exist** |
 > | phone-on-mobile-data smoke | **not done** |
 >
-> Two independent blockers, either of which is sufficient: the repository **cannot be
-> pushed** (the macOS keychain has stopped returning credentials, so `git push` hangs on a
-> username prompt — GitHub itself answers 200), so no platform can build from it; and
-> there is no container runtime or platform CLI here to build and push an image instead.
+> **23 Sep, Gate 4e — two of the three blockers cleared, one remains.**
+>
+> The keychain unlocked and all six commits are **pushed**. There is still no container
+> runtime here, so `scripts/deploy_aws.sh` was written to build **remotely**: `git archive`
+> of `HEAD` to S3, CodeBuild (privileged, so Docker exists there) building the committed
+> `Dockerfile` and pushing to ECR, App Runner running the image with TLS and a `/healthz`
+> check. GitHub is deliberately not in that path — a CodeBuild GitHub source needs an
+> OAuth connection made in the console and this repository is private.
+>
+> **The ECR repository was created and exists.** The script is otherwise **unrun**:
+> creating the CodeBuild service role, the App Runner ECR-access role and the source
+> bucket was refused by this session's permission layer. That is the whole of what is
+> left. Run it with credentials permitted to create IAM roles:
+>
+>     ASSEMBLYAI_API_KEY=... sh scripts/deploy_aws.sh
+>
+> The buildspec also resolves and prints the `python:3.12-slim` digest and the image size
+> — the two §3 items that have been outstanding precisely because they cannot be answered
+> without a container runtime. Neither is verified until that build runs; the `Dockerfile`
+> still ships a tag.
+>
+> **The repository is private.** The submission requires a public one, and the corpus
+> consent line in TRACK_C_SCRIPT §8 assumes public too. Flipping it is a separate
+> decision from deploying and is not made here.
 >
 > **The account budget is shared, and this is the part to decide before deploying.** The
 > AssemblyAI account permits 5 concurrent streams, and Gate 4b measured that a *churning*

@@ -34,6 +34,7 @@ from nod_bench.ladder import (
     MEASURED_OVERHEAD_MS,
     PREDICTION_TOLERANCE_MS,
     TAIL_SILENCE_MS,
+    Hypothesis,
     LadderGeometry,
     LadderRow,
     ObservedBoundary,
@@ -48,7 +49,12 @@ from nod_bench.ladder import (
     write_mono,
 )
 from nod_bench.perturb import Gap, TruthSpan
-from nod_bench.replay import STATIC_ARMS, run_live_clip
+from nod_bench.replay import (
+    STATIC_ARMS,
+    ArmSettings,
+    StartRateGate,
+    run_live_clip,
+)
 
 DEFAULT_HOLDS: tuple[int, ...] = (500, 1000, 2000, 3500)
 """The four holds from docs/PILOT_REGIME.md. Milliseconds."""
@@ -66,6 +72,50 @@ where it makes a prediction it can fail: `aggressive` at 2990 rather than
 """
 
 ARMS: tuple[str, ...] = ("aggressive", "balanced", "conservative")
+
+HYPOTHESES: tuple[Hypothesis, ...] = (
+    "min_gate",
+    "max_gate",
+    "confidence",
+    "clamped",
+)
+
+MIN_SWEEP_MS: tuple[int, ...] = (400, 900, 1600, 2400)
+"""`min_turn_silence` values for the sweep. Milliseconds.
+
+400 is `balanced`'s and sits *below* the service's commit point, so it is the
+control: the clamp model says it cannot move the boundary. 900 is
+`arbiter.MIN_MS_CEIL`, the highest the controller can currently ask for. 1600
+and 2400 are past it, because ADR-001 measured `min_turn_silence` LIVE and
+continuous out to 2175 ms — so if the boundary tracks those, the ceiling is
+leaving usable range unused and that is a finding about our own constant.
+"""
+
+SWEEP_MAX_MS: int = 3600
+"""`max_turn_silence` held at `conservative`'s value for every swept arm.
+
+Held constant on purpose: the sweep asks what `min_turn_silence` does, and a
+max gate that moved with it would leave the two indistinguishable.
+"""
+
+
+def arms_for(sweep: bool) -> dict[str, ArmSettings]:
+    """The arms this run measures, label to gates. Pure. `O(1)`.
+
+    Without `sweep`, the three published presets, untouched. With it, one arm
+    per `MIN_SWEEP_MS` value, each labelled by the number it carries so a swept
+    row can never be read as a preset row.
+    """
+    if not sweep:
+        return {arm: STATIC_ARMS[arm] for arm in ARMS}
+    return {
+        f"min{ms}": ArmSettings(
+            end_of_turn_confidence_threshold=0.4,
+            min_turn_silence=ms,
+            max_turn_silence=SWEEP_MAX_MS,
+        )
+        for ms in MIN_SWEEP_MS
+    }
 
 
 def _paths(out: Path, label: str) -> tuple[Path, Path, Path]:
@@ -158,18 +208,19 @@ def cmd_predict(args: argparse.Namespace) -> int:
     geometries, rate, _ = _build(args)
     _, pred_path, _ = _paths(args.out, args.label)
 
+    arms = arms_for(args.sweep)
     rows: list[Prediction] = [
         predict(
             geo,
             arm,
-            STATIC_ARMS[arm].min_turn_silence,
-            STATIC_ARMS[arm].max_turn_silence,
+            arms[arm].min_turn_silence,
+            arms[arm].max_turn_silence,
             hypothesis,
             confidence_ms=CONFIDENCE_MS,
         )
         for geo in geometries
-        for arm in ARMS
-        for hypothesis in ("min_gate", "max_gate", "confidence")
+        for arm in arms
+        for hypothesis in HYPOTHESES
     ]
 
     pred_path.write_text(
@@ -182,6 +233,8 @@ def cmd_predict(args: argparse.Namespace) -> int:
                 "confidence_ms": CONFIDENCE_MS,
                 "tolerance_ms": PREDICTION_TOLERANCE_MS,
                 "grid_ms": GRID_MS,
+                "sweep": args.sweep,
+                "arms": {k: v.model_dump() for k, v in arms.items()},
                 "geometry": [g.model_dump() for g in geometries],
                 "predictions": [p.model_dump() for p in rows],
             },
@@ -190,14 +243,13 @@ def cmd_predict(args: argparse.Namespace) -> int:
     )
 
     print(f"\nwrote {pred_path}")
-    print(
-        f"\n{'arm':14s} {'hold':>6s} {'min_gate':>18s} {'max_gate':>18s} {'confidence':>18s}"
-    )
-    print("-" * 80)
+    header = " ".join(f"{h:>18s}" for h in HYPOTHESES)
+    print(f"\n{'arm':14s} {'hold':>6s} {header}")
+    print("-" * (21 + 19 * len(HYPOTHESES)))
     for geo in geometries:
-        for arm in ARMS:
+        for arm in arms:
             cells = []
-            for h in ("min_gate", "max_gate", "confidence"):
+            for h in HYPOTHESES:
                 p = next(
                     r
                     for r in rows
@@ -230,8 +282,15 @@ async def cmd_run(args: argparse.Namespace) -> int:
         return 2
 
     pred = json.loads(pred_path.read_text())
+    arms = arms_for(bool(pred.get("sweep")))
     geometries = [LadderGeometry.model_validate(g) for g in pred["geometry"]]
     rate = int(pred["sample_rate"])
+
+    # ADR-048: the account sustains about one new session per 16 s for a
+    # churning workload, and a single 1008 voids the run. Twelve sessions is
+    # under four minutes at that rate, so the gate costs nothing here and
+    # removes the only failure mode that would need the whole ladder re-run.
+    starts = StartRateGate()
 
     rows: list[LadderRow] = []
     print(
@@ -240,13 +299,15 @@ async def cmd_run(args: argparse.Namespace) -> int:
     print("-" * 110)
     for geo in geometries:
         clip = _clip(audio_dir, args.label, geo, rate)
-        for arm in ARMS:
+        for arm in arms:
+            await starts.wait()
             run = await run_live_clip(
                 clip,
                 arm,  # type: ignore[arg-type]
                 session_factory=AssemblyAISession,
                 api_key=api_key,
                 trace_dir=audio_dir / "traces" / f"{arm}_{geo.hold_label_ms}",
+                override=None if arm in STATIC_ARMS else arms[arm],
             )
             obs = run.observation
             bounds = tuple(
@@ -294,7 +355,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
     print(f"\nwrote {obs_path}")
 
     print("\nhold-invariance of the in-hold firing silence (ADR-054's statistic):")
-    for arm in ARMS:
+    for arm in arms:
         spread = hold_invariance_ms(tuple(r for r in rows if r.arm == arm))
         verdict = (
             "too few in-hold boundaries to say"
@@ -313,7 +374,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
         "\nhypothesis scoring (in-hold rows only, tolerance "
         f"{PREDICTION_TOLERANCE_MS} ms):"
     )
-    for hypothesis in ("min_gate", "max_gate", "confidence"):
+    for hypothesis in HYPOTHESES:
         hits = sum(
             scores(
                 row,
@@ -343,6 +404,11 @@ def main() -> int:
     parser.add_argument("--take", type=Path, help="one continuous recording")
     parser.add_argument("--prefix", type=Path, help="prefix half (synthesised holds)")
     parser.add_argument("--continuation", type=Path, help="continuation half")
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="walk min_turn_silence instead of running the three presets",
+    )
     args = parser.parse_args()
 
     if args.command == "predict":

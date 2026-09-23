@@ -36,6 +36,46 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
+## Where this stands — 23 Sep, Gate 4e
+
+**The regime is reachable and the controller is aimed at the wrong knob.** Sixteen live
+sessions, predictions committed before the sockets opened. `min_turn_silence` swept at
+400/900/1600/2400 ms held the turn open for 777/1170/1765/**2574** ms after a
+mid-sentence stop, 4/4 inside tolerance. `max_turn_silence` binds only *below* the
+service's ~590 ms commit point, where binding cuts sooner rather than waiting longer, and
+at end of stream (16/16). ADR-011 makes `max` the primary lever; that is wrong, and
+`MIN_MS_CEIL = 900` caps the lever that works at a third of its range. **Neither constant
+is changed inside the freeze** — one clip of synthetic speech is not grounds to retune a
+control law (§7) — and both are the first thing to fix after it (ADR-055, superseding
+ADR-054).
+
+**ADR-054's observation stands, its conclusion does not.** Hold-invariance reproduced
+exactly (spreads 14/39/42 ms). The FAIL was a real measurement read against a criterion
+with a blind spot: `aggressive` was firing *at* its max gate the whole time, which is the
+pilot's own PASS condition.
+
+**The pilot is now a committed procedure** (`nod_bench.ladder`, `scripts/pilot_ladder.py`,
+`ladder` mutation catalogue, 9/9 killed). Gate 4d's runner lived in a scratch directory
+and was deleted with the job; its numbers existed only as prose in one ADR. `run` refuses
+to start unless `predict` has written its file first.
+
+**A live-table defect this found:** `silence_started_ms` is not a usable silence anchor —
+560 ms late on one turn and 190-250 ms early on the next in the same session — and `pcr`
+attributes live boundaries to gaps with it. Every live PCR figure is suspect. Named, not
+fixed.
+
+**Deploy is blocked on one thing only, and it is no longer the repo.** The six commits are
+pushed. AWS is authenticated and the ECR repository exists; creating the build role and
+source bucket is refused by this session's permission layer, so `scripts/deploy_aws.sh`
+is written and unrun. **The GitHub repo is private**, which the submission requires it not
+to be.
+
+**The human ladder recording has not been supplied**, so the `say`-to-human
+generalisation is still open. It is now a smaller question — where `C` sits on a human
+voice — and the tooling takes it with one flag.
+
+---
+
 ## Where this stands — 23 Sep, Gate 4c
 
 **The live table measures the static arms' `min_turn_silence`, and nothing else.**

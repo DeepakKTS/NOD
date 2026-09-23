@@ -922,6 +922,7 @@ async def run_live_clip(
     expected_answer: ExpectedAnswer | None = None,
     trace_dir: Path | None = None,
     ceiling_ms: int = DEFAULT_CEILING_MS,
+    override: ArmSettings | None = None,
 ) -> LiveRun:
     """Feed one clip to one upstream session, in paced real time. `O(frames)`.
 
@@ -945,6 +946,14 @@ async def run_live_clip(
         expected_answer: Run-level class, for a clip with no per-turn spans.
         trace_dir: Where the session trace lands. A temp sink when omitted.
         ceiling_ms: Latency ceiling for the controller.
+        override: Gate settings to use instead of `STATIC_ARMS[arm]`, for
+            sweeping a knob past the three published presets (`nod_bench.ladder`
+            uses it to walk `min_turn_silence`). **Static arms only**, and
+            ignored on a controlled arm, where the gates are the controller's
+            output and overriding them would measure the override. `None` is
+            every existing caller and reproduces the previous behaviour
+            exactly; a published arm never passes one, so the three preset
+            rows in any table remain the presets.
 
     Returns:
         The observation and what the controller did.
@@ -982,6 +991,7 @@ async def run_live_clip(
             model=model,
             feeder=feeder,
             frames=frames,
+            override=override,
         )
     return replace(run, wall_s=time.monotonic() - started)
 
@@ -995,9 +1005,15 @@ async def _run_live_static(
     model: str,
     feeder: PacedFeeder,
     frames: Sequence[bytes],
+    override: ArmSettings | None = None,
 ) -> LiveRun:
-    """One static arm: configure at connect, feed, collect boundaries."""
-    settings = STATIC_ARMS[arm]
+    """One static arm: configure at connect, feed, collect boundaries.
+
+    `override` replaces the preset's gates and nothing else; the arm label still
+    travels with the observation, so a swept row is labelled by its caller and
+    never silently reported as one of the three presets.
+    """
+    settings = override if override is not None else STATIC_ARMS[arm]
     boundaries: list[LiveBoundary] = []
     dropped: list[Turn] = []
     session = session_factory(

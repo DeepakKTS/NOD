@@ -1,0 +1,156 @@
+{
+ "label": "sweep",
+ "sample_rate": 16000,
+ "tail_silence_ms": 4030,
+ "overhead_ms": 160,
+ "confidence_ms": 590.0,
+ "tolerance_ms": 120,
+ "grid_ms": 80,
+ "sweep": true,
+ "arms": {
+  "min400": {
+   "end_of_turn_confidence_threshold": 0.4,
+   "min_turn_silence": 400,
+   "max_turn_silence": 3600
+  },
+  "min900": {
+   "end_of_turn_confidence_threshold": 0.4,
+   "min_turn_silence": 900,
+   "max_turn_silence": 3600
+  },
+  "min1600": {
+   "end_of_turn_confidence_threshold": 0.4,
+   "min_turn_silence": 1600,
+   "max_turn_silence": 3600
+  },
+  "min2400": {
+   "end_of_turn_confidence_threshold": 0.4,
+   "min_turn_silence": 2400,
+   "max_turn_silence": 3600
+  }
+ },
+ "geometry": [
+  {
+   "hold_label_ms": 3500,
+   "hold_measured_ms": 3532,
+   "prefix_end_ms": 2240,
+   "continuation_start_ms": 5772,
+   "continuation_end_ms": 7050,
+   "total_ms": 11079
+  }
+ ],
+ "predictions": [
+  {
+   "arm": "min400",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "min400",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 10810.0
+  },
+  {
+   "arm": "min400",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "min400",
+   "hold_label_ms": 3500,
+   "hypothesis": "clamped",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "min900",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 3300.0
+  },
+  {
+   "arm": "min900",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 10810.0
+  },
+  {
+   "arm": "min900",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 3300.0
+  },
+  {
+   "arm": "min900",
+   "hold_label_ms": 3500,
+   "hypothesis": "clamped",
+   "fires_in_hold": true,
+   "fired_at_ms": 3300.0
+  },
+  {
+   "arm": "min1600",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 4000.0
+  },
+  {
+   "arm": "min1600",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 10810.0
+  },
+  {
+   "arm": "min1600",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 4000.0
+  },
+  {
+   "arm": "min1600",
+   "hold_label_ms": 3500,
+   "hypothesis": "clamped",
+   "fires_in_hold": true,
+   "fired_at_ms": 4000.0
+  },
+  {
+   "arm": "min2400",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 4800.0
+  },
+  {
+   "arm": "min2400",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 10810.0
+  },
+  {
+   "arm": "min2400",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 4800.0
+  },
+  {
+   "arm": "min2400",
+   "hold_label_ms": 3500,
+   "hypothesis": "clamped",
+   "fires_in_hold": true,
+   "fired_at_ms": 4800.0
+  }
+ ]
+}

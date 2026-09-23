@@ -351,6 +351,46 @@ lines. That file is long-term memory; this file is the standing contract.
     reports the extreme value should be suspected before it is believed, because "found
     nothing" is what both an empty world and a broken instrument look like.
 
+  - **A negative result that tested one of two knobs and concluded about the mechanism.**
+    ADR-054 was the project's headline: the incomplete-utterance regime is not reachable,
+    `max_turn_silence` does not engage, "Nod may be a correct controller for a gate that
+    does not engage". Its decisive observation — firing time does not move with the hold —
+    was correct and reproduced exactly at the next gate. Its conclusion was wrong, and the
+    reason is the transferable part: **`max_turn_silence` and `min_turn_silence` bracket
+    the same quantity from opposite sides, and only one of them was varied.** Sweeping the
+    other took four sessions and six minutes, and the turn stayed open for 2574 ms.
+    Three things made it easy to miss. The pilot's own PASS criterion was *met* on
+    `aggressive` — the boundary sat at its 400 ms max gate — and the gate that was met was
+    not checked, because attention was on `balanced`. The finding was unflattering, and an
+    unflattering finding gets less adversarial reading than a flattering one; six of the
+    seven errors before it ran the other way, and that asymmetry is itself a bias to
+    correct for. And it was written up as a headline in the same sitting it was measured,
+    which is the ADR-022/023 sequencing defect in miniature.
+    So: **before concluding that a mechanism is absent, enumerate the knobs that could
+    express it and say which ones were varied.** A null on one input is a null about that
+    input. And when a criterion says PASS-if-X, check X on every arm, not on the arm the
+    argument is about.
+  - **The tool that produced the headline was deleted with the job that ran it.** Gate 4d's
+    ladder runner lived in `$CLAUDE_JOB_DIR/tmp`. Its four audio clips survived by luck;
+    the runner, the per-arm boundary times and the analysis did not, so ADR-054's numbers
+    existed as prose in one paragraph and could be neither re-analysed nor re-run. This is
+    ADR-052's rule — an artifact set is complete when the analysis can be redone from it —
+    arriving one gate after ADR-052 was written, on the one result the README led with.
+    §5 already records that the mutation harness was rebuilt into a scratch directory four
+    gates running and that this is how its anchor defect survived. Same shape, higher
+    stakes. **A scratch directory is for output you are about to read, never for the code
+    that produced a number you are about to publish.** The check is cheap: if the number
+    goes in a document, the thing that made it goes in the tree, in the same commit.
+  - **Pre-registration is worth making structural rather than habitual.** `pilot_ladder.py`
+    exits 2 on `run` unless `predict` has already written its file, and the predictions are
+    committed before the socket opens. This is not ceremony: the `clamped` model that
+    explains all sixteen sessions was written *after* seeing the first twelve, and the only
+    thing that distinguishes it from a curve fitted to its own data is that it was then
+    pre-registered against the sweep and could have failed there. A model and the data it
+    was built on are not evidence about each other. Being unable to run the second
+    experiment without first writing down what it should produce is what kept that
+    distinction real.
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.

@@ -1,11 +1,42 @@
 # Pilot gate — where does the incomplete-utterance regime begin?
 
-> **Run on 23 Sep against `say` audio: FAIL.** Four holds to 3.5 s after a
-> preposition-final prefix, three arms, twelve sessions — the regime was not
-> reached and firing time did not move with the hold (ADR-054). The human
-> version below is still worth running, because every negative so far is on
-> synthesised speech and prosody is a plausible completion cue. It is now a
-> check on a stated negative rather than a sizing exercise for a script.
+> ## Run twice on 23 Sep. **Verdict: PASS, on the second reading of the same data.**
+>
+> **Gate 4d (12 sessions, `say`): scored FAIL.** Four holds to 3.5 s after a
+> preposition-final prefix, three arms. The regime looked unreached and firing
+> time did not move with the hold (ADR-054). Its runner was never committed and
+> its numbers survive only as prose in that ADR.
+>
+> **Gate 4e (16 sessions, same audio, committed tooling): PASS.** The
+> hold-invariance reproduces exactly. But this gate also read the *other* gate,
+> and the pass/fail rule below turns out to have had a blind spot: it asks where
+> the boundary falls relative to `max_turn_silence`, and on `aggressive` the
+> boundary falls **at** that gate (400 ms + ~190), which is the criterion's own
+> PASS condition and was not checked at Gate 4d.
+>
+> The picture that fits all sixteen sessions:
+> `fire_at = prefix_end + clamp(C, min_turn_silence, max_turn_silence) + overhead`
+> with `C ≈ 590 ms`. The incomplete window is real but **fixed at ~590 ms** and
+> does not widen with the pause — so `max` binds only where it sits *below* the
+> window, which cuts sooner rather than waiting longer.
+>
+> **The number this pilot was written to produce.** It asks for "the shortest
+> hold that reaches the incomplete regime", to size a Track C pause budget. The
+> answer is that the hold length is the wrong axis — the regime is entered
+> immediately and left after ~590 ms regardless. **The budget should be set from
+> `min_turn_silence` instead**, which was swept in the same gate and holds a turn
+> open to a measured 2574 ms at `min = 2400` (ADR-055).
+>
+> Re-run either experiment with:
+>
+>     uv run --extra bench python scripts/pilot_ladder.py predict --label <tag> ...
+>     uv run --extra bench python scripts/pilot_ladder.py run   --label <tag>
+>
+> **The human check below is still worth the thirty seconds**, and its question
+> has changed: not "is the regime reachable" — it is — but **"where does `C`
+> sit on a human voice"**, since `C` is what `min_turn_silence` has to exceed to
+> do anything at all. On `say` it is ~590 ms, which is why `balanced`'s 400 ms
+> default is inert and `conservative`'s 800 ms is not.
 
 **Thirty seconds of audio, recorded before any Track C session is booked.**
 

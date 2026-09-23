@@ -112,40 +112,68 @@ once a closed session's slot is counted, which puts 3,600 sessions at about 16 h
 (ADR-048). Every interval below is therefore much wider than the design intended, and the
 clip bootstrap rests on twelve clips rather than 120.
 
-**The regime Nod exists for has not been shown to be reachable.** That is the
-headline, it is a finding about the service rather than about our corpus, and it
-is stated first because everything else here is downstream of it.
+**The regime Nod exists for is reachable, and the controller is pointed at the
+wrong knob.** That is the headline. It is a finding about the service *and*
+about our own control law, it corrects the previous headline, and it is stated
+first because everything else here is downstream of it.
 
-`max_turn_silence` is the gate that governs an *incomplete* utterance — the only
-one that tolerates a mid-sentence pause, and the knob the controller primarily
-moves. **It never bound.** Not on the 12-clip live sweep, where predicted cut
-rates from each arm's max gate match nothing observed while min-gate predictions
-match exactly. And not on a pilot built specifically to force it: four holds of
+Sixteen live sessions on a pilot built to force the question: four holds of
 0.5–3.5 s after *"I need to reschedule my appointment **to**"*, a prefix English
-cannot end on, across all three arms. **The firing time did not move with the
-hold** — `balanced` ended the turn at 3008 / 2980 / 3010 ms for holds of 1000 /
-2000 / 3500 ms — and a service waiting out a 1280 ms max gate cannot fire inside
-a 1000 ms hold. `aggressive` cut mid-phrase and lost the final word.
+cannot end on. One model with two parameters fits every row —
 
-Read with ADR-001, which measured `end_of_turn_confidence_threshold` **inert** on
-this model, the position is: turns end on silence at roughly `min_turn_silence`,
-and the gate that would let a speaker pause mid-sentence does not engage.
-Track A's latencies do sit at each arm's max gate, which says max binds
-*somewhere* — most likely at end of stream, when the audio stops, rather than at
-a pause inside a live utterance. That is inferred, not measured (ADR-054), and
-the distinction is the whole case Nod was built for.
+    fire_at = prefix_end + clamp(C, min_turn_silence, max_turn_silence) + overhead
 
-**What that costs the claim, precisely.** The controller, the two-gate law, the
-profiler, the closed loop and the harness are built, tested and working.
-`min_turn_silence` is demonstrably live — the three static arms separate cleanly
-on it, which is what the table below shows. What has *not* been demonstrated is
-that the regime the controller exists to serve can be entered on this service
-with the knobs it exposes. **Nod may be a correct controller for a gate that
-does not engage.** Two cheap checks remain before that is taken as settled: the
-same ladder against a human voice, since every negative so far is `say` output
-and prosody is a plausible completion cue; and a fresh sweep of
-`end_of_turn_confidence_threshold`, to confirm the inert verdict still holds on
-the current model version.
+— with **C ≈ 590 ms**, the service's own end-of-turn commit point, and overhead
+≈ 175 ms. `C` does not widen with the pause and does not care that the sentence
+is unfinished. Firing time is flat across the holds: spreads of **14 / 39 /
+42 ms** on `aggressive` / `balanced` / `conservative` for holds of 1000, 2000
+and 3500 ms.
+
+**`max_turn_silence` is the wrong lever.** It is the gate ADR-011 makes the
+controller's primary one. Above the commit point it never binds — `balanced`'s
+1280 ms and `conservative`'s 3600 ms gates are simply never reached at a pause
+inside a live stream. Below it, on `aggressive`'s 400 ms gate, it *does* bind,
+and binding means cutting the caller off **sooner**. There is no setting of it
+that buys a hesitant speaker more time. (It binds reliably at **end of stream**,
+where the audio stops: measured 16/16, at each arm's gate + ~150 ms.)
+
+**`min_turn_silence` is the right one, and it works across the whole range.**
+Four arms, that gate the only thing varying, predictions committed before the
+sockets opened:
+
+| `min_turn_silence` | predicted | observed | turn held open for |
+|---|---|---|---|
+| 400 ms | 2990 | **3017** | 777 ms |
+| 900 ms | 3300 | **3410** | 1170 ms |
+| 1600 ms | 4000 | **4005** | 1765 ms |
+| 2400 ms | 4800 | **4814** | **2574 ms** |
+
+At 2400 the service held the turn open for **2.57 seconds** after the caller
+stopped mid-sentence on a preposition, then took the continuation as the same
+turn. That is the behaviour this project exists to produce, measured live.
+
+**What it costs us.** Two defects in our own controller, found by measurement
+and **not fixed inside the freeze**, because changing a control-law constant on
+one clip of synthetic speech is tuning by ear. ADR-011 designates the wrong knob
+as primary. And `MIN_MS_CEIL` is 900 ms, which caps the working lever at about a
+third of its demonstrated range: the controller can buy ~1.1 s where the service
+will give ~2.6 s. Both are recorded as the first thing to fix after the freeze
+(ADR-055).
+
+**What the previous headline got right, and what it got wrong.** It reported
+that firing time does not move with the hold — that reproduces exactly, and more
+firmly, because the statistic is now computed on one clock. It concluded that
+the gate the controller needs "does not engage" and that Nod "may be a correct
+controller for a gate that does not engage". That was wrong, and wrong in the
+pessimistic direction for once: it tested one knob, found it inert, and did not
+test the other (ADR-054, superseded by ADR-055).
+
+**A defect in the live table this found.** `silence_started_ms` — the service's
+last-word timing — is not a usable silence anchor. On the same clip it puts the
+prefix's end 560 ms *late* and the continuation's 190–250 ms *early*, so it is
+not a clock offset. `pcr` uses that field to decide which gap governs a
+boundary, so **every PCR figure in the live table below carries an attribution
+error the size of the gaps it is attributing into.** Named, not fixed.
 
 **Nor does the sweep establish that the controller acted.** The nod arms read the
 same as `balanced` — expected, since Track A is one utterance per clip so the

@@ -74,7 +74,7 @@ PREDICTION_TOLERANCE_MS: Final = 120
 `GRID_MS` plus the 40 ms of spread the Gate 4b overhead measurement showed.
 """
 
-Hypothesis = Literal["min_gate", "max_gate", "confidence"]
+Hypothesis = Literal["min_gate", "max_gate", "confidence", "clamped"]
 
 
 # --- geometry ---------------------------------------------------------------
@@ -367,6 +367,14 @@ def predict(
       from `min_gate` only on arms whose min gate is *shorter* than that
       confidence time, which is why `aggressive` is the decisive arm and not
       `conservative`, where the two hypotheses agree.
+    - `clamped` — `confidence`, with the max gate applied as a ceiling as well:
+      `clamp(confidence, min_gate, max_gate)`. **Post-hoc**, and labelled so.
+      It was not among the three pre-registered for the `say` run; it was
+      written down *after* that run showed `aggressive` firing at its 400 ms
+      max gate rather than at either pre-registered time, which is `max_gate`
+      binding at a mid-utterance pause and is the thing ADR-054 said does not
+      happen. A model fitted to the data it explains proves nothing, so it is
+      pre-registered against the `min`-sweep before that runs.
 
     Args:
         geometry: Where the hold sits in this row.
@@ -384,8 +392,10 @@ def predict(
         silence_ms = float(min_gate_ms)
     elif hypothesis == "max_gate":
         silence_ms = float(max_gate_ms)
-    else:
+    elif hypothesis == "confidence":
         silence_ms = max(float(min_gate_ms), confidence_ms)
+    else:
+        silence_ms = min(max(float(min_gate_ms), confidence_ms), float(max_gate_ms))
 
     wait_ms = silence_ms + overhead_ms
     in_hold = wait_ms < geometry.hold_measured_ms
