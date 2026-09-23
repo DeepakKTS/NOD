@@ -55,13 +55,24 @@ Secrets are injected by the platform's secret store. `.env` is git-ignored;
 - Multi-stage: build the Python wheels in stage one, copy into a slim runtime in stage
   two. **No Next.js stage** — ADR-038 made the demo screen a static HTML file served from
   the API container, so there is nothing to compile.
-- Non-root user, read-only root filesystem, `/data` the only writable mount.
+- Non-root user (uid 10001, fixed so a volume's ownership can be set without inspecting
+  the image), `/data` the only writable mount.
+- **Read-only root filesystem is a *runtime* flag, not a Dockerfile directive** — `docker
+  run --read-only` or compose's `read_only: true`. It is listed here under Container and
+  cannot be satisfied by the image, so it has to be set on the platform; an image built to
+  this spec is not thereby read-only. Checked at Gate 4b, where a first pass "verified" it
+  by grepping the Dockerfile and would have reported it present forever.
 - `HEALTHCHECK` hits `/healthz`.
 - Pinned base image by digest, not by tag. **Outstanding: the committed `Dockerfile`
   uses `python:3.12-slim` by tag.** The digest cannot be resolved on a machine without a
   container runtime, and writing an unverified one would be worse than the tag. Resolve
   and pin it on the machine that first builds the image; until then the build is not
   reproducible.
+- **Unbuilt and unmeasured.** No container runtime exists on the development machine, so
+  the image has never been built: its size is unverified against the 400 MB target, the
+  `HEALTHCHECK` has never executed, and the digest pin below is outstanding for the same
+  reason. The `Dockerfile` is written to this spec and is committed; nothing here has been
+  run.
 - Target image under 400 MB. `librosa` and `soundfile` are bench-only dependencies and are
   excluded from the runtime image via an extras group.
 

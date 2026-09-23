@@ -132,38 +132,47 @@ class ConcurrencyRefusedError(LiveRunAbortedError):
     """
 
 
-SLOT_RELEASE_LAG_S: Final = 30.0
-"""How long the account keeps counting a session after the client closes it.
+MIN_SESSION_INTERVAL_S: Final = 16.0
+"""Minimum wall clock between two session *starts*. Seconds. **Measured.**
 
-**Measured at Gate 4b, and it is the number that governs the whole run.** The
-ramp in `scripts/probe_concurrency.py` established that 5 sessions can be *held
-open simultaneously*. That is not the quantity a sweep is limited by: a sweep
-churns, and closing a socket does not free the slot. Holding 5, closing one and
-probing once after a fixed wait found the slot **still held at 1, 3, 8 and 20
-seconds**; an earlier poll-until-free attempt saw it free at ~38 s, and that
-figure is an upper bound because each poll opened its own socket and competed
-for the slot it was measuring.
+**The account limits a rate, not a count, and modelling it as a count is why
+concurrency 4 and then 3 both failed.** `scripts/probe_concurrency.py` measured
+5 sessions *held open* simultaneously; a sweep churns, and closing a socket does
+not free the slot. Sessions therefore accumulate as counted-but-closed until the
+limit is exceeded, **whatever the concurrency setting** — at concurrency 3 with
+~10 s clips the sweep started one every ~3.7 s and was refused within nine.
 
-So: somewhere between 20 s and 40 s, and 30 is the working figure. It is stated
-as a bound to plan against, not as a precise measurement, and the run is sized
-so that being wrong by 50 % costs throughput rather than correctness.
+What was actually established, by running it:
+
+| interval | concurrency | outcome                        |
+|----------|-------------|--------------------------------|
+| none     | 4           | 1008 almost immediately        |
+| none     | 3           | 1008 after 9 sessions          |
+| 6 s      | 2           | 1008 after 6 sessions          |
+| **16 s** | **1**       | **360/360 clean**              |
+
+So the sustainable interval is **between 6 and 16 seconds and 16 works**. It is
+stated directly rather than derived from a slot-release lag, because the lag is
+the quantity that was *not* pinned down: probing it found the slot still held at
+1, 3, 8 and 20 s, and an earlier poll-until-free run reported ~38 s but competed
+with itself for the slot it was measuring. Deriving a constant from that would
+dress an unmeasured number as a measured one — 30 s was tried, gives a 6 s
+interval, and is falsified by the table above.
+
+**A distribution was requested and the honest answer is that there isn't one
+yet.** Over the 360-session sweep the observed inter-start interval was 16.00 s
+at p10, p50, p90 *and* p99 — the gate bound on every session, so what that
+measures is the gate, not the service. Establishing the real tolerance needs a
+deliberate ramp on an idle account, which is worth doing before any 16-hour run
+and was not worth doing inside this gate.
 """
 
-MIN_SESSION_INTERVAL_S: Final = SLOT_RELEASE_LAG_S / UPSTREAM_CONCURRENCY_LIMIT
-"""Minimum wall-clock gap between two session *starts*. Seconds. 6.0.
+SLOT_RELEASE_LAG_S: Final = MIN_SESSION_INTERVAL_S * UPSTREAM_CONCURRENCY_LIMIT
+"""How long a closed session plausibly keeps its slot. Seconds. **Inferred.**
 
-**The constraint is a rate, not a count, and modelling it as a count is why
-concurrency 4 and then 3 both failed.** If a slot is occupied for
-`SLOT_RELEASE_LAG_S` after its session ends, then a workload starting sessions
-faster than `limit / lag` accumulates counted-but-closed sessions until it
-exceeds the limit, *whatever* the concurrency setting. At concurrency 3 with
-~10 s clips the sweep started a session every ~3.7 s against a sustainable 6 s
-and was refused within nine sessions.
-
-A semaphore cannot express this: it bounds how many things run at once, and the
-resource here is consumed after the thing has stopped running. So the sweep
-holds a start-rate gate as well, and `--concurrency` becomes the *second*
-binding constraint rather than the only one.
+80 s, and derived from the interval rather than the other way round — which is
+the honest direction, because the interval is what was measured and the lag is
+what would explain it. Reported for sizing intuition only; nothing reads it.
 """
 
 TERMINATION_TIMEOUT_S: Final = 10.0
