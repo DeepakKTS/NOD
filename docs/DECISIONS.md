@@ -2600,3 +2600,43 @@ label follows it, so a cluster interval cannot be printed under either older leg
 remains implemented and tested and is no longer the live default. Nothing about the
 specified 120-clip sweep changes: at n = 120 this estimator is still correct, merely less
 necessary.
+
+## ADR-050 — The live patch census is zero, and does not resolve ADR-027 or ADR-032
+2026-09-22 · Status: accepted — Gate 4b, and it defers both again, for a stated reason
+Context: ADR-027 deferred the `MAX_PATCHES = 24` question to "the patch count per session
+across the `N = 5` live runs, and the count for the longest session in the set". ADR-032
+deferred its 80 ms quantisation question to "a patch census from Phase 4's `N = 5` live
+runs". Both named this run. It has now happened.
+
+**The census is zero.** Across **180 controlled sessions** — three `nod` arms x 12 clips x
+5 repeats — the sweep applied **0 patches**, wrote **0 `config_applied` records**, and left
+360 empty trace directories. Maximum per session: 0.
+Decision: **record the number, and record that it answers neither question.**
+
+A census of zero cannot distinguish "the cap is unreachable" from "this corpus cannot
+reach it". Track A is one utterance per clip: roughly 17 words, so about 16 inter-word
+gaps against `MIN_GAPS_FOR_WARM = 24`, and gaps never span a turn boundary (§2.1). **The
+profiler cannot warm on Track A, by construction**, so the control law spends every clip
+on its cold branch returning `BASE_MIN 400 / BASE_MAX 1280`, hysteresis sees no change to
+emit, and nothing patches. That is the same regime ADR-027 already measured on the
+simulated path — "Track A clip, ×120: never warm, 0 patches" — reproduced live at
+considerable expense.
+
+So the live run confirms the *simulated* finding and adds no new evidence about the cap.
+Reporting it as "the cap does not bind live" would be the flattering reading: it did not
+bind because nothing asked it to.
+
+**What would actually resolve them is Track C**, and only Track C. A multi-turn call warms
+the profiler by turn 2 or 3 (ADR-043) and then patches; the Gate 8 dry run emitted 8/4/8
+on synthesised script A. Both ADRs should have named "the first live run **on a
+multi-turn corpus**" rather than "the `N = 5` live runs", and the ambiguity cost a sweep.
+Consequence: `MAX_PATCHES` stays 24, untested against its boundary, for a third gate.
+ADR-032's quantisation effect is uncensused for the same reason — a census of patches
+needs patches. Both are now blocked on the **recording session**, not on bench work, and
+that is the sharper statement: no amount of further Track A running will move either.
+
+**A second finding, smaller and structural.** The zero was only *legible* because
+`controller_closed` was added in the same gate. Before it, a session that patched nothing
+wrote no trace at all, so "0 patches" and "the controller never ran" produced byte-identical
+evidence on disk. A census whose null result is indistinguishable from an absent run is not
+a census.

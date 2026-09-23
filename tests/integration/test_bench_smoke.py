@@ -120,7 +120,7 @@ def test_readme_table_region_is_machine_owned() -> None:
     # Not the placeholder, so it must be a generated table. Regenerate one from
     # the committed live artifacts and require the region to match it exactly.
     runs = Path(__file__).resolve().parents[2] / "bench" / "runs"
-    generated = runs / metrics.artifact_name("results", simulated=False, suffix="md")
+    generated = runs / metrics.artifact_name("published", simulated=False, suffix="md")
     assert generated.exists(), (
         f"the README table region holds content that is neither the placeholder "
         f"nor generated: no live artifact at {generated}. INV-9 forbids a "
@@ -160,7 +160,7 @@ def test_the_readme_provenance_check_rejects_a_hand_written_number(
 
     assert region != README_PLACEHOLDER
     generated = tmp_path / metrics.artifact_name(
-        "results", simulated=False, suffix="md"
+        "published", simulated=False, suffix="md"
     )
     assert not generated.exists(), (
         "with no live artifact present, a region carrying a table is exactly the "

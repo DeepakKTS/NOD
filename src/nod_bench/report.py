@@ -742,7 +742,9 @@ def _provenance_footer(
                 f"**Subsample: {clips} of {SPECIFIED_CLIPS} clips.** The account "
                 f"permits roughly one new session every 15 s once a closed "
                 f"session's slot is counted, which puts the specified sweep at "
-                f"about 16 hours (ADR-048). Intervals are correspondingly wide."
+                f"about 16 hours (ADR-048). **n is a tenth of the design**, so "
+                f"the clip axis — which clips happened to be drawn — dominates "
+                f"the uncertainty here."
             )
     else:
         lines.append(
@@ -1047,6 +1049,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest = RunManifest.model_validate_json(manifest_path.read_text())
         published += "\n" + "\n".join(_provenance_footer(None, manifest))
     published += "\n" + "\n".join(_interval_caveat(table))
+
+    # The exact text that went into the README, kept as an artifact. INV-9's
+    # provenance check compares the region against *this*, not against the bare
+    # table: the footer is generated here, so the raw table is no longer what
+    # was published and comparing to it would fail a correct publish.
+    composed = args.runs / artifact_name("published", simulated=False, suffix="md")
+    composed.write_text(published.strip() + "\n", encoding="utf-8")
 
     args.results.parent.mkdir(parents=True, exist_ok=True)
     args.results.write_text(RESULTS_HEADER + published.strip() + "\n", encoding="utf-8")
