@@ -10,6 +10,7 @@ The paced feeder itself and the run-matrix driver land in Phase 1 part two as
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import time
 from collections.abc import Awaitable, Callable, Sequence
@@ -131,6 +132,40 @@ class ConcurrencyRefusedError(LiveRunAbortedError):
     """
 
 
+SLOT_RELEASE_LAG_S: Final = 30.0
+"""How long the account keeps counting a session after the client closes it.
+
+**Measured at Gate 4b, and it is the number that governs the whole run.** The
+ramp in `scripts/probe_concurrency.py` established that 5 sessions can be *held
+open simultaneously*. That is not the quantity a sweep is limited by: a sweep
+churns, and closing a socket does not free the slot. Holding 5, closing one and
+probing once after a fixed wait found the slot **still held at 1, 3, 8 and 20
+seconds**; an earlier poll-until-free attempt saw it free at ~38 s, and that
+figure is an upper bound because each poll opened its own socket and competed
+for the slot it was measuring.
+
+So: somewhere between 20 s and 40 s, and 30 is the working figure. It is stated
+as a bound to plan against, not as a precise measurement, and the run is sized
+so that being wrong by 50 % costs throughput rather than correctness.
+"""
+
+MIN_SESSION_INTERVAL_S: Final = SLOT_RELEASE_LAG_S / UPSTREAM_CONCURRENCY_LIMIT
+"""Minimum wall-clock gap between two session *starts*. Seconds. 6.0.
+
+**The constraint is a rate, not a count, and modelling it as a count is why
+concurrency 4 and then 3 both failed.** If a slot is occupied for
+`SLOT_RELEASE_LAG_S` after its session ends, then a workload starting sessions
+faster than `limit / lag` accumulates counted-but-closed sessions until it
+exceeds the limit, *whatever* the concurrency setting. At concurrency 3 with
+~10 s clips the sweep started a session every ~3.7 s against a sustainable 6 s
+and was refused within nine sessions.
+
+A semaphore cannot express this: it bounds how many things run at once, and the
+resource here is consumed after the thing has stopped running. So the sweep
+holds a start-rate gate as well, and `--concurrency` becomes the *second*
+binding constraint rather than the only one.
+"""
+
 TERMINATION_TIMEOUT_S: Final = 10.0
 """How long to wait for the upstream to finish after `Terminate`. Seconds.
 
@@ -139,6 +174,37 @@ the widest arm's silence gate has elapsed, `conservative`'s 3600 ms, and a socke
 that has said nothing for three times that has failed rather than stalled. An
 unbounded wait here would hang a 3600-session sweep on one bad socket.
 """
+
+
+class StartRateGate:
+    """Serialises session *starts* to at most one per `interval_s`. `O(1)`.
+
+    Not a semaphore. A semaphore bounds how many sessions are open; this bounds
+    how fast new ones begin, which is the quantity `MIN_SESSION_INTERVAL_S`
+    explains the account actually limits. Both are needed: the gate stops the
+    sweep from accumulating counted-but-closed sessions, and the semaphore stops
+    it from holding too many genuinely open at once.
+
+    Single-lock rather than a token bucket: bursting is exactly what must not
+    happen here, so there is no allowance to accumulate.
+    """
+
+    __slots__ = ("_interval_s", "_last", "_lock")
+
+    def __init__(self, interval_s: float = MIN_SESSION_INTERVAL_S) -> None:
+        """Start ungated: the first session waits for nothing."""
+        self._interval_s = interval_s
+        self._lock = asyncio.Lock()
+        self._last = 0.0
+
+    async def wait(self) -> None:
+        """Block until another session may start."""
+        async with self._lock:
+            now = time.monotonic()
+            delay = self._last + self._interval_s - now
+            if delay > 0:
+                await asyncio.sleep(delay)
+            self._last = time.monotonic()
 
 
 class ArmSettings(BaseModel):
@@ -1015,11 +1081,20 @@ async def _run_live_controlled(
         except TimeoutError:
             collector.cancel()
             report = None
-        except OSError:
-            # As in `_feed_and_drain`: the socket dying under the feeder is the
-            # symptom, and `proxy.run()` is holding the diagnosis. Fall through
-            # to the `finally`, which harvests it and raises with the reason.
-            report = None
+        # **No broad catch here, unlike `_feed_and_drain`, and the asymmetry is
+        # real.** That function's feeder calls `session.send_audio`, which
+        # touches the socket and so dies when the socket does. This one calls
+        # `proxy.feed_audio`, which is synchronous and non-throwing by
+        # construction (INV-1: the audio path never awaits controller work), so
+        # a socket failure cannot reach the feeder at all — it lands in
+        # `proxy.run()` and the `finally` below harvests it on every path.
+        #
+        # A broad clause here was therefore dead for its stated purpose and
+        # actively wrong for another: it swallowed `FeederDriftError` into
+        # `report = None`, and EC-37 says sustained lag **voids the run** rather
+        # than producing a quietly unreported one. Found by `make mutate` —
+        # narrowing it back to `OSError` changed no test, which is what an
+        # unreachable clause looks like.
         finally:
             collector.cancel()
             driver.cancel()
@@ -1153,7 +1228,7 @@ async def _feed_and_drain(
     except TimeoutError:
         reader.cancel()
         return None
-    except OSError as exc:
+    except Exception as exc:
         # The socket died under the feeder. Whatever closed it said *why* on the
         # reader's side an instant earlier, so the reader's exception is the
         # real diagnosis and this one is the symptom. Observed at Gate 4b: a
@@ -1161,6 +1236,14 @@ async def _feed_and_drain(
         # and `UpstreamError: Invalid 'min_turn_silence'` there, and only the
         # second says what to fix. Without this the useful one surfaced as an
         # unretrieved-task warning, by luck.
+        #
+        # Broad on purpose, and it has to be. `websockets.ConnectionClosedError`
+        # is **not** an `OSError` — it descends from `Exception` via
+        # `WebSocketException` — so the narrower clause this replaces caught
+        # nothing and a 1008 escaped the sweep as a raw traceback instead of the
+        # handled abort. Narrowing to the websockets type would re-couple this
+        # module to a transport the `ProbeSession` protocol exists to hide.
+        reader.cancel()
         raise _abort_for(await _harvest(reader) or exc) from exc
     return report
 
@@ -1253,6 +1336,7 @@ async def replay(
     policy: CompiledPolicy | None = None,
     expected_answer: ExpectedAnswer | None = None,
     out: Path | None = None,
+    gate: StartRateGate | None = None,
 ) -> RunResult:
     """Replay one clip through one arm, in paced real time, `repeats` times.
 
@@ -1277,6 +1361,8 @@ async def replay(
         policy: The compiled context policy.
         expected_answer: Run-level class fallback.
         out: Trace directory.
+        gate: Start-rate gate, awaited before each repeat. `None` means
+            ungated, which is right for a single clip and wrong for a sweep.
 
     Returns:
         The run result, carrying one observation per repeat.
@@ -1302,6 +1388,8 @@ async def replay(
     directory = out if out is not None else Path(mkdtemp(prefix="nod-replay-"))
 
     for index in range(repeats):
+        if gate is not None:
+            await gate.wait()
         repeat_dir = directory / f"{corpus_clip.clip_id}-{arm}-r{index}"
         repeat_dir.mkdir(parents=True, exist_ok=True)
         run = await run_live_clip(
@@ -1363,7 +1451,12 @@ def _live_main(args: argparse.Namespace, out: TextIO) -> int:
 
     corpus_file = args.corpus / "corpus.json"
     if not corpus_file.exists():
-        out.write(f"no corpus at {corpus_file}.\n")
+        out.write(
+            f"no corpus at {corpus_file}.\n"
+            f"The Track A corpus **is** committed (120 clips, 38 MB on disk), so\n"
+            f"a clean clone has one and this usually means --corpus points\n"
+            f"somewhere else.\n"
+        )
         return 2
     corpus = BuiltCorpus.model_validate_json(corpus_file.read_text())
     policy = load_policy(args.policy) if args.policy.exists() else None
@@ -1390,9 +1483,11 @@ def _live_main(args: argparse.Namespace, out: TextIO) -> int:
         f"concurrency {args.concurrency} of {UPSTREAM_CONCURRENCY_LIMIT} "
         f"permitted (default {LIVE_CONCURRENCY}"
         f"{', OVERRIDDEN' if args.concurrency != LIVE_CONCURRENCY else ''}).\n"
-        f"At {args.concurrency} concurrent, expect at least "
-        f"{audio_s / args.concurrency / 3600:.2f} h wall clock: the feeder is "
-        f"real time by construction (BENCH_SPEC §4), so this is a floor.\n"
+        f"start-rate gate: one session per {args.min_interval:.1f} s "
+        f"({UPSTREAM_CONCURRENCY_LIMIT} slots / {SLOT_RELEASE_LAG_S:.0f} s "
+        f"release lag), which binds before concurrency does.\n"
+        f"Expect at least {sessions * args.min_interval / 3600:.2f} h wall "
+        f"clock: the start rate is the floor here, not the audio duration.\n"
     )
     return asyncio.run(_live_sweep(corpus, arms, args, api_key, policy, out))
 
@@ -1423,11 +1518,12 @@ async def _live_sweep(
     """
     from nod_bench.report import render_all
 
-    gate = asyncio.Semaphore(args.concurrency)
+    slots = asyncio.Semaphore(args.concurrency)
+    starts = StartRateGate(args.min_interval)
     results: list[RunResult] = []
 
     async def one(clip: GeneratedClip, arm: Arm) -> RunResult:
-        async with gate:
+        async with slots:
             return await replay(
                 clip.audio_path,
                 arm,
@@ -1438,6 +1534,7 @@ async def _live_sweep(
                 api_key=api_key,
                 policy=policy,
                 out=args.out / "traces",
+                gate=starts,
             )
 
     pending = [
@@ -1475,6 +1572,32 @@ async def _live_sweep(
         # One observation per repeat, all kept: ADR-045's repeat axis.
         by_arm[result.arm].extend(result.observations)
 
+    census = {
+        arm: list(counts)
+        for arm, counts in (
+            (arm, [n for r in results if r.arm == arm for n in r.patches])
+            for arm in arms
+        )
+        if counts
+    }
+    args.out.mkdir(parents=True, exist_ok=True)
+    (args.out / "patch_census.live.json").write_text(json.dumps(census, indent=1))
+    # **Persisted because the live run is the one that cannot be repeated.**
+    # The simulated path has written `observations.simulated.json` all along and
+    # regenerates in 19 seconds anyway; the live path wrote none, so Gate 4b's
+    # 1.6-hour sweep could not be re-scored or re-rendered under a different
+    # interval estimator without paying for it again. That asymmetry was exactly
+    # backwards.
+    (args.out / "observations.live.json").write_text(
+        json.dumps(
+            {
+                arm: [o.model_dump(mode="json") for o in obs]
+                for arm, obs in by_arm.items()
+            },
+            indent=1,
+        )
+    )
+
     manifest = _live_manifest(corpus, arms, args, by_arm, results)
     written = render_all(
         by_arm,
@@ -1486,6 +1609,47 @@ async def _live_sweep(
     for path in written:
         out.write(f"wrote {path}\n")
     return 0
+
+
+def patch_census_from_traces(trace_root: Path) -> dict[str, list[int]]:
+    """Per-session `config_applied` counts, read back from the traces. `O(lines)`.
+
+    **Counted from the trace rather than from memory**, and that is the point.
+    ADR-027 defers the `MAX_PATCHES` decision to a live per-session count and
+    ADR-032 defers its quantisation question to the same run; both want the
+    number of patches the socket *accepted*. `config_applied` is emitted only
+    after the upstream answered (see `SessionProxy.patches_sent`), so counting
+    those lines counts applications, not decisions — the distinction CLAUDE.md
+    §5 names for `proxy.py`, where a patch computed and never applied produces a
+    run that looks like `nod` and behaves like `balanced`.
+
+    Reading the trace also means the census survives the process that produced
+    it, which a `RunResult` held in memory does not.
+
+    Args:
+        trace_root: The sweep's trace directory, one subdirectory per repeat.
+
+    Returns:
+        Arm name to a list of per-session accepted-patch counts.
+    """
+    census: dict[str, list[int]] = {}
+    for repeat_dir in sorted(p for p in trace_root.iterdir() if p.is_dir()):
+        for trace in sorted(repeat_dir.glob("*.jsonl")):
+            # `<clip_id>-<arm>.jsonl`, and an arm may contain a hyphen.
+            stem = trace.stem
+            arm = next(
+                (a for a in (*NOD_ARMS, *STATIC_ARMS) if stem.endswith(f"-{a}")),
+                None,
+            )
+            if arm is None:
+                continue
+            applied = sum(
+                1
+                for line in trace.read_text().splitlines()
+                if line.strip() and json.loads(line).get("kind") == "config_applied"
+            )
+            census.setdefault(arm, []).append(applied)
+    return census
 
 
 def _live_manifest(
@@ -1570,6 +1734,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         help=(
             f"repeats per (clip, arm) on --live. Default {DEFAULT_REPEATS} "
             f"(BENCH_SPEC §4). Ignored by --fake, which is deterministic."
+        ),
+    )
+    parser.add_argument(
+        "--min-interval",
+        type=float,
+        default=MIN_SESSION_INTERVAL_S,
+        help=(
+            f"seconds between session starts. Default "
+            f"{MIN_SESSION_INTERVAL_S:.1f}; the account's slot-release lag is "
+            f"the binding constraint, not concurrency (Gate 4b)"
         ),
     )
     parser.add_argument(

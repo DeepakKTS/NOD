@@ -67,6 +67,7 @@ TRACKC_TESTS: Final = ("tests/unit/test_trackc.py",)
 HEALTH_TESTS: Final = ("tests/integration/test_server_health.py",)
 SCRIPT_TESTS: Final = ("tests/unit/test_trackc.py",)
 LIVE_TESTS: Final = ("tests/integration/test_live_path.py",)
+WIRE_TESTS: Final = ("tests/unit/test_live_path_wire.py",)
 REPORT_TESTS: Final = ("tests/unit/test_replay_report.py",)
 
 
@@ -975,6 +976,97 @@ def _live_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _wire_mutations() -> tuple[Mutation, ...]:
+    """The AssemblyAI wire encoding. First tier, and it earned the place.
+
+    §5's second rule is "anything that feeds a published number". This feeds
+    *every* one: sent as floats, the connect config is rejected at 3006 and the
+    static arms never run, and `send_patch_upstream` has each mid-stream patch
+    refused so a `nod` arm degrades to `balanced` under its own label.
+
+    Both directions are mutated. Not coercing is the bug that was found;
+    coercing *everything* is the same bug pointing the other way, because
+    `vad_threshold=1.0` is integral and is not an integer.
+    """
+    src = "src/nod_adapters/assemblyai/session.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, WIRE_TESTS)
+
+    return (
+        mutation(
+            "wire: send every config value as a float (the Gate 4b bug)",
+            "    return int(value) if field in INTEGER_FIELDS else float(value)",
+            "    return float(value)",
+        ),
+        mutation(
+            "wire: coerce every integral value, including vad_threshold",
+            "    return int(value) if field in INTEGER_FIELDS else float(value)",
+            "    return int(value) if float(value).is_integer() else float(value)",
+        ),
+        mutation(
+            "wire: skip the coercion on UpdateConfiguration only",
+            "        message.update({k: _typed(k, v) for k, v in patch.items()})",
+            "        message.update(patch)",
+        ),
+        mutation(
+            "wire: drop max_turn_silence from the integer set",
+            'INTEGER_FIELDS: Final = frozenset({"min_turn_silence", "max_turn_silence"})',
+            'INTEGER_FIELDS: Final = frozenset({"min_turn_silence"})',
+        ),
+    )
+
+
+def _flush_mutations() -> tuple[Mutation, ...]:
+    """`is_caller_turn`. First tier: it decides what FRAG and TTL are computed over.
+
+    Counting the `Terminate` flush put FRAG at exactly 2.000 on every arm and
+    made TTL p90 measure the flush. Not counting it is right and moves both the
+    flattering way, so both directions are guarded.
+    """
+    src = "src/nod_bench/replay.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, LIVE_TESTS)
+
+    return (
+        # Defect 2 of ADR-047: the abort path's catch breadth. `ConnectionClosed`
+        # is not an `OSError`, so the first fix caught nothing and a 1008 escaped
+        # as a raw traceback. Without this mutation the fix is "fixed" but has
+        # never been seen red.
+        mutation(
+            "abort: narrow the static catch back to OSError",
+            "    except Exception as exc:",
+            "    except OSError as exc:",
+        ),
+        mutation(
+            "abort: swallow feeder drift on the controlled arm (EC-37)",
+            "        except TimeoutError:\n            collector.cancel()\n            report = None",
+            "        except (TimeoutError, FeederDriftError):\n            collector.cancel()\n            report = None",
+        ),
+        mutation(
+            "abort: treat 1008 as an ordinary clip abort, not a sweep abort",
+            "    if code == CONCURRENCY_REFUSED_CODE:",
+            "    if False:",
+        ),
+        mutation(
+            "flush: score the wordless Terminate turn as a caller turn",
+            "    return bool(turn.words)",
+            "    return True",
+        ),
+        mutation(
+            "flush: drop every turn, not just the wordless ones",
+            "    return bool(turn.words)",
+            "    return False",
+        ),
+        mutation(
+            "flush: stop counting what was dropped",
+            "        flush_turns=len(dropped),\n    )\n\n\nasync def _run_live_controlled(",
+            "        flush_turns=0,\n    )\n\n\nasync def _run_live_controlled(",
+        ),
+    )
+
+
 def _report_mutations() -> tuple[Mutation, ...]:
     """The repeat axis and the two required warnings. First tier.
 
@@ -1014,6 +1106,31 @@ def _report_mutations() -> tuple[Mutation, ...]:
             "        passes = [observations[r::repeats] for r in range(repeats)]",
             "        passes = [\n            observations[r * repeats : (r + 1) * repeats]\n"
             "            for r in range(repeats)\n        ]",
+        ),
+        # ADR-049's cluster bootstrap: the published live interval.
+        mutation(
+            "cluster: resample rows, not whole clips (narrows the interval)",
+            src,
+            "            picked = [obs for cid in picked_ids for obs in groups[arm][cid]]",
+            "            picked = [groups[arm][cid][0] for cid in picked_ids]",
+        ),
+        mutation(
+            "cluster: accept uneven clusters",
+            src,
+            "        if sizes != {repeats}:",
+            "        if False:",
+        ),
+        mutation(
+            "cluster: label the interval as covering one source",
+            src,
+            '                interval_kind="cluster-bootstrap-over-clips",',
+            '                interval_kind="iqr-over-repeats",',
+        ),
+        mutation(
+            "cluster: drop the pairing check across arms",
+            src,
+            '        if [o.clip_id for o in by_arm[arm]] != [o.clip_id for o in by_arm[arms[0]]]:\n            msg = f"arm {arm!r} was not run over the same clips, so pairing is lost"\n            raise ValueError(msg)\n\n    order: list[str] = []',
+            "        pass\n\n    order: list[str] = []",
         ),
         mutation(
             "repeat axis: label a live interval as a clip bootstrap",
@@ -1160,6 +1277,8 @@ CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "health": _health_mutations(),
     "live": _live_mutations(),
     "report": _report_mutations(),
+    "wire": _wire_mutations(),
+    "flush": _flush_mutations(),
     "selftest": _self_test_mutations(),
 }
 """Mutations per module, first tier only (CLAUDE.md §5)."""

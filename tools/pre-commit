@@ -19,11 +19,13 @@ if [ ! -f "$STAMP" ]; then
     echo "pre-commit: REFUSED — no $STAMP. Run 'make gate' (not piped)." >&2
     exit 1
 fi
-want=$(sh tools/gate-stamp.sh)
-have=$(cat "$STAMP")
+# Line 1 only: the rest of each side is provenance, not part of the digest.
+want=$(sh tools/gate-stamp.sh | head -1)
+have=$(head -1 "$STAMP")
 if [ "$want" != "$have" ]; then
     echo "pre-commit: REFUSED — $STAMP is for a different tree." >&2
     echo "  gate passed on: $have" >&2
+    sed -n '2,$p' "$STAMP" 2>/dev/null | sed 's/^/  /' >&2
     echo "  tree is now:    $want" >&2
     echo "  Run 'make gate' again." >&2
     exit 1

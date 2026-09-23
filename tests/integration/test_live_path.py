@@ -28,6 +28,7 @@ import soundfile as sf
 from nod_adapters.assemblyai.session import UpstreamError
 from nod_bench.corpus import BuiltCorpus, GeneratedClip
 from nod_bench.fake_session import FakeProbeSession
+from nod_bench.feeder import FeederDriftError, FeedReport, PacedFeeder
 from nod_bench.perturb import Gap, TruthSpan, UtteranceSpan
 from nod_bench.replay import (
     CONCURRENCY_REFUSED_CODE,
@@ -596,6 +597,9 @@ async def test_the_sweep_writes_nothing_after_an_abort(tmp_path: Path) -> None:
     args = argparse.Namespace(
         repeats=1,
         concurrency=1,
+        # 0.0: the start-rate gate is real infrastructure and must not make a
+        # unit test wait 16 s per session to prove an abort path.
+        min_interval=0.0,
         out=tmp_path / "out",
         policy=Path("config/policy.yaml"),
     )
@@ -698,3 +702,125 @@ async def test_the_flush_turn_is_dropped_and_counted(tmp_path: Path) -> None:
     assert frag([run.observation]) < 2.0, (
         "FRAG still counts the flush as an emitted turn"
     )
+
+
+# --- the socket dying under the feeder (Gate 4b survivor) ------------------
+
+
+class NotAnOSError(Exception):
+    """Stands in for `websockets.ConnectionClosedError`.
+
+    Deliberately **not** an `OSError`, because that is the whole defect: the
+    real exception descends from `Exception` via `WebSocketException`, the first
+    fix caught `OSError`, and so it caught nothing. Subclassing `Exception` here
+    reproduces that without importing the transport into a test of the bench.
+    """
+
+
+class SocketDiesUnderFeeder(FakeProbeSession):
+    """The Gate 4b failure exactly: send dies, reader holds the reason.
+
+    The service rejected a config with `3006` and closed the socket. The feeder
+    was mid-`send_audio`, so it saw a bare transport error; the *reader* had the
+    `UpstreamError` naming the offending field. Only the reader's exception says
+    what to fix, and before the broad catch it surfaced as an unretrieved-task
+    warning — by luck.
+    """
+
+    def __init__(self, **kwargs: object) -> None:
+        """As `FakeProbeSession`, plus the dead flag the two paths share."""
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._dead = False
+
+    @override
+    async def events(self) -> AsyncIterator[SessionBegin | Turn | Termination]:
+        """Begin, then fail with the diagnosis the caller needs."""
+        yield SessionBegin(session_id="dying", expires_at_ms=0)
+        await asyncio.sleep(0.15)
+        self._dead = True
+        raise UpstreamError(
+            3006,
+            "User Input Validation Error: Invalid 'min_turn_silence'",
+        )
+
+    @override
+    async def send_audio(self, frame: bytes) -> None:
+        """Raise a transport error once the socket has gone."""
+        if self._dead:
+            raise NotAnOSError("received 3006 (registered); then sent 3006")
+        await super().send_audio(frame)
+
+
+@pytest.mark.parametrize("arm", ["balanced", "nod"])
+@pytest.mark.asyncio
+async def test_a_dead_socket_surfaces_the_readers_diagnosis(
+    tmp_path: Path, arm: str
+) -> None:
+    """The clip aborts, and the error names the *field*, not the transport.
+
+    This is the test the Gate 4b mutation run showed was missing. The existing
+    1008 tests raise `UpstreamError` straight out of `events()`, which the
+    narrow `except UpstreamError` clause already handles — so narrowing the
+    broad clause back to `OSError` left them all green. Both arms are covered
+    because the static and controlled paths reach the socket differently and
+    each needed its own catch widened.
+    """
+    clip = _clip(tmp_path)
+    with pytest.raises(LiveRunAbortedError) as caught:
+        await run_live_clip(
+            clip,
+            arm,  # type: ignore[arg-type]
+            session_factory=SocketDiesUnderFeeder,
+            api_key="",
+            policy=load_policy(POLICY),
+            trace_dir=tmp_path / f"traces-{arm}",
+        )
+    message = str(caught.value)
+    assert "min_turn_silence" in message, (
+        f"the abort reported the transport symptom, not the reason: {message!r}"
+    )
+
+
+class DriftingFeeder(PacedFeeder):
+    """A feeder that reports sustained lag, as EC-37 defines it."""
+
+    @override
+    async def feed(
+        self,
+        frames: object,
+        send: object,
+    ) -> FeedReport:
+        """Raise immediately, as a drifted run does."""
+        raise FeederDriftError(
+            frame=5, deadline_ms=250.0, actual_ms=1250.0, sustained=4
+        )
+
+
+@pytest.mark.asyncio
+async def test_feeder_drift_voids_a_controlled_run_rather_than_reporting_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """EC-37: sustained lag voids the run; it must not be swallowed.
+
+    Found by `make mutate`. `_run_live_controlled` had a broad `except
+    Exception` copied from the static path, where it is necessary because that
+    feeder touches the socket. Here the feeder calls `proxy.feed_audio`, which
+    cannot raise (INV-1), so the clause never caught what it was written for —
+    and did catch `FeederDriftError`, turning a voided run into a scored one
+    with `report = None`. A latency measured off a drifted clock is exactly
+    what EC-37 exists to discard.
+    """
+    from nod_bench import replay as replay_module
+
+    monkeypatch.setattr(replay_module, "PacedFeeder", DriftingFeeder)
+    clip = _clip(tmp_path, turns=2, speech_ms=400)
+
+    with pytest.raises(FeederDriftError):
+        await run_live_clip(
+            clip,
+            "nod",
+            session_factory=FakeProbeSession,
+            api_key="",
+            policy=load_policy(POLICY),
+            trace_dir=tmp_path / "traces",
+        )

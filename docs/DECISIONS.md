@@ -2448,3 +2448,155 @@ Consequence: BENCH_SPEC §5's table keeps seven rows and **two are marked unmeas
 this corpus** rather than quietly dropped — a reader comparing Nod against a benchmark that
 does report them can see which two are missing and why. Both become measurable behind a
 responsive caller simulator, which is post-freeze work and is not on the roadmap.
+
+## ADR-047 — Three defects the first real socket found, and what they say about the fake
+2026-09-22 · Status: accepted — Gate 4b Step 0.4
+Context: Gate 4a built the live path and tested it against `FakeProbeSession`, which
+satisfies the same `ProbeSession` protocol and endpoints on real audio. Twenty tests
+passed. The first clip sent to AssemblyAI failed on its first frame, and two further
+defects surfaced within the same hour. None was reachable offline, and the reason is the
+same in all three cases: **the fake is more permissive, more forgiving and simpler than
+the service, so agreement with it is not evidence.**
+
+**1. Every config value was sent as a float; two fields are parsed with `int()`.**
+`3006 User Input Validation Error: Invalid 'min_turn_silence': invalid literal for int()
+with base 10: '160.0'`. The float came from three layers agreeing on a type — the
+`SttSession` protocol is `Mapping[str, float]`, the driver floats `STATIC_ARMS`' ints on
+the way in, and `str()` renders `160.0`. **`proxy.send_patch_upstream` builds its payload
+the same way**, so every mid-stream patch would have been refused; EC-32 retries once and
+drops the session to `observe`, which is a `nod` arm computing patches, tracing them,
+having them all rejected, and behaving like `balanced` under its own label. `rotate`'s
+config replay had it too. `FakeProbeSession` reads config through `float(...)` and accepts
+either spelling.
+
+**2. A rejected config surfaced as a bare `ConnectionClosedError`.** The socket dies under
+the feeder while the *reader* holds the `UpstreamError` that says why. The useful message
+appeared only as an unretrieved-task warning. Worse, the first fix caught `OSError` and
+`websockets.ConnectionClosedError` is **not** one — it descends from `Exception` via
+`WebSocketException` — so a 1008 still escaped the sweep as a raw traceback instead of the
+handled abort.
+
+**3. The `Terminate` flush was being scored as a caller turn.** Measured: turn 0 at
+5628 ms with 17 words and the correct transcript, then turn 1 at 9980 ms with **zero words
+and an empty transcript**, 706 ms after the last audio frame. It corrupted two published
+metrics on every arm simultaneously — FRAG was exactly **2.000** for all six arms, and TTL
+p90 measured flush-minus-speech-end, ~4.9 s, instead of the real 376 ms.
+Decision: fix each at the layer that owns the fact, and name the direction.
+
+Integer coercion goes in the **adapter**, where the wire protocol's types are known, with
+the two millisecond knobs named explicitly rather than inferred from whether a value is
+integral — `vad_threshold=1.0` is integral and is not an integer, and a fix that coerced
+everything would be the same error pointing the other way. The abort path catches
+`Exception` and harvests the reader's diagnosis; narrowing to the websockets type would
+re-couple `nod_bench` to a transport the `ProbeSession` protocol exists to hide.
+`is_caller_turn` drops finalised turns with no words.
+
+**The flush fix moves two published figures in the flattering direction** — FRAG toward
+1.0, TTL p90 down by an order of magnitude — and that is stated rather than left to be
+noticed. It is justified on the evidence that the flush is an artifact of the harness
+ending the session, not a behaviour of any arm; the standing rule prefers the pessimistic
+option where a fork is *undetermined*, not wrong-but-pessimistic over right-but-flattering.
+The count of dropped turns travels with every run as `LiveRun.flush_turns`.
+Consequence: eleven mutations across `wire` and `flush`, all killed, both directions
+guarded. **The general lesson is about the fake and is worth more than the three fixes.**
+`FakeProbeSession` accepts what the service rejects, emits one word per turn where the
+service emits seventeen, and never sends a flush. Every one of these defects lived in the
+gap between the two, and the offline suite was green throughout. A fake earns trust for
+the orchestration it exercises and none at all for the contract it stubs — so a live smoke
+belongs *before* a long run, not as its first leg.
+
+## ADR-048 — The live sweep is start-rate limited; Track A N=5 does not fit
+2026-09-22 · Status: accepted — Gate 4b, and it reduces a published number
+Context: Gate 4a measured the account at **5 concurrent streams** by ramping sessions and
+holding them open, and sized Track A `N = 5` (3,600 sessions, 9.90 h of audio) at
+2.28–2.58 h of wall clock at that concurrency. Every part of that estimate was wrong in
+the same way: it assumed a slot frees when the client closes the socket.
+
+**Measured at Gate 4b.** Holding five sessions, closing one and probing **once** after a
+fixed wait found the slot still held at 1, 3, 8 and 20 seconds. An earlier
+poll-until-free attempt reported ~38 s and is an upper bound only, because each poll
+opened its own socket and competed for the slot it was measuring. Sweeps then failed in
+the predicted pattern: concurrency 4 refused with 1008 almost immediately, concurrency 3
+refused after nine sessions, concurrency 2 with a 6 s start gate refused after six — each
+time *below* a limit of five, because closed-but-counted sessions accumulate.
+
+**The constraint is a rate, not a count, and a semaphore cannot express it.** A semaphore
+bounds how many things run at once; this resource is consumed after the thing has stopped
+running. A sustained sweep completes cleanly at **one session start per 15–16 s**, which
+implies an effective release lag of 75–80 s rather than the 30 s first assumed.
+Decision: add a `StartRateGate` beside the concurrency semaphore, and **reduce the live
+sweep to a stratified 12-clip subsample at `N = 5`**, labelled as such.
+
+At one start per 16 s, the specified sweep is **3,600 × 16 s ≈ 16 hours**, single-threaded
+by construction and fragile: a 1008 anywhere aborts it, because a partially-scored corpus
+is not a corpus. That does not fit before the 26th and does not fit in one sitting.
+
+The subsample keeps `N = 5` — BENCH_SPEC §4's repeat count, and the axis ADR-045's live
+IQR is computed over — and cuts the clip count instead, from 120 to 12, stratified
+proportionally by perturbation type (7 `pause`, one each of `burst`, `prolong`, `correct`,
+`repeat`, `noise`) and spanning the inserted-pause range 200–2200 ms rather than taking
+the head of the list.
+
+**Spanning the range is load-bearing, not tidiness.** A first two-clip probe took
+`clips[:2]`, which are the two *shortest* pauses at 200 ms, and returned PCR 0.000 on every
+arm. Read as a result that would have said the arms are indistinguishable; it was a
+sampling artifact. Only the generator-inserted silences are acoustically silent enough for
+the service to endpoint inside — `pause` has median 1600 ms with 52 of 60 over
+`aggressive`'s gate — while the 697 transcript inter-word gaps are word timings the service
+does not hear as silence.
+Consequence: **every interval in the published table is far wider than the design intended,
+and the clip bootstrap rests on n = 12 rather than n = 120.** That is the direction the
+standing rule points and it is stated in `docs/RESULTS.md` and the README rather than left
+in a manifest. The full sweep is unchanged in specification and remains runnable overnight
+by whoever has 16 hours; `make bench-live` still defaults to the whole corpus.
+
+Two smaller things fixed alongside. `make bench-live` now passes `--concurrency` and
+`--min-interval` **explicitly** — the defaults are the safe values, not the intended ones,
+and a default that silently quadruples a run's length with nothing complaining is the same
+class as a docstring nothing enforces. And `BAR_LABEL` no longer says repeats are
+"zero-width on a deterministic simulator": a *live* run at `N = 1` also has no repeat axis
+and fell back to the same bootstrap, so the constant was asserting the simulator on a live
+table.
+
+## ADR-049 — At n = 12 the live interval must cover both variance sources
+2026-09-22 · Status: accepted — Gate 4b, and it widens every published interval
+Context: two earlier decisions each chose a single-source interval, and each was right
+for the run it was written for. ADR-019 chose a **bootstrap over clips** because
+`FakeAssemblyAI` is deterministic and its repeats are byte-identical, so a repeat spread
+would be exactly zero and a zero-width bar reads as precision. ADR-045 restored the
+**IQR over repeats** for live, because BENCH_SPEC §4 states the interval over that axis
+and a live upstream is not deterministic.
+
+Neither anticipated ADR-048's subsample. The live table is **12 clips, not 120**, and a
+live run has *two* independent uncertainties: which clips the generator happened to
+produce, and how the service happened to respond that afternoon. At n = 120 the first is
+small enough to leave implicit; at n = 12 it is the dominant term. `repeat_points`
+computes each of its five passes over the whole clip set, so between-clip variation
+cancels inside every pass and never reaches the interval at all — **measured on a
+12-clip, 5-repeat fixture with a third of clips cutting prematurely, the repeat IQR of
+PCR is exactly 0.000** while the clip axis plainly varies.
+Decision: live runs report a **cluster bootstrap over clips**, resampling clips whole.
+
+Each replicate draws 12 clips with replacement and takes **all five repeats of each clip
+drawn**. That is the standard estimator for clustered observations: it carries the clip
+axis, and because the repeats travel with their clip it keeps run-to-run variation inside
+the replicate rather than averaging it away. Clips are drawn jointly across arms, so
+BENCH_SPEC §9's pairing survives exactly as in `bootstrap_points`.
+
+Resampling the 60 rows individually was considered and rejected — it would treat five
+correlated repeats of one clip as five independent observations and report a *narrower*
+interval by inflating the effective sample size, which is the error this ADR exists to
+avoid, arrived at from the opposite direction. Uneven clusters are refused rather than
+handled, because a whole-clip draw weights clips equally only if they carry equal repeats.
+
+**This is the wider interval, and where the choice was close the rule was to take it.**
+It is wider than the repeat IQR by construction and wider than the plain clip bootstrap in
+practice.
+Consequence: every interval in the published table grows, and the headline is more likely
+to read `inconclusive` under EC-38 — which is the correct outcome if 12 clips cannot
+separate two arms. `ArmPoint.interval_kind` gains a third value and the chart's own bar
+label follows it, so a cluster interval cannot be printed under either older legend.
+`bootstrap_points` remains the simulated path's estimator, unchanged; `repeat_points`
+remains implemented and tested and is no longer the live default. Nothing about the
+specified 120-clip sweep changes: at n = 120 this estimator is still correct, merely less
+necessary.

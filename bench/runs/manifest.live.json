@@ -1,0 +1,63 @@
+{
+ "seed": 7,
+ "generator_version": "0.1.0",
+ "corpus_id": "trackA-stratified-12",
+ "corpus_sha256": "59e3a84846040fe50154b6f53e5714faeeada3ddc4db1365a796557a6c4c1652",
+ "corpus_clips": 12,
+ "repeats_per_arm": 5,
+ "arms": [
+  {
+   "name": "aggressive",
+   "end_of_turn_confidence_threshold": 0.4,
+   "min_turn_silence": 160,
+   "max_turn_silence": 400,
+   "source": "AssemblyAI turn-detection docs, accessed 2026-09-17, BENCH_SPEC §3"
+  },
+  {
+   "name": "balanced",
+   "end_of_turn_confidence_threshold": 0.4,
+   "min_turn_silence": 400,
+   "max_turn_silence": 1280,
+   "source": "AssemblyAI turn-detection docs, accessed 2026-09-17, BENCH_SPEC §3"
+  },
+  {
+   "name": "conservative",
+   "end_of_turn_confidence_threshold": 0.7,
+   "min_turn_silence": 800,
+   "max_turn_silence": 3600,
+   "source": "AssemblyAI turn-detection docs, accessed 2026-09-17, BENCH_SPEC §3"
+  },
+  {
+   "name": "nod",
+   "end_of_turn_confidence_threshold": 0.0,
+   "min_turn_silence": 400,
+   "max_turn_silence": 1280,
+   "source": "nod controller, CONTROL_SPEC §4, axes=speaker+context; min/max above are the STARTING config, not a fixed one"
+  },
+  {
+   "name": "nod-nocontext",
+   "end_of_turn_confidence_threshold": 0.0,
+   "min_turn_silence": 400,
+   "max_turn_silence": 1280,
+   "source": "nod controller, CONTROL_SPEC §4, axes=speaker; min/max above are the STARTING config, not a fixed one"
+  },
+  {
+   "name": "nod-nospeaker",
+   "end_of_turn_confidence_threshold": 0.0,
+   "min_turn_silence": 400,
+   "max_turn_silence": 1280,
+   "source": "nod controller, CONTROL_SPEC §4, axes=context; min/max above are the STARTING config, not a fixed one"
+  }
+ ],
+ "simulated": false,
+ "endpoint_overhead_ms": 217.0,
+ "quantile_method": "nearest-rank, inclusive",
+ "proxy_divergence": {
+  "pcr_all": 0.5138888888888888,
+  "pcr_certain_only": 0.0,
+  "frag_all": 1.5138888888888888,
+  "frag_certain_only": 1.0,
+  "utterances_all": 360,
+  "utterances_certain_only": 160
+ }
+}

@@ -149,6 +149,7 @@ class SessionProxy:
         "_stream_ms",
         "_tasks",
         "_trace",
+        "_turns_observed",
         "_upstream",
     )
 
@@ -227,6 +228,7 @@ class SessionProxy:
         self._controller_dropped = 0
         self._controller_errors = 0
         self._rejected = 0
+        self._turns_observed = 0
 
     # --- client side, the two directions the stubs did not name -------------
 
@@ -399,6 +401,7 @@ class SessionProxy:
         Args:
             turn: One upstream `Turn`.
         """
+        self._turns_observed += 1
         try:
             self._profiler.observe_turn(turn)
             # The context axis is inside the `try` on purpose. A policy lookup is
@@ -575,6 +578,30 @@ class SessionProxy:
         if self._closed:
             return
         self._closed = True
+        # **Unconditional, and that is the point.** Every other `emit` in this
+        # module is inside a branch — a patch, an error, a rotation — so a
+        # session that simply had nothing to say wrote no trace line, and
+        # `TraceSink` opens its file lazily, so it left **no file at all**.
+        # Gate 4b's live sweep produced 360 empty trace directories that way,
+        # and an absent file cannot distinguish "the controller ran and decided
+        # not to patch" from "the controller never ran". Those are exactly the
+        # two readings CLAUDE.md §5 says a null result must separate, and the
+        # run could not separate them. This line is the evidence that the
+        # session was driven at all.
+        self._trace.emit(
+            "controller_closed",
+            {
+                "mode": self._mode.value,
+                "turns_observed": self._turns_observed,
+                "patches_sent": self._patches_sent,
+                "controller_errors": self._controller_errors,
+                "rejected_updates": self._rejected,
+                "state": self._arbiter.state.value,
+                "min_turn_silence": self._current.min_turn_silence_ms,
+                "max_turn_silence": self._current.max_turn_silence_ms,
+            },
+            t_ms=self._stream_ms,
+        )
         for task in self._tasks:
             task.cancel()
         for task in self._tasks:

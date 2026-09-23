@@ -76,7 +76,10 @@ def test_the_replay_cli_refuses_a_live_run(tmp_path: Path) -> None:
     assert main(["--live", "--out", str(tmp_path)]) == 2
 
 
-README_PLACEHOLDER: Final = "_Not yet generated. Run `make bench`._"
+README_PLACEHOLDER: Final = (
+    "_Not yet generated. Run `make bench-live`, then "
+    "`python -m nod_bench.report --publish`._"
+)
 """What the owned region holds until a live run has published into it.
 
 An explicit sentinel rather than "anything": the region is either the generator's

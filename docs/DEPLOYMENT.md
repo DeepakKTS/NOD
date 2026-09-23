@@ -13,9 +13,15 @@ client ──TLS──► edge ──► nod (uvicorn, 1 process, N workers=1) �
 ```
 
 One worker per container. The session registry is in-process, so horizontal scaling
-requires sticky routing by `session_id`. Scale vertically first; a single worker handles
-`NOD_MAX_SESSIONS = 64` comfortably because the controller is `O(1)` per turn and audio
-forwarding is I/O bound. Record any change to this in an ADR.
+requires sticky routing by `session_id`.
+
+**The binding limit is upstream, not the worker.** A single worker would handle dozens of
+sessions comfortably — the controller is `O(1)` per turn and audio forwarding is I/O bound
+— but `NOD_MAX_SESSIONS` is **2** (ADR-042), derived from an AssemblyAI account that
+permits 5 concurrent streams while a rotating session holds two. Scaling the container
+changes nothing until the account changes. Gate 4b measured the constraint as harsher
+still for a *churning* workload: a closed session keeps its slot for tens of seconds, so
+sustained throughput is roughly one new session per 15 s regardless of concurrency.
 
 ## 2. Environment
 
@@ -46,11 +52,16 @@ Secrets are injected by the platform's secret store. `.env` is git-ignored;
 
 ## 3. Container
 
-- Multi-stage: build the Next.js export and the Python wheels in stage one, copy into a
-  slim runtime in stage two.
+- Multi-stage: build the Python wheels in stage one, copy into a slim runtime in stage
+  two. **No Next.js stage** — ADR-038 made the demo screen a static HTML file served from
+  the API container, so there is nothing to compile.
 - Non-root user, read-only root filesystem, `/data` the only writable mount.
 - `HEALTHCHECK` hits `/healthz`.
-- Pinned base image by digest, not by tag.
+- Pinned base image by digest, not by tag. **Outstanding: the committed `Dockerfile`
+  uses `python:3.12-slim` by tag.** The digest cannot be resolved on a machine without a
+  container runtime, and writing an unverified one would be worse than the tag. Resolve
+  and pin it on the machine that first builds the image; until then the build is not
+  reproducible.
 - Target image under 400 MB. `librosa` and `soundfile` are bench-only dependencies and are
   excluded from the runtime image via an extras group.
 

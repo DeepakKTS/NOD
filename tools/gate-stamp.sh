@@ -21,8 +21,19 @@
 #    which is the exact workflow (2) was written to stop refusing. Same symptom,
 #    same consequence, one level down — so the listing is sorted before hashing
 #    and the digest depends on content alone.
+# **Line 1 is the digest the hook compares; every later line is provenance.**
+# A bare digest cannot say what it certified. Gate 4b found a stamp written at
+# 17:05 sitting beside a tree edited after it, and nothing in the file could
+# establish that on its own — the mismatch surfaced only because the hook
+# recomputes the digest. Naming the commit, the branch and the time makes the
+# stamp readable by a person, and makes "which code produced these artifacts"
+# answerable from the artifact directory rather than from shell history.
 set -eu
 git ls-files -z -c -o --exclude-standard \
     | sort -z \
     | xargs -0 shasum -a 256 2>/dev/null \
     | shasum -a 256 | cut -d' ' -f1
+echo "commit=$(git rev-parse HEAD)"
+echo "branch=$(git rev-parse --abbrev-ref HEAD)"
+echo "dirty=$(test -n "$(git status --porcelain)" && echo yes || echo no)"
+echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"

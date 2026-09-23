@@ -36,12 +36,14 @@ from nod_bench.replay import (
 from nod_bench.report import (
     BAR_LABEL,
     BOOTSTRAP_REPLICATES,
+    CLUSTER_BAR_LABEL,
     INCONCLUSIVE,
     LIVE_BAR_LABEL,
     README_TABLE_END,
     README_TABLE_START,
     ArmPoint,
     bootstrap_points,
+    cluster_bootstrap_points,
     pareto_svg,
     render_all,
     render_results_md,
@@ -571,3 +573,103 @@ def test_the_report_card_refuses_an_empty_sweep() -> None:
 
     with pytest.raises(ValueError, match="no observations"):
         render_report_card([])
+
+
+# --- the live interval at n=12 (ADR-049) -----------------------------------
+
+
+def _clustered(
+    *, n_clips: int, repeats: int, premature_clips: int, jitter_ms: float
+) -> dict[Arm, list[ClipObservation]]:
+    """Clips that differ from each other *and* repeats that differ within a clip.
+
+    Both axes have to vary or the comparison below is vacuous: with identical
+    clips the cluster bootstrap collapses to zero width, and with identical
+    repeats the IQR does.
+    """
+    out: list[ClipObservation] = []
+    for c in range(n_clips):
+        premature = c < premature_clips
+        for r in range(repeats):
+            fired = (900.0 if premature else 1100.0) + r * jitter_ms
+            out.append(
+                ClipObservation(
+                    clip_id=f"c{c}",
+                    arm="balanced",
+                    utterances=(
+                        ScoredUtterance(start_ms=0, final_word_end_ms=1000, gaps=()),
+                    ),
+                    emitted_end_ms=(fired,),
+                    emitted_silence_start_ms=(fired,),
+                )
+            )
+    return {"balanced": out}
+
+
+def test_the_cluster_bootstrap_is_wider_than_the_repeat_iqr() -> None:
+    """ADR-049's whole justification, asserted rather than argued.
+
+    At n=12 the clip axis is the dominant uncertainty and `repeat_points`
+    ignores it: its five passes each contain every clip, so between-clip
+    variation cancels. The cluster bootstrap resamples clips whole and so
+    carries both sources, and must therefore report the wider interval.
+    """
+    by_arm = _clustered(n_clips=12, repeats=5, premature_clips=4, jitter_ms=20.0)
+    (cluster,) = cluster_bootstrap_points(by_arm, repeats=5)
+    (iqr,) = repeat_points(by_arm, repeats=5)
+
+    cluster_width = cluster.pcr_ci[1] - cluster.pcr_ci[0]
+    iqr_width = iqr.pcr_ci[1] - iqr.pcr_ci[0]
+    assert iqr_width == pytest.approx(0.0), (
+        "every pass holds all 12 clips, so the repeat IQR of PCR is zero here — "
+        "which is the understatement ADR-049 is about"
+    )
+    assert cluster_width > iqr_width, (
+        f"cluster interval {cluster_width:.4f} is not wider than the repeat "
+        f"IQR {iqr_width:.4f}; the clip axis is not reaching the interval"
+    )
+    assert cluster.pcr == pytest.approx(4 / 12)
+
+
+def test_the_cluster_bootstrap_keeps_the_repeats_inside_the_replicate() -> None:
+    """Drawing a clip takes all of its repeats, so run-to-run variation stays in.
+
+    Checked on TTL, where the repeats differ by construction. A per-observation
+    resample would break the clustering and report a narrower interval by
+    treating 60 correlated rows as 60 independent ones.
+    """
+    by_arm = _clustered(n_clips=12, repeats=5, premature_clips=4, jitter_ms=60.0)
+    (point,) = cluster_bootstrap_points(by_arm, repeats=5)
+    assert point.n_clips == 12
+    assert point.n_repeats == 5
+    assert point.ttl_p90_ci_ms[1] > point.ttl_p90_ci_ms[0]
+
+
+def test_the_cluster_bootstrap_refuses_uneven_clusters() -> None:
+    """Unequal repeat counts would silently weight some clips more than others."""
+    by_arm = _clustered(n_clips=3, repeats=5, premature_clips=1, jitter_ms=10.0)
+    by_arm["balanced"].pop()
+    with pytest.raises(ValueError, match="uneven"):
+        cluster_bootstrap_points(by_arm, repeats=5)
+
+
+def test_the_cluster_bootstrap_refuses_unpaired_arms() -> None:
+    """BENCH_SPEC §9 pairs on the clip; the cluster estimator must too."""
+    by_arm = _clustered(n_clips=3, repeats=2, premature_clips=1, jitter_ms=10.0)
+    other = [
+        obs.model_copy(update={"clip_id": f"x{i}"})
+        for i, obs in enumerate(by_arm["balanced"])
+    ]
+    by_arm["aggressive"] = other
+    with pytest.raises(ValueError, match="same clips"):
+        cluster_bootstrap_points(by_arm, repeats=2)
+
+
+def test_a_live_table_says_the_bars_cover_both_sources() -> None:
+    """The legend travels with the image (ADR-019), including which estimator."""
+    by_arm = _clustered(n_clips=12, repeats=5, premature_clips=4, jitter_ms=20.0)
+    points = cluster_bootstrap_points(by_arm, repeats=5)
+    table = render_results_md(points)
+    assert CLUSTER_BAR_LABEL in table
+    assert BAR_LABEL not in table
+    assert LIVE_BAR_LABEL not in table

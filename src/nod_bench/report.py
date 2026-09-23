@@ -38,17 +38,26 @@ BOOTSTRAP_SEED: Final = 20260917
 CI_PERCENTILES: Final = (2.5, 97.5)
 """A 95 % percentile interval."""
 
-type IntervalKind = Literal["bootstrap-ci-over-clips", "iqr-over-repeats"]
+type IntervalKind = Literal[
+    "bootstrap-ci-over-clips",
+    "iqr-over-repeats",
+    "cluster-bootstrap-over-clips",
+]
 """Which statistic an `ArmPoint`'s interval holds. See `ArmPoint.interval_kind`."""
 
-BAR_LABEL: Final = (
-    "bars: 95% bootstrap CI over clips (B=10,000) - NOT over repeats, "
-    "which are zero-width on a deterministic simulator"
-)
+BAR_LABEL: Final = "bars: 95% bootstrap CI over clips (B=10,000), NOT over repeats"
 """Rendered into the chart itself, not into a caption.
 
 A caption does not survive a screenshot and a zero-width bar reads as precision
 (ADR-019). Whoever sees the image sees what the bars mean.
+
+**It no longer says "which are zero-width on a deterministic simulator".** That
+clause was true of the path it was written for and false on the one that now
+also uses it: a *live* run with `repeats=1` has no repeat axis either, and
+falls back to this same bootstrap. The label was then asserting the simulator
+on a live table (observed at Gate 4b). The reason repeats are unavailable
+belongs in the run's own provenance line, which knows which it is, not baked
+into a constant that cannot tell.
 """
 
 LIVE_BAR_LABEL: Final = (
@@ -57,9 +66,17 @@ LIVE_BAR_LABEL: Final = (
 )
 """The live counterpart. Both are rendered into the image for ADR-019's reason."""
 
+CLUSTER_BAR_LABEL: Final = (
+    "bars: 95% cluster bootstrap over clips (B=10,000), clips resampled whole "
+    "with all their repeats - covers BOTH which clips were drawn and "
+    "run-to-run variation"
+)
+"""The live default (ADR-049). Wider than either single-source interval."""
+
 BAR_LABELS: Final[dict[IntervalKind, str]] = {
     "bootstrap-ci-over-clips": BAR_LABEL,
     "iqr-over-repeats": LIVE_BAR_LABEL,
+    "cluster-bootstrap-over-clips": CLUSTER_BAR_LABEL,
 }
 """So a chart cannot be drawn with the wrong label for its own statistic."""
 
@@ -321,6 +338,110 @@ def repeat_points(
     return points
 
 
+def cluster_bootstrap_points(
+    by_arm: dict[Arm, list[ClipObservation]],
+    *,
+    repeats: int,
+    replicates: int = BOOTSTRAP_REPLICATES,
+    seed: int = BOOTSTRAP_SEED,
+) -> list[ArmPoint]:
+    """Interval over both variance sources at once. `O(B * arms * n)`.
+
+    **The live default since ADR-049, and the reason is the subsample.** Live
+    results carry two independent uncertainties: which clips the generator
+    happened to produce, and how the service happened to respond on the day.
+    `bootstrap_points` measures only the first and `repeat_points` only the
+    second, and each was right for the run it was written for — the simulated
+    sweep has no second source, and a 120-clip live sweep would have a first
+    source small enough to leave implicit.
+
+    At **n = 12** neither holds. The clip axis is a tenth of the design and is
+    now the dominant term, so `repeat_points`' IQR over five whole-corpus passes
+    understates the interval by ignoring it entirely.
+
+    Clips are resampled **whole** — drawing a clip takes all of its repeats —
+    which is the standard estimator for clustered observations and keeps the
+    repeat variation inside the replicate instead of averaging it away. Clips
+    are drawn **jointly across arms** within a replicate, so BENCH_SPEC §9's
+    pairing survives exactly as in `bootstrap_points`.
+
+    Args:
+        by_arm: Observations per arm, `clips x repeats`, grouped by clip.
+        repeats: `N`, checked against every cluster's size.
+        replicates: `B`.
+        seed: Fixed, so the chart is reproducible.
+
+    Returns:
+        One point per arm, `interval_kind="cluster-bootstrap-over-clips"`.
+
+    Raises:
+        ValueError: The arms do not cover the same clips, or some clip does not
+            carry exactly `repeats` observations.
+    """
+    arms = list(by_arm)
+    if not arms:
+        msg = "no arms to plot"
+        raise ValueError(msg)
+    for arm in arms:
+        if [o.clip_id for o in by_arm[arm]] != [o.clip_id for o in by_arm[arms[0]]]:
+            msg = f"arm {arm!r} was not run over the same clips, so pairing is lost"
+            raise ValueError(msg)
+
+    order: list[str] = []
+    groups: dict[Arm, dict[str, list[ClipObservation]]] = {a: {} for a in arms}
+    for arm in arms:
+        for obs in by_arm[arm]:
+            if arm == arms[0] and obs.clip_id not in groups[arm]:
+                order.append(obs.clip_id)
+            groups[arm].setdefault(obs.clip_id, []).append(obs)
+    n_clips = len(order)
+    for arm in arms:
+        sizes = {len(v) for v in groups[arm].values()}
+        if sizes != {repeats}:
+            msg = (
+                f"arm {arm!r} has clips with {sorted(sizes)} repeats, expected "
+                f"{repeats} each: the clusters are uneven, and a whole-clip "
+                f"resample would then weight them unequally"
+            )
+            raise ValueError(msg)
+
+    rng = np.random.default_rng(seed)
+    draws = rng.integers(0, n_clips, size=(replicates, n_clips))
+    samples: dict[Arm, tuple[list[float], list[float]]] = {a: ([], []) for a in arms}
+    for replicate in draws:
+        picked_ids = [order[int(i)] for i in replicate]
+        for arm in arms:
+            picked = [obs for cid in picked_ids for obs in groups[arm][cid]]
+            samples[arm][0].append(pcr(picked))
+            samples[arm][1].append(ttl(picked).p90)
+
+    lo, hi = CI_PERCENTILES
+    points: list[ArmPoint] = []
+    for arm in arms:
+        pcr_draws, ttl_draws = samples[arm]
+        flat = by_arm[arm]
+        points.append(
+            ArmPoint(
+                arm=arm,
+                pcr=pcr(flat),
+                ttl_p90_ms=ttl(flat).p90,
+                pcr_ci=(
+                    float(np.percentile(pcr_draws, lo)),
+                    float(np.percentile(pcr_draws, hi)),
+                ),
+                ttl_p90_ci_ms=(
+                    float(np.percentile(ttl_draws, lo)),
+                    float(np.percentile(ttl_draws, hi)),
+                ),
+                interval_kind="cluster-bootstrap-over-clips",
+                n_clips=n_clips,
+                n_repeats=repeats,
+                frag=frag(flat),
+            )
+        )
+    return points
+
+
 def pareto_svg(points: Sequence[ArmPoint]) -> str:
     """Render the headline chart as hand-rolled SVG.
 
@@ -498,8 +619,27 @@ def track_disagreements(
     return lines
 
 
+SPECIFIED_CLIPS: Final = 120
+"""Track A's committed clip count, which BENCH_SPEC's sweep is specified over.
+
+Stated so a table generated from a subsample can say what it is a subsample
+*of*, without the reader having to know.
+"""
+
+UNMEASURABLE_METRICS: Final = ("TCT", "RES")
+"""BENCH_SPEC §5 rows that refuse on a replay corpus (ADR-046).
+
+Named in the generated footer rather than only in prose: a reader comparing
+against a benchmark that publishes seven metrics can otherwise only conclude
+that two were dropped quietly.
+"""
+
+
 def render_results_md(
-    points: Sequence[ArmPoint], *, other_track: Sequence[ArmPoint] | None = None
+    points: Sequence[ArmPoint],
+    *,
+    other_track: Sequence[ArmPoint] | None = None,
+    manifest: RunManifest | None = None,
 ) -> str:
     """Render the arm table with its intervals, and the two required warnings.
 
@@ -514,10 +654,19 @@ def render_results_md(
     reported prominently (EC-41). This docstring asserted both while the body did
     neither, which is the CLAUDE.md §5 shape — a claim that reads as coverage.
 
+    **The caveats are generated into the document, not written above it**
+    (Gate 4b). A table leaves this repository as a screenshot far more often
+    than as a file, and a screenshot carries none of the prose around it. So
+    provenance, the subsample size against the specified sweep, the corpus, and
+    the two metrics that refuse all travel in the footer that `manifest`
+    supplies.
+
     Args:
         points: One point per arm.
         other_track: The other track's points, for EC-41. Omitted when only one
             track has been run, which is the state until Track C is recorded.
+        manifest: The run manifest, for the provenance footer. Omitted only by
+            callers that have none; the footer is then shorter, never wrong.
 
     Returns:
         The markdown document.
@@ -538,6 +687,12 @@ def render_results_md(
     )
     lines.append("")
     lines.append(f"{BAR_LABELS[kind]}.")
+    if kind == "bootstrap-ci-over-clips" and points and points[0].n_repeats == 1:
+        lines.append(
+            "Single pass per clip, so there is no repeat axis to report a spread "
+            "over; against the simulator that is by design (ADR-019), and on a "
+            "live run it means BENCH_SPEC §4's N was not met."
+        )
     lines.append(
         f"Percentiles are {QUANTILE_METHOD}. n={points[0].n_clips if points else 0} "
         f"clips"
@@ -550,6 +705,9 @@ def render_results_md(
         "uncertainty (ADR-018, ADR-019)."
     )
 
+    if manifest is not None:
+        lines.extend(_provenance_footer(points, manifest))
+
     flagged = inconclusive_pairs(points)
     if flagged:
         lines.extend(["", f"### {INCONCLUSIVE.capitalize()} comparisons (EC-38)", ""])
@@ -560,6 +718,52 @@ def render_results_md(
             lines.extend(["", "### Track disagreement (EC-41)", ""])
             lines.extend(f"- {line}" for line in clashes)
     return "\n".join(lines)
+
+
+def _provenance_footer(
+    points: Sequence[ArmPoint] | None, manifest: RunManifest
+) -> list[str]:
+    """The lines a screenshot of the table has to carry with it. Pure. `O(1)`.
+
+    `points` is optional so `main` can build the same footer from a manifest
+    alone, for a run whose points were rendered by an earlier process.
+    """
+    live = not manifest.simulated
+    clips = points[0].n_clips if points else manifest.corpus_clips
+    lines = [""]
+    if live:
+        lines.append(
+            f"**Live run** against the streaming API, `{manifest.corpus_id}`, "
+            f"{clips} clips x {manifest.repeats_per_arm} repeats x "
+            f"{len(manifest.arms)} arms."
+        )
+        if clips < SPECIFIED_CLIPS:
+            lines.append(
+                f"**Subsample: {clips} of {SPECIFIED_CLIPS} clips.** The account "
+                f"permits roughly one new session every 15 s once a closed "
+                f"session's slot is counted, which puts the specified sweep at "
+                f"about 16 hours (ADR-048). Intervals are correspondingly wide."
+            )
+    else:
+        lines.append(
+            f"**Simulated** against `FakeAssemblyAI`, `{manifest.corpus_id}`, "
+            f"{clips} clips. Not a measurement of AssemblyAI (ADR-017)."
+        )
+    lines.append(
+        "Corpus is synthetic speech from one macOS `say` voice, whose own "
+        "manifest states it is not adequate for a published number; see the "
+        "README's honest-scope section."
+    )
+    lines.append(
+        f"{' and '.join(UNMEASURABLE_METRICS)} are **not reported**: both need "
+        f"a caller who reacts to being cut off, and recorded audio does not "
+        f"(ADR-046)."
+    )
+    lines.append(
+        f"Endpoint overhead {manifest.endpoint_overhead_ms:.0f} ms; "
+        f"percentiles {manifest.quantile_method}."
+    )
+    return lines
 
 
 def render_all(
@@ -603,14 +807,14 @@ def render_all(
         raise ValueError(msg)
     out.mkdir(parents=True, exist_ok=True)
     points = (
-        repeat_points(by_arm, repeats=repeats)
+        cluster_bootstrap_points(by_arm, repeats=repeats)
         if repeats > 1
         else bootstrap_points(by_arm)
     )
     written: list[Path] = []
     for stem, suffix, payload in (
         ("pareto", "svg", pareto_svg(points)),
-        ("results", "md", render_results_md(points)),
+        ("results", "md", render_results_md(points, manifest=manifest)),
         ("manifest", "json", manifest.model_dump_json(indent=1)),
     ):
         path = out / artifact_name(stem, simulated=simulated, suffix=suffix)
@@ -652,7 +856,7 @@ def render_report_card(runs: Sequence[RunResult]) -> str:
         )
         raise ValueError(msg)
     points = (
-        repeat_points(by_arm, repeats=repeats)
+        cluster_bootstrap_points(by_arm, repeats=repeats)
         if repeats > 1
         else bootstrap_points(by_arm)
     )
@@ -757,6 +961,29 @@ def _inline(text: str) -> str:
     return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
 
 
+def _interval_caveat(table: str) -> list[str]:
+    """A warning when the table's interval predates ADR-049. Pure. `O(n)`.
+
+    Read off the table's own bar label rather than the manifest, because the
+    manifest does not record which estimator rendered it and the label does —
+    the legend travelling with the artifact (ADR-019) doing a second job. Gate
+    4b's sweep was rendered before `cluster_bootstrap_points` existed, so its
+    intervals are the repeat IQR and are known to understate.
+    """
+    if LIVE_BAR_LABEL not in table:
+        return []
+    return [
+        "",
+        "> **These intervals understate the uncertainty.** They are the "
+        "interquartile range over live repeats, which measures run-to-run "
+        "variation only. At n=12 the dominant term is *which clips were "
+        "drawn*, and this estimator does not carry it — which is why several "
+        "are zero-width, reading as precision that is not there. ADR-049 "
+        "replaced it with a cluster bootstrap over clips for exactly this "
+        "reason; re-rendering this table under it needs the sweep re-run.",
+    ]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the report CLI.
 
@@ -809,9 +1036,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    # Generated onto the table, not written above it: a table leaves this
+    # repository as a screenshot far more often than as a file, and a
+    # screenshot carries none of the prose around it.
+    manifest_path = args.runs / artifact_name(
+        "manifest", simulated=False, suffix="json"
+    )
+    published = table.strip()
+    if manifest_path.exists():
+        manifest = RunManifest.model_validate_json(manifest_path.read_text())
+        published += "\n" + "\n".join(_provenance_footer(None, manifest))
+    published += "\n" + "\n".join(_interval_caveat(table))
+
     args.results.parent.mkdir(parents=True, exist_ok=True)
-    args.results.write_text(RESULTS_HEADER + table.strip() + "\n", encoding="utf-8")
-    update_readme_table(args.readme, table)
+    args.results.write_text(RESULTS_HEADER + published.strip() + "\n", encoding="utf-8")
+    update_readme_table(args.readme, published)
     out.write(f"wrote {args.results} and the {args.readme} table region\n")
     return 0
 

@@ -15,6 +15,29 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
+## Where this stands — 22 Sep, Gate 4b
+
+**The live path ran against AssemblyAI for the first time, and it could not have run
+before today.** The first clip failed on its first frame: every config value was sent as
+a float and two fields are parsed with `int()`. The same bug sat in
+`proxy.send_patch_upstream`, so every mid-stream patch would have been refused and each
+`nod` arm would have degraded to `balanced` under its own label. Two more followed — a
+rejected config surfacing as a bare transport error, and the `Terminate` flush being
+scored as a caller turn, which put FRAG at exactly 2.000 on all six arms (ADR-047).
+
+**Track A `N = 5` does not fit.** The account allows one new session roughly every 15 s
+once a closed session's slot is counted, so 3,600 sessions is ~16 hours, not the 2.3 h
+estimated at Gate 4a from a concurrency figure that assumed slots free on close. The
+published table comes from a **stratified 12-clip subsample at `N = 5`**, labelled as such
+everywhere it appears (ADR-048).
+
+**Not done, and not started:** the Track C recording, the pilot gate, any Track C live
+sweep, the video and the deck. **Deploy is blocked on tooling, not on code** — there is no
+container runtime or platform CLI on this machine; the `Dockerfile` is written and the
+three health endpoints are green locally against a real volume.
+
+---
+
 ## Where this stands — 21 Sep, end of day
 
 Pointers, not restatements. One source of truth; do not copy this elsewhere.
@@ -253,7 +276,12 @@ arms. `make check` green, coverage gate met, `decide()` p99 under 5 ms.
   provider, barge-in, false-barge recovery, filler on slow LLM.
 - Voice switching mid-session with resynthesis of the unspoken remainder.
 - Console: live call view with the Floor Meter, config strip, reason line, transcript,
-  metric tiles; replay view with two panes and a shared scrubber; benchmark view.
+  metric tiles; ~~replay view with two panes and a shared scrubber~~; ~~benchmark view~~.
+  **Superseded by ADR-035 clause 4 and ADR-038**: the two-pane replay and its shared
+  scrubber are cut to one pane, the benchmark view is cut in favour of the static report
+  card, and the screen is static HTML rather than Next.js. Left as struck-through rather
+  than deleted because this is the Phase 3 plan of record; the second half of the bullet
+  outlived the decision by a day and was missed when the Phase 4 video bullet was fixed.
 - Presets and `nod tune`.
 
 **Exit:** a full call runs end to end in the browser. The Floor Meter visibly grows on a
