@@ -982,7 +982,10 @@ def _interval_caveat(table: str) -> list[str]:
         "drawn*, and this estimator does not carry it — which is why several "
         "are zero-width, reading as precision that is not there. ADR-049 "
         "replaced it with a cluster bootstrap over clips for exactly this "
-        "reason; re-rendering this table under it needs the sweep re-run.",
+        "reason. **Re-rendering this table under it is not possible from the "
+        "committed artifacts** — a bootstrap resamples clips and only per-arm "
+        "aggregates were persisted, so it needs the sweep re-run (ADR-052). "
+        "Later runs write `observations.live.json` and are re-analysable.",
     ]
 
 

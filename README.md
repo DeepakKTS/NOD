@@ -97,7 +97,7 @@ Corpus is synthetic speech from one macOS `say` voice, whose own manifest states
 TCT and RES are **not reported**: both need a caller who reacts to being cut off, and recorded audio does not (ADR-046).
 Endpoint overhead 217 ms; percentiles nearest-rank, inclusive.
 
-> **These intervals understate the uncertainty.** They are the interquartile range over live repeats, which measures run-to-run variation only. At n=12 the dominant term is *which clips were drawn*, and this estimator does not carry it — which is why several are zero-width, reading as precision that is not there. ADR-049 replaced it with a cluster bootstrap over clips for exactly this reason; re-rendering this table under it needs the sweep re-run.
+> **These intervals understate the uncertainty.** They are the interquartile range over live repeats, which measures run-to-run variation only. At n=12 the dominant term is *which clips were drawn*, and this estimator does not carry it — which is why several are zero-width, reading as precision that is not there. ADR-049 replaced it with a cluster bootstrap over clips for exactly this reason. **Re-rendering this table under it is not possible from the committed artifacts** — a bootstrap resamples clips and only per-arm aggregates were persisted, so it needs the sweep re-run (ADR-052). Later runs write `observations.live.json` and are re-analysable.
 <!-- BENCH_TABLE_END -->
 
 The chart to read is premature cutoff rate against p90 turn latency. The three static
@@ -112,31 +112,33 @@ once a closed session's slot is counted, which puts 3,600 sessions at about 16 h
 (ADR-048). Every interval below is therefore much wider than the design intended, and the
 clip bootstrap rests on twelve clips rather than 120.
 
-**`nod` sits on the curve, not off it, and that is the result.** The table above
-shows the three static arms tracing a clear tradeoff — PCR 0.833 / 0.500 / 0.250
-against TTL p90 559 / 1444 / 3762 ms — and `nod` landing on `balanced` at PCR
-0.500, TTL 1462 ms. The claim this project exists to test is that a per-caller
-controller does not have to sit on that curve. **On this corpus it does.** Two
-reasons, both structural rather than surprising:
+**The Track A corpus does not exercise the mechanism Nod implements.** That is
+the result, and it is a weaker statement than the table looks.
 
-- **The profiler never warms.** Track A is one utterance per clip, about 17 words,
-  so roughly 16 inter-word gaps against a warm threshold of 24 — and gaps never
-  span a turn boundary. The control law spends every clip on its cold branch,
-  which returns exactly `balanced`'s configuration. Across 180 controlled
-  sessions the controller applied **zero** patches (ADR-050).
-- **The context axis has no input.** Track A declares no `expected_answer`
-  classes, so every hint is the policy default of 1.0. `nod`, `nod-nocontext`
-  and `nod-nospeaker` are consequently the same arm here, and their spread —
-  1462, 1471, 1471 ms — is run-to-run noise, not ablation signal.
+Nod's lever is `max_turn_silence`, the gate that governs an *incomplete*
+utterance — the only one that tolerates a mid-sentence pause. **On this corpus
+it never binds.** Measured against the live service: predicted cut rates from
+each arm's `max_turn_silence` match nothing observed, and predictions from
+`min_turn_silence` match exactly — `balanced` cut on 600–800 ms pauses that sit
+below its 1280 ms max gate, `conservative` on 1800–2200 ms pauses far below its
+3600 ms gate. The pauses are ample; the service simply does not treat those
+points as incomplete (ADR-051). So the three static arms above differ by their
+*min* gates, and the chart is a tradeoff curve for a knob Nod is not primarily
+moving.
 
-**And a finding that matters more than the table.** The gate Nod primarily moves
-is `max_turn_silence`, the one that is supposed to tolerate a mid-sentence pause.
-Measured against the live service, **it never binds on this corpus.** Predicted
-PCR from each arm's `max_turn_silence` matches nothing observed; predicted from
-`min_turn_silence` it matches exactly — 0.500 for `balanced`, 0.250 for
-`conservative`. The service judges these mid-utterance pauses as following
-*complete* utterances and applies the min gate. Whether that holds for a human
-who pauses mid-sentence is exactly what Track C would answer, and Track C has not
+**Nor does the run establish that the controller acted.** The nod arms read the
+same as `balanced` — expected, since Track A is one utterance per clip so the
+profiler cannot reach its 24-gap warm threshold, and Track A declares no answer
+classes so the context axis has no input. But "the controller ran and correctly
+did nothing" and "the controller never ran" produced byte-identical evidence:
+the trace sink was the only recorder, every emit is branch-guarded, and it
+writes lazily, so 180 controlled sessions left 360 empty directories and no
+other record anywhere. **The patch count is unmeasured, not zero** (ADR-050).
+
+Taken together: this table is a live measurement of three static configurations
+on a synthetic corpus. It is **not** evidence for or against the claim the
+project exists to test. That claim needs a corpus with genuine mid-utterance
+pauses and enough turns to warm the profiler, which is Track C, which has not
 been recorded.
 
 **Two of BENCH_SPEC §5's seven metrics are absent and will stay absent.** TCT and RES both

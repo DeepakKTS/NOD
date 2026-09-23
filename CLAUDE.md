@@ -275,6 +275,53 @@ lines. That file is long-term memory; this file is the standing contract.
     So: a claim about an artifact is checked against that artifact's manifest, not
     against memory of what the plan was.
 
+  - **A readiness check that matched its own excuse.** Gate 4b verified the Dockerfile
+    against DEPLOYMENT §3 by grepping for each required property. The digest-pin check
+    was `grep -q sha256 Dockerfile`, and it reported **present** — matching the word
+    inside the `TODO` that said *"pin by digest before deploying… the digest cannot be
+    resolved on a machine with no container runtime"*. The check found the note admitting
+    the thing was missing and scored it as done. The same pass reported "read-only root
+    filesystem: present" by matching `read_only`, a property **no Dockerfile can express**
+    — it is a runtime flag (`docker run --read-only`).
+    Two lessons, and the second is the transferable one. A grep for a *word* is not a
+    check for a *property*, because prose about a thing contains the word for the thing —
+    and documentation of an absence contains it most reliably of all. And a spec item can
+    be unsatisfiable by the artifact it is filed under, so "is it present?" is the wrong
+    question before "could it possibly be present here?". This was on the deploy-readiness
+    path, where the whole point is to find what is missing before deployment day.
+  - **A published zero that was an absent instrument.** ADR-050 reported "the live patch
+    census is **zero** across 180 controlled sessions". There was no census. The trace
+    sink is the only recorder of controller activity, every `_trace.emit` in `proxy.py`
+    sits inside a conditional, and `TraceSink` opens its file lazily — so a session that
+    patched nothing wrote no file, and a session in which the controller never ran wrote
+    the same no file. Gate 4c searched for any other record: 0 trace files, no patch or
+    decide field in the manifest, 0 mentions in the run log, and `configure_logging` is
+    still a stub so no structured logs exist at all.
+    **"Zero" and "unmeasured" are different claims and only one of them was true.** Zero
+    asserts an instrument looked and saw nothing; it is a result, it constrains the
+    controller's behaviour, and it reads as evidence. Unmeasured constrains nothing. The
+    wrong one is also the flattering one — it lets a run that established nothing about
+    the controller be written up as having established something. The specific trap is
+    that **an instrument reporting nothing is indistinguishable from an instrument that
+    is disconnected**, unless it is built to say "I am here" when it has nothing to
+    report. `controller_closed` now emits unconditionally for exactly that reason.
+    Before trusting a null, ask what the instrument would have written had the thing been
+    happening — and if the answer is "the same nothing", it is not a null result.
+  - **How many tests have never been red? 264 of 565, and the honest answer to "which
+    ones" is that nobody knows.** The abort-breadth fix at Gate 4b had a test, passed
+    review, and had never once been made to fail; it was caught by adding a mutation for
+    it almost as an afterthought, and the mutation then exposed that the code it guarded
+    was unreachable *and* swallowed `FeederDriftError`. That was luck, so Gate 4c counted.
+    **24 of 38 test files are the target of no mutation at all**, holding 264 of 565 test
+    definitions — 47 % of the suite has never been given anything to catch. Within the
+    remaining 301, a kill only proves that *some* test in that file went red, because the
+    harness runs whole files, so 301 is an upper bound and the true figure is lower.
+    This is not an argument for mutating everything; §5 already decided coverage is
+    deliberately uneven and says where it goes. It is an argument against reading a green
+    suite as 714 verified guarantees. **The suite is 714 assertions of which a minority
+    are known to be load-bearing**, and the number belongs in the record so that "the
+    tests pass" is never again mistaken for "the tests would notice".
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.

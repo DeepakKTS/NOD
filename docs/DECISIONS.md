@@ -2601,16 +2601,34 @@ remains implemented and tested and is no longer the live default. Nothing about 
 specified 120-clip sweep changes: at n = 120 this estimator is still correct, merely less
 necessary.
 
-## ADR-050 — The live patch census is zero, and does not resolve ADR-027 or ADR-032
-2026-09-22 · Status: accepted — Gate 4b, and it defers both again, for a stated reason
+## ADR-050 — The live patch census is unmeasured, and does not resolve ADR-027 or ADR-032
+2026-09-22 · Status: accepted — Gate 4b; **corrected at Gate 4c, and the correction is the point**
+
+> **This ADR said "the census is zero". That was wrong, and wrong in the
+> flattering direction.** A zero implies an instrument that looked and saw
+> nothing. There was no instrument: the trace sink is the only recorder of
+> controller activity, every `_trace.emit` in `proxy.py` sits inside a branch,
+> and `TraceSink` opens its file lazily — so a session that patched nothing
+> wrote no file, and a session where the controller never ran wrote the same no
+> file. Gate 4c searched for any surviving record and found none: 0 trace files,
+> no patch or decide field in the manifest, 0 mentions in the run log, and
+> `configure_logging` still a stub so no structured logs exist at all.
+>
+> **The correct word is unmeasured.** "0 patches across 180 sessions" reads as a
+> measurement of controller behaviour and is in fact a measurement of nothing.
+> Everything below about *why* the profiler cannot warm on Track A stands as
+> argument; what does not stand is the claim that the run observed it.
+> `controller_closed` (Gate 4b) makes the next run's zero a real zero.
 Context: ADR-027 deferred the `MAX_PATCHES = 24` question to "the patch count per session
 across the `N = 5` live runs, and the count for the longest session in the set". ADR-032
 deferred its 80 ms quantisation question to "a patch census from Phase 4's `N = 5` live
 runs". Both named this run. It has now happened.
 
-**The census is zero.** Across **180 controlled sessions** — three `nod` arms x 12 clips x
-5 repeats — the sweep applied **0 patches**, wrote **0 `config_applied` records**, and left
-360 empty trace directories. Maximum per session: 0.
+**The census is unmeasured.** Across **180 controlled sessions** — three `nod` arms x 12
+clips x 5 repeats — the sweep left **360 empty trace directories and no other record of
+controller activity anywhere**. That is consistent with 0 patches and equally consistent
+with a controller that never ran; the two produce byte-identical evidence on disk, so the
+run cannot distinguish them and neither can this ADR.
 Decision: **record the number, and record that it answers neither question.**
 
 A census of zero cannot distinguish "the cap is unreachable" from "this corpus cannot
@@ -2640,3 +2658,81 @@ that is the sharper statement: no amount of further Track A running will move ei
 wrote no trace at all, so "0 patches" and "the controller never ran" produced byte-identical
 evidence on disk. A census whose null result is indistinguishable from an absent run is not
 a census.
+
+## ADR-051 — Track A does not exercise the incomplete-utterance regime, and why
+2026-09-23 · Status: accepted — Gate 4c, measured from committed artifacts
+Context: the live run showed `max_turn_silence` never binding. Three readings were
+possible: (a) the injected pauses are shorter than `min_turn_silence`, so no boundary can
+fire in the incomplete regime — a corpus-construction defect; (b) the pauses are long
+enough but the service judges the utterance complete anyway, so the regime boundary sits
+somewhere the P1 probe did not find; (c) something else.
+Decision: **(b), and it is not a corpus defect.**
+
+The discriminating cases are clips whose pause exceeds an arm's **min** gate while sitting
+**below its max** gate. Under (a) those clips could not be cut at all.
+
+| arm | min / max | cuts observed | predicted if min binds | predicted if max binds | in-window pauses |
+|---|---|---|---|---|---|
+| `aggressive` | 160 / 400 | 10 | 9 | 6 | 200, 260, 400 |
+| `balanced` | 400 / 1280 | **6** | **6** | 3 | 600, 780, 800 |
+| `conservative` | 800 / 3600 | **3** | **3** | 0 | 1800, 2000, 2200 |
+
+`balanced` cut on 600/780/800 ms pauses below its 1280 ms max gate; `conservative` cut on
+1800–2200 ms pauses far below its 3600 ms gate. The min-gate column matches observation
+exactly on both; the max-gate column matches neither. `aggressive` is 10 against a
+predicted 9 — one extra clip, unsurprising when its min gate is 160 ms and the median
+inter-word gap is also 160 ms, so an intrinsic gap can trip it.
+
+**So the pauses are ample** — 2200 ms is 2.75× `conservative`'s min gate — and the service
+simply does not treat those points as incomplete. The complement confirms the model is
+discriminating rather than ignoring the distinction: the **end-of-clip** silence *does*
+bind at max on all three arms (TTL p90 559 / 1444 / 3762 = each max gate + ~162 ms), and
+the seed script genuinely trails off mid-sentence there, on "…the next thing I wanted to
+mention is", which is not completable.
+
+**What is *not* established is why.** Three of the four insertion points leave a
+grammatically complete prefix — "…a test recording for the Nod", "…call me back on 617",
+"…my appointment was on March" — which would explain it neatly. The fourth, "…several
+clean turn", does not, and it was cut too. So the tempting linguistic story is suggestive
+and unproven, and it is recorded as such rather than asserted.
+Consequence: **Nod's primary lever is inert on Track A**, and no amount of further Track A
+running changes that (ADR-011 makes `max_turn_silence` the knob the controller mainly
+moves). This is a property of the corpus, not of the controller, and it means the headline
+table measures the three static arms' min gates and little else.
+
+It also gives the pilot gate its job. The open question is no longer "does the mechanism
+work" but **"where does the regime boundary sit on human speech"** — at what pause length,
+after what kind of prefix, does the service stop declaring completion. That is thirty
+seconds of audio to probe and it must be probed before a recording session, because a
+Track C script whose pauses all follow completable prefixes would reproduce this result at
+ten times the cost.
+
+## ADR-052 — The live run cannot be re-analysed, and that is an artifact defect
+2026-09-23 · Status: accepted — Gate 4c
+Context: ADR-049 replaced the live interval estimator with a cluster bootstrap over clips.
+Applying it to the completed sweep needs only arithmetic — no new sessions — so Gate 4c
+attempted the recomputation.
+Decision: **it is impossible from what was committed, and the gap is named rather than
+worked around.**
+
+`cluster_bootstrap_points` resamples *clips*, so it needs one `ClipObservation` per (arm,
+clip, repeat): `clip_id`, `utterances`, `emitted_end_ms`, `emitted_silence_start_ms`. The
+committed artifacts carry **per-arm aggregates only** — `results.live.md` has PCR, TTL p90
+and FRAG per arm, `manifest.live.json` has run metadata, `pareto.live.svg` is a rendered
+chart, and `traces/` is 360 empty directories. A bootstrap cannot be derived from a mean.
+
+So the published table keeps its `iqr-over-repeats` intervals and keeps the generated
+warning that they understate. Re-rendering under ADR-049 requires re-running the sweep,
+which at the measured 16 s start interval is 1.6 hours for this subsample.
+
+**The asymmetry is the defect.** The *simulated* path has always written
+`observations.simulated.json`, and it regenerates from scratch in 19 seconds anyway. The
+*live* path — the expensive, unrepeatable one that produces every published number — wrote
+none. Exactly backwards, and invisible until someone tried to re-read it.
+Consequence: `_live_sweep` now writes `observations.live.json` and `patch_census.live.json`
+(Gate 4b), so the next run is re-analysable. This one is not, and the table says so.
+
+**The general rule this earns:** an artifact set is complete when the analysis can be
+redone from it without re-acquiring the data. "The numbers are committed" is not that —
+the numbers are the *output* of the analysis, and committing only them fixes the estimator
+forever at whatever was in the tree the day the run happened.
