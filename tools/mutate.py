@@ -70,6 +70,7 @@ SCRIPT_TESTS: Final = ("tests/unit/test_trackc.py",)
 LIVE_TESTS: Final = ("tests/integration/test_live_path.py",)
 WIRE_TESTS: Final = ("tests/unit/test_live_path_wire.py",)
 REPORT_TESTS: Final = ("tests/unit/test_replay_report.py",)
+LADDER_TESTS: Final = ("tests/unit/test_ladder.py",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1018,6 +1019,74 @@ def _wire_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _ladder_mutations() -> tuple[Mutation, ...]:
+    """`ladder.py`. First tier under §5's second rule: it feeds the headline.
+
+    ADR-054 is the README's lead finding and this module is what will restate
+    it, on human speech, with the artifacts committed this time. Every mutation
+    below moves a *published* firing time, and each does so silently — the
+    output stays a plausible table of milliseconds, which is the failure mode
+    §5 reserves the first tier for.
+
+    The anchor mutation is the one that was a live defect rather than a
+    hypothetical: the first draft of `build_from_halves` measured the hold from
+    the file length, and `say` leaves ~32 ms of sub-threshold tail, so every
+    prediction sat that much late in the direction that flatters the service.
+    """
+    src = "src/nod_bench/ladder.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, LADDER_TESTS)
+
+    return (
+        mutation(
+            "ladder: anchor the hold to the file length, not the acoustic end",
+            "    prefix_end = runs[-1].end_ms if runs else file_end",
+            "    prefix_end = file_end",
+        ),
+        mutation(
+            "ladder: score the requested hold instead of the delivered one",
+            "                    hold_measured_ms=cont_start - prefix_end,",
+            "                    hold_measured_ms=hold,",
+        ),
+        mutation(
+            "ladder: let one row report a spread, so a single point is a result",
+            "    return max(values) - min(values) if len(values) >= 2 else None",
+            "    return max(values) - min(values) if len(values) >= 1 else None",
+        ),
+        mutation(
+            "ladder: count the end-of-clip boundary as an in-hold one",
+            "            if self.prefix_end_ms < b.fired_at_ms < hold_end:",
+            "            if self.prefix_end_ms < b.fired_at_ms:",
+        ),
+        mutation(
+            "ladder: shrink the tail below conservative's gate",
+            "TAIL_SILENCE_MS: Final = 4030",
+            "TAIL_SILENCE_MS: Final = 3000",
+        ),
+        mutation(
+            "ladder: collapse the confidence hypothesis onto the min gate",
+            "        silence_ms = max(float(min_gate_ms), confidence_ms)",
+            "        silence_ms = float(min_gate_ms)",
+        ),
+        mutation(
+            "ladder: salvage a mis-segmented take instead of refusing it",
+            "    if len(runs) != wanted:",
+            "    if False:",
+        ),
+        mutation(
+            "ladder: score the time before the in-hold call",
+            "    if prediction.fires_in_hold != (observed is not None):\n        return False",
+            "    if prediction.fires_in_hold != (observed is not None):\n        return bool(\n            row.boundaries\n            and min(\n                abs(b.fired_at_ms - prediction.fired_at_ms) for b in row.boundaries\n            )\n            <= tolerance_ms\n        )",
+        ),
+        mutation(
+            "ladder: drift the silence floor away from the corpus floor",
+            "SILENCE_FLOOR_DBFS: Final = -44.0",
+            "SILENCE_FLOOR_DBFS: Final = -40.0",
+        ),
+    )
+
+
 def _flush_mutations() -> tuple[Mutation, ...]:
     """`is_caller_turn`. First tier: it decides what FRAG and TTL are computed over.
 
@@ -1280,6 +1349,7 @@ CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "report": _report_mutations(),
     "wire": _wire_mutations(),
     "flush": _flush_mutations(),
+    "ladder": _ladder_mutations(),
     "selftest": _self_test_mutations(),
 }
 """Mutations per module, first tier only (CLAUDE.md §5)."""

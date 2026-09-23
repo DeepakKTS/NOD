@@ -1,0 +1,297 @@
+{
+ "label": "say",
+ "sample_rate": 16000,
+ "tail_silence_ms": 4030,
+ "overhead_ms": 160,
+ "confidence_ms": 590.0,
+ "tolerance_ms": 120,
+ "grid_ms": 80,
+ "geometry": [
+  {
+   "hold_label_ms": 500,
+   "hold_measured_ms": 532,
+   "prefix_end_ms": 2240,
+   "continuation_start_ms": 2772,
+   "continuation_end_ms": 4050,
+   "total_ms": 8079
+  },
+  {
+   "hold_label_ms": 1000,
+   "hold_measured_ms": 1032,
+   "prefix_end_ms": 2240,
+   "continuation_start_ms": 3272,
+   "continuation_end_ms": 4550,
+   "total_ms": 8579
+  },
+  {
+   "hold_label_ms": 2000,
+   "hold_measured_ms": 2032,
+   "prefix_end_ms": 2240,
+   "continuation_start_ms": 4272,
+   "continuation_end_ms": 5550,
+   "total_ms": 9579
+  },
+  {
+   "hold_label_ms": 3500,
+   "hold_measured_ms": 3532,
+   "prefix_end_ms": 2240,
+   "continuation_start_ms": 5772,
+   "continuation_end_ms": 7050,
+   "total_ms": 11079
+  }
+ ],
+ "predictions": [
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2560.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 4610.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 500,
+   "hypothesis": "confidence",
+   "fires_in_hold": false,
+   "fired_at_ms": 4800.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 4610.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 5490.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 500,
+   "hypothesis": "confidence",
+   "fires_in_hold": false,
+   "fired_at_ms": 4800.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 5010.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 7810.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 500,
+   "hypothesis": "confidence",
+   "fires_in_hold": false,
+   "fired_at_ms": 5010.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 1000,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2560.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 1000,
+   "hypothesis": "max_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 1000,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 1000,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 1000,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 5990.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 1000,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 1000,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 3200.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 1000,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 8310.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 1000,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 3200.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 2000,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2560.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 2000,
+   "hypothesis": "max_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 2000,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 2000,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 2000,
+   "hypothesis": "max_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 3680.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 2000,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 2000,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 3200.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 2000,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 9310.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 2000,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 3200.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2560.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "aggressive",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 2800.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 3680.0
+  },
+  {
+   "arm": "balanced",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 2990.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 3500,
+   "hypothesis": "min_gate",
+   "fires_in_hold": true,
+   "fired_at_ms": 3200.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 3500,
+   "hypothesis": "max_gate",
+   "fires_in_hold": false,
+   "fired_at_ms": 10810.0
+  },
+  {
+   "arm": "conservative",
+   "hold_label_ms": 3500,
+   "hypothesis": "confidence",
+   "fires_in_hold": true,
+   "fired_at_ms": 3200.0
+  }
+ ]
+}
