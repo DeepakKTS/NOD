@@ -25,11 +25,13 @@ from nod_bench.ladder import (
     Prediction,
     TakeSegmentationError,
     build_from_halves,
+    envelope_of,
     hold_invariance_ms,
     predict,
     scores,
     segment_take,
     speech_runs,
+    timeline_svg,
 )
 from nod_bench.replay import STATIC_ARMS
 
@@ -361,3 +363,98 @@ def test_scores_needs_the_time_when_both_agree_a_boundary_landed() -> None:
     row = _row("balanced", 2000, 2990.0)
     assert scores(row, _prediction(in_hold=True, at=2990.0)) is True
     assert scores(row, _prediction(in_hold=True, at=2560.0)) is False
+
+
+def _whole(arm: str) -> LadderRow:
+    """`balanced` on the 500 ms row: one turn, ending only at end of stream."""
+    return LadderRow(
+        arm=arm,
+        hold_label_ms=500,
+        hold_measured_ms=532,
+        prefix_end_ms=2240,
+        boundaries=(
+            ObservedBoundary(
+                fired_at_ms=5406.0,
+                silence_started_ms=3840.0,
+                turn_order=0,
+                word_count=10,
+                text="",
+            ),
+        ),
+        flush_turns=0,
+    )
+
+
+def test_the_timeline_draws_its_provenance_and_its_turn_counts_inside_the_image() -> (
+    None
+):
+    """A chart leaves the repository as an image; a caption does not (ADR-016).
+
+    This SVG is the demo video's cold open, so it is the most likely artifact
+    in the project to be screenshotted away from its markdown. Two things have
+    to survive that: which run produced it, and the turn count per row — "two
+    turns versus one turn" is the entire claim the picture makes, and a viewer
+    should not have to count tick marks to check it.
+    """
+    rows = (_whole("aggressive"), _whole("balanced"))
+    svg = timeline_svg(
+        rows, (0.5, 1.0, 0.2), 8079.0, caption="ladder_say_500.wav - run X"
+    )
+    assert "ladder_say_500.wav - run X" in svg
+    assert "aggressive" in svg and "balanced" in svg
+    assert svg.count("1 turn<") == 2, "each row carries its own count"
+    assert "1 turns" not in svg, "the singular must not read '1 turns'"
+
+
+def test_the_timeline_counts_turns_per_row_and_does_not_share_one_count() -> None:
+    """Two arms with different turn counts must render different numbers.
+
+    The failure this guards is a loop that computes the count once outside it
+    and draws it on every row — which would put `aggressive`'s split on
+    `balanced` and destroy the comparison the video is built on. The fixture
+    uses 2 against 1 so a shared count cannot be right for both.
+    """
+    split = LadderRow(
+        arm="aggressive",
+        hold_label_ms=500,
+        hold_measured_ms=532,
+        prefix_end_ms=2240,
+        boundaries=(
+            ObservedBoundary(
+                fired_at_ms=2855.0,
+                silence_started_ms=1920.0,
+                turn_order=0,
+                word_count=6,
+                text="",
+            ),
+            ObservedBoundary(
+                fired_at_ms=4587.0,
+                silence_started_ms=3840.0,
+                turn_order=1,
+                word_count=4,
+                text="",
+            ),
+        ),
+        flush_turns=0,
+    )
+    whole = _whole("balanced")
+    svg = timeline_svg((split, whole), (1.0,), 8079.0, caption="c")
+    assert "2 turns" in svg
+    assert "1 turn<" in svg
+
+
+def test_the_envelope_normalises_to_its_own_peak() -> None:
+    """A quiet clip and a loud one must draw the same height.
+
+    Drawing absolute amplitude would make the waveform a picture of the
+    recording level rather than of where the speech is, and the hold is read
+    off exactly that contrast.
+    """
+    loud = envelope_of(np.concatenate([tone(200), hush(200), tone(200)]))
+    quiet = envelope_of(
+        np.concatenate(
+            [tone(200, amplitude=0.02), hush(200), tone(200, amplitude=0.02)]
+        )
+    )
+    assert max(loud) == pytest.approx(1.0)
+    assert max(quiet) == pytest.approx(1.0)

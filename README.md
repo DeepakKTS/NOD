@@ -97,6 +97,8 @@ Corpus is synthetic speech from one macOS `say` voice, whose own manifest states
 TCT and RES are **not reported**: both need a caller who reacts to being cut off, and recorded audio does not (ADR-046).
 Endpoint overhead 217 ms; percentiles nearest-rank, inclusive.
 
+> **PCR is unreliable on a live run, and by more than it looks.** Deciding whether a boundary was premature means deciding which ground-truth gap it fell in, and live that lookup uses `emitted_silence_start_ms` — the service's last-word timing, because the service does not report where it started counting silence (ADR-036). Gate 4e measured that field against the audio and it is not a clock offset that could be subtracted out: on one clip it puts the prefix's end **560 ms late** and the continuation's **190-250 ms early**, in the same session. Track A's gaps are 100-2200 ms, so an error that size moves boundaries between neighbouring gaps and **every PCR figure above may be attributed to the wrong gap** (ADR-055). TTL and FRAG do not use the field and are unaffected. Not fixed; the figures are left standing and labelled rather than withdrawn, because the size of the error is known and its direction is not.
+
 > **These intervals understate the uncertainty.** They are the interquartile range over live repeats, which measures run-to-run variation only. At n=12 the dominant term is *which clips were drawn*, and this estimator does not carry it — which is why several are zero-width, reading as precision that is not there. ADR-049 replaced it with a cluster bootstrap over clips for exactly this reason. **Re-rendering this table under it is not possible from the committed artifacts** — a bootstrap resamples clips and only per-arm aggregates were persisted, so it needs the sweep re-run (ADR-052). Later runs write `observations.live.json` and are re-analysable.
 <!-- BENCH_TABLE_END -->
 
@@ -149,8 +151,16 @@ sockets opened:
 | 2400 ms | 4800 | **4814** | **2574 ms** |
 
 At 2400 the service held the turn open for **2.57 seconds** after the caller
-stopped mid-sentence on a preposition, then took the continuation as the same
-turn. That is the behaviour this project exists to produce, measured live.
+stopped mid-sentence on a preposition — **3.2x** the 777 ms it allows at the
+`balanced` default. The lever is continuous across that range and it is the
+thing a controller can actually move.
+
+**It did not keep the utterance whole, and that is worth stating.** All four
+swept arms emitted **two** turns on this clip: the pause was 3532 ms and even
+2574 ms of patience ends before the caller resumes. Keeping a pause whole needs
+`min_turn_silence` above the pause itself, which is past anything measured here.
+What the sweep shows is that the knob buys time continuously, not that this
+setting buys enough.
 
 **What it costs us.** Two defects in our own controller, found by measurement
 and **not fixed inside the freeze**, because changing a control-law constant on
@@ -237,15 +247,22 @@ benchmark that does publish them can see which two are missing and why.
 - Nod adapts to pauses. It does not interpret them. There is no inference of emotion,
   stress, honesty, or any clinical condition from speech timing, and there never will be.
 - **What the test numbers certify, which is less than they look.** The suite reports
-  714 passing tests, 98.18 % line coverage and `149/149` mutations killed. Read
+  740 passing tests, 98.18 % line coverage and **182 mutations** killed. Read
   precisely: mutation coverage is **file-granular**, so a kill proves *some* test in
-  that file noticed the change, never which — `149/149` certifies files, not tests.
-  Coverage certifies **lines executed**, not behaviour asserted. And **24 of 38 test
-  files are the target of no mutation at all**, holding **264 of 565 test definitions,
-  so 47 % of the suite has never been given anything to catch** (ADR-053). A floor does
+  that file noticed the change, never which — it certifies files, not tests.
+  Coverage certifies **lines executed**, not behaviour asserted. And **23 of 39 test
+  files are the target of no mutation at all**, holding **258 of 589 test definitions,
+  so 44 % of the suite has never been given anything to catch** (ADR-053). That census
+  is checked against the tree by `test_the_readme_mutation_census_matches_the_tree`,
+  because the previous copy of this paragraph said 38 files and 565 definitions for two
+  gates after both had changed — stale, and stale in the flattering direction. A floor does
   exist where it matters most: over the published-number path's fast suites — metrics,
-  report and the wire encoding — **22 of 79 definitions have individually been seen
-  red**. This is stated because the alternative is a reader taking three large green
+  report and the wire encoding — **at least 22 of 82 definitions have individually been
+  seen red**. "At least" is doing real work: the 22 was counted at Gate 4d against 79
+  definitions, three have been added since with mutations that kill them, and the
+  per-test audit has not been re-run because it roughly doubles a full pass. The stale
+  numerator is reported against the current denominator deliberately, so the figure
+  understates rather than flatters. This is stated because the alternative is a reader taking three large green
   numbers as three guarantees, and Gate 4b found a fix whose test had never once failed.
 
 - **The corpus is synthetic speech from one macOS `say` voice, and every published
@@ -287,5 +304,11 @@ benchmark that does publish them can see which two are missing and why.
 | `docs/ROADMAP.md` | build plan and cut list |
 | `docs/DEPLOYMENT.md` | config, rollout, runbook |
 | `docs/DECISIONS.md` | ADR log |
+| `docs/PILOT_REGIME.md` | the pause ladder, its verdict, and how to re-run it |
+| `docs/VIDEO_SCRIPT.md` | demo shot list, every on-screen number traced |
+| `docs/SUBMISSION.md` | submission copy and the claims kept out of it |
+| `docs/deck.html` | deck source; `make deck` renders `docs/nod-deck.pdf` |
+| `CONTRIBUTING.md` | how to run the gate, and where the coverage goes |
 
-MIT licensed.
+**Code is MIT. The audio under `data/` is not** — it is macOS `say` output and not ours
+to relicense. See [`LICENSE`](LICENSE).

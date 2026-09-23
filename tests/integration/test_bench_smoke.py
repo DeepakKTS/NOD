@@ -10,12 +10,20 @@ API key (BENCH_SPEC.md §7).
 from __future__ import annotations
 
 import importlib
+import json
+import re
+import sys
 from pathlib import Path
 from typing import Final
 
 import pytest
 
 from nod_bench import metrics, report
+
+REPO: Final = Path(__file__).resolve().parents[2]
+
+CONFIDENCE_MS: Final = 590.0
+"""The commit point ADR-055 publishes. Mirrors `scripts/pilot_ladder.py`."""
 
 BENCH_MODULES = (
     "nod_bench.corpus",
@@ -166,3 +174,119 @@ def test_the_readme_provenance_check_rejects_a_hand_written_number(
         "with no live artifact present, a region carrying a table is exactly the "
         "INV-9 violation the guard must reject"
     )
+
+
+def test_the_readme_mutation_census_matches_the_tree() -> None:
+    """The honest-scope census must not drift away from the catalogue.
+
+    ADR-053 published "24 of 38 test files ... 264 of 565 test definitions" and
+    the README carried it. Two gates later the tree had 39 files and 587
+    definitions and the README still said 38 and 565 — stale, and stale in the
+    **flattering** direction, because the share of the suite that has never been
+    given anything to catch had grown while the printed figure had not.
+
+    These are the drift-prone numbers precisely because they are boring: nobody
+    recounts them, and a reader cannot tell a current census from a two-week-old
+    one. Recomputed here from `tools/mutate.py`'s catalogue and the test tree,
+    so the README goes red rather than quietly wrong.
+
+    Deliberately not asserting the passing-test count: that changes on every
+    added test and would turn this into a chore that gets silenced. The census
+    changes only when mutation coverage genuinely moves.
+    """
+    sys.path.insert(0, str(REPO / "tools"))
+    import mutate as mutate_tool
+
+    tests_root = REPO / "tests"
+    files = sorted(tests_root.rglob("test_*.py"))
+    targeted = {
+        REPO / t
+        for name, muts in mutate_tool.CATALOGUE.items()
+        if name != "selftest"
+        for m in muts
+        for t in m.tests
+    }
+    untargeted_files = [f for f in files if f not in targeted]
+    definitions = {
+        f: len(re.findall(r"^(?:async )?def test_", f.read_text(), re.M)) for f in files
+    }
+    total_defs = sum(definitions.values())
+    untargeted_defs = sum(definitions[f] for f in untargeted_files)
+
+    readme = (REPO / "README.md").read_text()
+    assert f"{len(untargeted_files)} of {len(files)} test" in readme, (
+        f"README's untargeted-file census is stale: tree says "
+        f"{len(untargeted_files)} of {len(files)}"
+    )
+    assert f"{untargeted_defs} of {total_defs} test definitions" in readme, (
+        f"README's definition census is stale: tree says "
+        f"{untargeted_defs} of {total_defs}"
+    )
+    catalogued = sum(
+        len(m) for name, m in mutate_tool.CATALOGUE.items() if name != "selftest"
+    )
+    assert f"{catalogued} mutations" in readme, (
+        f"README's mutation count is stale: catalogue holds {catalogued}"
+    )
+
+
+def test_the_clamp_model_still_fits_every_committed_in_hold_row() -> None:
+    """ADR-055's headline, guarded against the artifacts it was read from.
+
+    The deck, the README and the video all say "two parameters, thirteen live
+    rows, all inside 120 ms". That sentence was true when it was computed in a
+    shell, and nothing in the suite would have noticed it going false — if
+    `predict`'s clamp branch drifted, or `CONFIDENCE_MS` moved, or an
+    observations file were regenerated from a different run, the claim would
+    stay in three documents and stop being true.
+
+    The 13 is asserted explicitly rather than derived from the files: deriving
+    it would make this pass for any number of rows, including zero, which is
+    the vacuous-invariant shape CLAUDE.md §5 opens with. A run that produced
+    fewer in-hold boundaries is a different experiment and should fail here.
+    """
+    from nod_bench.ladder import LadderGeometry, LadderRow, predict, scores
+    from nod_bench.replay import STATIC_ARMS
+
+    runs = REPO / "bench" / "runs"
+    checked = 0
+    for label in ("say", "sweep"):
+        observed = json.loads((runs / f"pilot_ladder.{label}.live.json").read_text())
+        pre = json.loads(
+            (runs / f"pilot_ladder.{label}.live.predictions.json").read_text()
+        )
+        geometry = {
+            g["hold_label_ms"]: LadderGeometry.model_validate(g)
+            for g in pre["geometry"]
+        }
+        arms = pre.get("arms")
+        for raw in observed["rows"]:
+            row = LadderRow.model_validate(raw)
+            if row.in_hold is None:
+                continue
+            settings = arms[row.arm] if arms else None
+            min_gate = (
+                int(settings["min_turn_silence"])
+                if settings
+                else STATIC_ARMS[row.arm].min_turn_silence
+            )
+            max_gate = (
+                int(settings["max_turn_silence"])
+                if settings
+                else STATIC_ARMS[row.arm].max_turn_silence
+            )
+            prediction = predict(
+                geometry[row.hold_label_ms],
+                row.arm,
+                min_gate,
+                max_gate,
+                "clamped",
+                confidence_ms=CONFIDENCE_MS,
+            )
+            assert scores(row, prediction), (
+                f"{label}/{row.arm}/hold {row.hold_label_ms}: observed "
+                f"{row.in_hold.fired_at_ms:.0f} vs predicted "
+                f"{prediction.fired_at_ms:.0f}"
+            )
+            checked += 1
+    assert checked == 13, f"the published claim is about 13 rows, found {checked}"

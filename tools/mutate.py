@@ -70,6 +70,7 @@ SCRIPT_TESTS: Final = ("tests/unit/test_trackc.py",)
 LIVE_TESTS: Final = ("tests/integration/test_live_path.py",)
 WIRE_TESTS: Final = ("tests/unit/test_live_path_wire.py",)
 REPORT_TESTS: Final = ("tests/unit/test_replay_report.py",)
+SMOKE_TESTS: Final = ("tests/integration/test_bench_smoke.py",)
 LADDER_TESTS: Final = ("tests/unit/test_ladder.py",)
 
 
@@ -1093,6 +1094,29 @@ def _ladder_mutations() -> tuple[Mutation, ...]:
             "    if prediction.fires_in_hold != (observed is not None):\n        return False",
             "    if prediction.fires_in_hold != (observed is not None):\n        return bool(\n            row.boundaries\n            and min(\n                abs(b.fired_at_ms - prediction.fired_at_ms) for b in row.boundaries\n            )\n            <= tolerance_ms\n        )",
         ),
+        Mutation(
+            "clamp: drop the max ceiling, against the committed observations",
+            "src/nod_bench/ladder.py",
+            "        silence_ms = min(max(float(min_gate_ms), confidence_ms), "
+            "float(max_gate_ms))",
+            "        silence_ms = max(float(min_gate_ms), confidence_ms)",
+            SMOKE_TESTS,
+        ),
+        mutation(
+            "svg: draw one turn count for every row",
+            "        turns = len(row.boundaries)",
+            "        turns = len(rows[0].boundaries)",
+        ),
+        mutation(
+            "svg: drop the provenance caption from the image",
+            '        f\'<text x="12" y="22" fill="#7d8b9a" font-size="13">{caption}</text>\',',
+            '        "",',
+        ),
+        mutation(
+            "svg: draw absolute amplitude, so the waveform shows recording level",
+            "    return tuple(min(1.0, v / peak) for v in vals)",
+            "    return tuple(min(1.0, v) for v in vals)",
+        ),
         mutation(
             "ladder: drift the silence floor away from the corpus floor",
             "SILENCE_FLOOR_DBFS: Final = -44.0",
@@ -1165,7 +1189,35 @@ def _report_mutations() -> tuple[Mutation, ...]:
 
     src = "src/nod_bench/report.py"
 
+    _pcr = (
+        mutation(
+            "pcr-caveat: drop it from every run",
+            src,
+            '    return ["", PCR_ANCHOR_CAVEAT] if live else []',
+            "    return []",
+        ),
+        mutation(
+            "pcr-caveat: emit it on simulated runs too, so it stops being read",
+            src,
+            '    return ["", PCR_ANCHOR_CAVEAT] if live else []',
+            '    return ["", PCR_ANCHOR_CAVEAT]',
+        ),
+        mutation(
+            "pcr-caveat: keep the warning, drop the measured size of the error",
+            src,
+            "    \"one clip it puts the prefix's end **560 ms late** and the continuation's \"",
+            "    \"one clip it puts the prefix's end late and the continuation's \"",
+        ),
+        mutation(
+            "pcr-caveat: unpin the footer call site",
+            src,
+            "    lines.extend(_pcr_anchor_caveat(live))",
+            "    lines.extend([])",
+        ),
+    )
+
     return (
+        *_pcr,
         mutation(
             "EC-38: never call a comparison inconclusive",
             src,

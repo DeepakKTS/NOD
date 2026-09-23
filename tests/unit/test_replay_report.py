@@ -42,6 +42,8 @@ from nod_bench.report import (
     README_TABLE_END,
     README_TABLE_START,
     ArmPoint,
+    _pcr_anchor_caveat,
+    _provenance_footer,
     bootstrap_points,
     cluster_bootstrap_points,
     pareto_svg,
@@ -673,3 +675,45 @@ def test_a_live_table_says_the_bars_cover_both_sources() -> None:
     assert CLUSTER_BAR_LABEL in table
     assert BAR_LABEL not in table
     assert LIVE_BAR_LABEL not in table
+
+
+def test_a_live_footer_warns_that_pcr_may_be_attributed_to_the_wrong_gap() -> None:
+    """The PCR anchor defect reaches the published footer, generated.
+
+    ADR-055 measured `emitted_silence_start_ms` — the field `pcr` uses to
+    decide which gap governs a live boundary — disagreeing with the audio by
+    +560 ms on one turn and -190 to -250 ms on the next *in the same session*.
+    The caveat is generated rather than typed into README.md beside the table,
+    because INV-9 owns that region and a hand-written warning next to a
+    machine-written number is the first thing to drift.
+
+    Asserted on the substance, not on a substring of the constant: a test that
+    checked `PCR_ANCHOR_CAVEAT in footer` would pass for any text at all,
+    including an empty string.
+    """
+    footer = "\n".join(_pcr_anchor_caveat(live=True))
+    assert "PCR" in footer
+    assert "560" in footer, "the measured size of the error has to travel"
+    assert "wrong gap" in footer
+    assert "TTL and FRAG do not use the field" in footer, (
+        "a blanket warning would overstate: only PCR reads the anchor"
+    )
+
+
+def test_a_simulated_footer_carries_no_pcr_anchor_warning() -> None:
+    """The exemption is real, and asserting it stops the caveat going blanket.
+
+    `FakeAssemblyAI` reports the silence start it actually used, so the
+    simulated lookup is exact. Warning there would tell a reader the simulated
+    figures are suspect when they are not — the opposite error, and the one
+    that makes a caveat stop being read.
+    """
+    assert _pcr_anchor_caveat(live=False) == []
+
+
+def test_the_live_provenance_footer_includes_the_pcr_caveat() -> None:
+    """The wiring, not the function. A unit test of a helper does not cover
+    the call site that reaches it (CLAUDE.md §5, ADR-015)."""
+    live = _manifest(12).model_copy(update={"simulated": False})
+    footer = "\n".join(_provenance_footer(None, live))
+    assert "wrong gap" in footer

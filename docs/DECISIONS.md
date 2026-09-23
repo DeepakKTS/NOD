@@ -2910,9 +2910,17 @@ sockets opened:
 | 2400 | 4800 | **4814** | 2574 ms |
 
 4 / 4 inside the 120 ms tolerance. At 2400 the service held the turn open for **2574 ms**
-after the caller stopped mid-sentence, on a preposition, and then accepted the
-continuation as the same turn. That is the behaviour this project exists to produce, and
-it is now measured on the real service rather than argued for. It also reproduces ADR-001,
+after the caller stopped mid-sentence on a preposition — **3.2x** the 777 ms the
+`balanced` default allows, and continuous across the range.
+
+**Corrected before it reached a slide:** an earlier draft of this ADR said the service
+"then accepted the continuation as the same turn". It did not. All four swept arms emitted
+**two** turns on this clip — the hold is 3532 ms and even 2574 ms of patience expires
+958 ms before the caller resumes. Keeping a pause whole requires `min_turn_silence` to
+exceed the pause, which is past anything measured. The claim was flattering, it was mine,
+and it was wrong; the sweep shows the knob buys time continuously, not that this setting
+buys enough. The check that caught it was reading `len(boundaries)` per row against the
+sentence, and it cost nothing. It also reproduces ADR-001,
 which measured `min_turn_silence` LIVE and continuous to 2175 ms and was never connected
 to the endpointing question.
 
@@ -2944,6 +2952,17 @@ the other arms emit one, splitting the prefix, with the second landing within ~1
 `balanced`'s single boundary on every hold. The max-gate reading above explains the first.
 The internal split point cannot be pinned down, because the only evidence for it is the
 word-end field the paragraph above just disqualified.
+**What the artifact record does and does not prove about the pre-registration.** The
+runner refuses to start without a predictions file, so the ordering held at runtime for
+both ladders. The *history* corroborates only the first: the `say` predictions are in
+`f3e7838` and the results they predict arrive in the next commit, `b7c3ccc`. The
+**sweep** predictions and the sweep results landed together in `b7c3ccc`, so for the
+headline experiment the guarantee rests on the tool and not on the record. That is
+weaker than it was described as, and the distinction is exactly the one this project
+keeps having to make — a process that was followed and a process that can be *shown* to
+have been followed are different claims. From here, predictions are committed in their
+own commit before the socket opens; it costs one `git commit`.
+
 Consequence: ADR-054 is superseded on its conclusion and kept on its observation. The
 README headline changes from "the gate does not engage" to what was actually measured.
 `MIN_MS_CEIL` and ADR-011's choice of primary lever are both now known to be wrong and

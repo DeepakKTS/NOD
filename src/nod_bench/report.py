@@ -765,7 +765,48 @@ def _provenance_footer(
         f"Endpoint overhead {manifest.endpoint_overhead_ms:.0f} ms; "
         f"percentiles {manifest.quantile_method}."
     )
+    lines.extend(_pcr_anchor_caveat(live))
     return lines
+
+
+PCR_ANCHOR_CAVEAT: Final = (
+    "> **PCR is unreliable on a live run, and by more than it looks.** Deciding "
+    "whether a boundary was premature means deciding which ground-truth gap it "
+    "fell in, and live that lookup uses `emitted_silence_start_ms` — the "
+    "service's last-word timing, because the service does not report where it "
+    "started counting silence (ADR-036). Gate 4e measured that field against "
+    "the audio and it is not a clock offset that could be subtracted out: on "
+    "one clip it puts the prefix's end **560 ms late** and the continuation's "
+    "**190-250 ms early**, in the same session. Track A's gaps are 100-2200 ms, "
+    "so an error that size moves boundaries between neighbouring gaps and "
+    "**every PCR figure above may be attributed to the wrong gap** (ADR-055). "
+    "TTL and FRAG do not use the field and are unaffected. Not fixed; the "
+    "figures are left standing and labelled rather than withdrawn, because the "
+    "size of the error is known and its direction is not."
+)
+"""Why a live PCR figure cannot be read at face value (ADR-055).
+
+Generated into the footer rather than written into README.md by hand, because
+INV-9 owns every number-adjacent claim in that region and a caveat typed beside
+a machine-written table is the first thing to drift away from it.
+"""
+
+
+def _pcr_anchor_caveat(live: bool) -> list[str]:
+    """The PCR anchor warning, on live runs only. Pure. `O(1)`.
+
+    Simulated runs are exempt and that is a real distinction rather than an
+    oversight: `FakeAssemblyAI` reports the silence start it actually used, so
+    the simulated lookup is exact. The defect is a property of the real
+    service's word-timing field, so it attaches to the runs that touched it.
+
+    Args:
+        live: Whether this run went against the real API.
+
+    Returns:
+        The caveat lines, or empty for a simulated run.
+    """
+    return ["", PCR_ANCHOR_CAVEAT] if live else []
 
 
 def render_all(

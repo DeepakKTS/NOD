@@ -178,6 +178,16 @@ metrics: ## Recompute every metric from committed traces, zero API spend
 report: ## Render the self-contained HTML report card
 	$(RUN_BENCH) python -m nod_bench.report --runs bench/runs --out bench/report.html
 
+deck: ## Render docs/deck.html to docs/nod-deck.pdf (needs Google Chrome)
+	@# Chrome headless rather than a Python PDF library: the deck embeds the
+	@# timeline SVGs that `pilot_ladder.py svg` writes, and rendering them
+	@# anywhere other than a browser would mean a second renderer that could
+	@# disagree with the one in the video.
+	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+	  --headless --disable-gpu --no-pdf-header-footer \
+	  --print-to-pdf=docs/nod-deck.pdf docs/deck.html
+	@echo "wrote docs/nod-deck.pdf"
+
 audit: ## Check dependencies for known vulnerabilities
 	$(RUN) pip-audit --strict
 

@@ -391,6 +391,59 @@ lines. That file is long-term memory; this file is the standing contract.
     experiment without first writing down what it should produce is what kept that
     distinction real.
 
+  - **The number was right and the sentence around it was wrong — twice in two gates.**
+    Gate 4e's sweep table was correct to the millisecond, and the line published beside it
+    said the service "then accepted the continuation as the same turn". It did not. All
+    four swept arms emitted **two** turns: the pause was 3532 ms and even 2574 ms of
+    patience expires 958 ms before the caller resumes. The check was `len(boundaries)` per
+    row — one field, already in the committed JSON, costing nothing — and it was not run
+    because the *number* had been checked and the number was fine.
+    This is ADR-054's shape one level down. There, the measurement reproduced exactly and
+    the conclusion drawn from it was false. Here, the measurement was exact and the
+    sentence wrapped around it was false. Both errors flattered. Both survived into a
+    published document. **A number is not a claim; the sentence containing it is, and it
+    needs its own evidence.** The practical form: for every clause of the form "and then X
+    happened", name the field that would show X, and look at it. If no field would show it,
+    the clause is an inference and has to be labelled as one.
+  - **Two commands were claimed in files about to be published, and neither exists.** A
+    draft `LICENSE` told a reader to regenerate the corpus with `make seed`; there is no
+    such target. `docs/PROMPTS.md` documents a CLI `python -m nod_bench.corpus build`;
+    `corpus.main` is a stub that raises `NotImplementedError`. Both were caught by running
+    `grep '^seed' Makefile` before shipping, which took one second.
+    The reason it is worth an entry: **a prompt file and a licence file both read as
+    descriptions of the system, and neither is executed by anything.** Nothing in the suite
+    touches them, so they drift silently — this is the ADR-052 "promised subsystem outlived
+    its code" entry, in the file types least likely to be checked. Before a repository goes
+    public, every command appearing in a non-code file should be run or grepped for. Both
+    are now marked as unbuilt rather than deleted, because PROMPTS.md is a record of what
+    was *asked for* and that is worth keeping — as long as it does not read as a record of
+    what was delivered.
+  - **A process that was followed, and a process that can be shown to have been followed,
+    are different claims — and a commit hash was invented to bridge them.** The ladder
+    runner refuses to start without a predictions file, so pre-registration genuinely held
+    for both experiments. Writing it up, a video shot cited "committed in `54dcd0a`, before
+    the run in `b29d630`". **`54dcd0a` does not exist**; it was produced to fit a sentence,
+    and a reader would have spent a minute proving the project had fabricated its own
+    provenance. Checking it took `git log -1 54dcd0a`.
+    Checking then exposed the real gap: the ordering *is* visible in the history for the
+    first ladder (`f3e7838` predicts, `b7c3ccc` observes) and **is not for the sweep**,
+    whose predictions and results landed in one commit. So the headline experiment's
+    guarantee rests on the tool's refusal and not on the record — weaker than it had been
+    described, and only weaker for the result that matters most.
+    Two rules. **Never write an identifier you have not just read** — hashes, ticket
+    numbers, file paths, line numbers; they are the cheapest possible thing to verify and
+    the most damaging to get wrong, because they look like evidence. And when a discipline
+    is enforced by tooling, ask separately whether the *artifacts* record it; if they do
+    not, either fix the artifact trail or describe the guarantee as what it is. Predictions
+    now go in their own commit before the socket opens, which costs one `git commit`.
+
+  - **Counts written by eye were wrong three times out of three.** The submission copy's
+    title, short and long descriptions were labelled 44 / 238 / 341 against an actual
+    43 / 230 / 354. Harmless here, and the point is the hit rate: these are the easiest
+    possible numbers to check and the estimate missed every one. INV-9 exists for figures
+    in documents; the same reflex belongs on any count, including ones that feel too small
+    to bother measuring. The doc now carries the one-liner that measures them.
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.

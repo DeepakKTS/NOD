@@ -79,6 +79,20 @@ Tests: determinism, truth-boundary correctness (the inserted pause is exactly wh
 sidecar says), and that no perturbation changes total speech content.
 ```
 
+> **Two lines of that prompt were never built, noted at Gate 4f because the repository
+> is about to go public and a prompt reads like a description.** `corpus.main` is a stub
+> that raises `NotImplementedError`, so **`python -m nod_bench.corpus build` does not
+> exist**; the corpus is built by calling `corpus.build`, which is what `make bench`
+> does. And the source clips are not "CC-licensed" — they are macOS `say` output, and
+> the manifest has said so since Phase 0 (`LICENSE`, README honest-scope).
+>
+> This file records the prompts that were *issued*, not the code that resulted, and that
+> is worth keeping. But CLAUDE.md §5 has an entry for a docstring that promised a cache
+> nobody built and outlived the stub, and a prompt file is the same hazard with a larger
+> surface. Where a line here was not delivered, it is marked here rather than left for a
+> reader to assume.
+
+
 ## P3 — Feeder, fake upstream and metrics
 
 ```

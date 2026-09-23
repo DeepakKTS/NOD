@@ -1,0 +1,258 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nod — AssemblyAI Voice Agent Hackathon</title>
+<!--
+  Source for docs/nod-deck.pdf. Render with:
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless --disable-gpu --no-pdf-header-footer \
+      --print-to-pdf=docs/nod-deck.pdf docs/deck.html
+
+  Every figure on these slides is either drawn from a committed artifact or
+  names the artifact beside it (INV-9). The two timelines are the files
+  `scripts/pilot_ladder.py svg` writes; they are not redrawn here.
+-->
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0b0f14; color: #e6edf3;
+    font: 400 20px/1.5 ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  section {
+    width: 1280px; height: 720px; padding: 62px 74px;
+    page-break-after: always; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  h1 { font-size: 62px; line-height: 1.1; margin: 0 0 10px; letter-spacing: -1.5px; }
+  h2 { font-size: 40px; line-height: 1.15; margin: 0 0 26px; letter-spacing: -0.8px; }
+  .kicker {
+    font: 600 14px/1 ui-monospace, Menlo, monospace; letter-spacing: 2.4px;
+    text-transform: uppercase; color: #61798f; margin-bottom: 20px;
+  }
+  .lede { font-size: 26px; color: #b9c6d3; max-width: 60ch; }
+  .num { color: #7dd3fc; font-weight: 600; }
+  .bad { color: #f87171; }
+  .good { color: #4ade80; }
+  code, .mono { font-family: ui-monospace, Menlo, monospace; }
+  .src {
+    position: absolute; left: 74px; bottom: 30px; right: 74px;
+    font: 400 13px/1.45 ui-monospace, Menlo, monospace; color: #55697c;
+  }
+  .pg {
+    position: absolute; right: 30px; bottom: 30px;
+    font: 400 12px ui-monospace, Menlo, monospace; color: #3c4c5c;
+  }
+  table { border-collapse: collapse; font-size: 19px; }
+  th, td { padding: 9px 22px 9px 0; text-align: left; }
+  th { color: #61798f; font-weight: 600; font-size: 14px;
+       text-transform: uppercase; letter-spacing: 1.4px; }
+  tr + tr td { border-top: 1px solid #1c2733; }
+  ul { margin: 0; padding-left: 22px; } li { margin-bottom: 11px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 38px; }
+  .card { background: #111823; border: 1px solid #1c2733;
+          border-radius: 10px; padding: 22px 26px; }
+  .card h3 { margin: 0 0 8px; font-size: 21px; }
+  .card p { margin: 0; color: #93a4b5; font-size: 17px; line-height: 1.45; }
+  .eq { font-family: ui-monospace, Menlo, monospace; font-size: 25px;
+        background: #111823; border: 1px solid #1c2733; border-radius: 10px;
+        padding: 22px 26px; color: #e6edf3; }
+  .strike { text-decoration: line-through; color: #6b7a89; }
+  img { width: 100%; border-radius: 8px; border: 1px solid #1c2733; }
+  .fill { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+</style>
+
+<!-- 1 -->
+<section>
+  <div class="kicker">Nod · AssemblyAI Voice Agent Hackathon · Sep 2026</div>
+  <div class="fill">
+    <h1>Every voice agent picks one<br>silence threshold.</h1>
+    <p class="lede">Nobody published what it actually does.</p>
+    <p class="lede" style="margin-top:26px;color:#7f8fa0">
+      Nod measures AssemblyAI's turn-detection knobs against the live service,
+      and moves them mid-call. This deck is what the measurement found —
+      including the part where it contradicted our own headline.
+    </p>
+  </div>
+  <div class="src">Deepak Kumaran T S · github.com/DeepakKTS/NOD · every figure regenerable from committed artifacts</div>
+  <div class="pg">1 / 7</div>
+</section>
+
+<!-- 2 -->
+<section>
+  <div class="kicker">1 · The problem</div>
+  <h2 style="margin-bottom:18px">One threshold, tuned for an average speaker,<br>applied to everyone who calls.</h2>
+  <p class="lede" style="margin-bottom:22px;font-size:23px">
+    It cuts off the people who pause mid-sentence: older callers, non-native
+    speakers, anyone reading a number off a card.
+  </p>
+  <img src="../bench/runs/ladder_say_500.timeline.live.svg" alt="three arms, same audio">
+  <p class="lede" style="margin-top:20px;font-size:22px;margin-bottom:0">
+    Same sentence. Same <span class="num">532 ms</span> pause after
+    <span class="mono">"…my appointment <b>to</b>"</span>. Three configs.
+    The first splits it in <span class="bad">two</span>.
+  </p>
+  <div class="src">bench/runs/pilot_ladder.say.live.json · aggressive [2855, 4587] · balanced [5406] · image written by scripts/pilot_ladder.py svg</div>
+  <div class="pg">2 / 7</div>
+</section>
+
+<!-- 3 -->
+<section>
+  <div class="kicker">2 · The instrument</div>
+  <h2>A benchmark that cannot run before<br>the prediction is written down.</h2>
+  <div class="grid2" style="margin-bottom:30px">
+    <div class="card">
+      <h3>predict → commit → run</h3>
+      <p>The runner exits 2 unless the predictions file already exists. A
+         prediction made after the observation is not a prediction, so the
+         ordering is a refusal in code rather than a habit — enforced at
+         runtime, and for the first ladder visible in the history too
+         (<span class="mono">f3e7838</span> predicts, <span class="mono">b7c3ccc</span>
+         observes).</p>
+    </div>
+    <div class="card">
+      <h3>One clock, on purpose</h3>
+      <p>Firing times are measured from the acoustic end of the audio we are
+         about to feed, not from the service's word timings — which is how the
+         fourth fact on the next slide was found.</p>
+    </div>
+    <div class="card">
+      <h3>A fake for CI, a socket for numbers</h3>
+      <p>Tests never touch the network (INV-7). Every published figure comes
+         from the real API, labelled <span class="mono">.live.</span> in the
+         filename so a chart cannot lose its provenance.</p>
+    </div>
+    <div class="card">
+      <h3>Mutation-tested where it lies</h3>
+      <p>Coverage is deliberately uneven. Full discipline on anything feeding a
+         published number; thinner on plumbing that fails visibly. A wrong
+         number does not fail visibly — it prints a plausible one.</p>
+    </div>
+  </div>
+  <div class="src">src/nod_bench/ladder.py · scripts/pilot_ladder.py · tools/mutate.py · CLAUDE.md §5</div>
+  <div class="pg">3 / 7</div>
+</section>
+
+<!-- 4 -->
+<section>
+  <div class="kicker">3 · What it measured</div>
+  <h2>Four facts about the service.</h2>
+  <table style="margin-bottom:24px">
+    <tr>
+      <td style="width:52%"><b>The confidence threshold is inert for endpointing.</b><br>
+        <span style="color:#93a4b5;font-size:17px">Arms at 0.0 and 1.0 landed 6 ms apart, the high arm <i>earlier</i>.</span></td>
+      <td class="mono" style="color:#93a4b5">69 sessions<br>ADR-001</td>
+    </tr>
+    <tr>
+      <td><b>Turns end on a clamp, not on a gate.</b><br>
+        <span style="color:#93a4b5;font-size:17px">Two parameters, thirteen live rows, all inside 120 ms.</span></td>
+      <td class="mono" style="color:#93a4b5">16 sessions<br>ADR-055</td>
+    </tr>
+    <tr>
+      <td><b><span class="mono">min_turn_silence</span> is continuous to at least 2.4 s.</b><br>
+        <span style="color:#93a4b5;font-size:17px">777 → 2574 ms of patience. <span class="mono">max_turn_silence</span> only binds below C, or at end of stream.</span></td>
+      <td class="mono" style="color:#93a4b5">4 sessions<br>ADR-055</td>
+    </tr>
+    <tr>
+      <td><b>The word-timing field is not a silence anchor.</b><br>
+        <span style="color:#93a4b5;font-size:17px">Prefix end reported <span class="num">560 ms late</span>, continuation <span class="num">190–250 ms early</span> — same session, so not an offset.</span></td>
+      <td class="mono" style="color:#93a4b5">16 sessions<br>ADR-055</td>
+    </tr>
+  </table>
+  <div class="eq" style="font-size:22px">
+    fire_at = prefix_end + clamp(<b>C</b>, min_turn_silence, max_turn_silence) + overhead
+    <span style="color:#61798f">&nbsp; &nbsp; C ≈ 590 ms · overhead ≈ 175 ms</span>
+  </div>
+  <div class="src">C is the service's own commit point. It does not widen with the pause and does not care that the sentence is unfinished.</div>
+  <div class="pg">4 / 7</div>
+</section>
+
+<!-- 5 — the deck is built around this one -->
+<section style="background:#140d0d">
+  <div class="kicker" style="color:#f87171">5 · We published this wrong</div>
+  <h2>Last week the headline was<br><span class="strike">"the regime is unreachable".</span></h2>
+  <div class="grid2" style="gap:44px;margin-bottom:26px">
+    <div>
+      <p style="font-size:21px;color:#b9c6d3;margin:0 0 16px">
+        <b class="bad">ADR-054.</b> Twelve sessions. Firing time did not move with
+        the pause, so <span class="mono">max_turn_silence</span> never engages, so
+        <i>"Nod may be a correct controller for a gate that does not engage."</i>
+      </p>
+      <p style="font-size:21px;color:#b9c6d3;margin:0">
+        <b class="good">ADR-055.</b> The observation reproduced exactly. The
+        conclusion was wrong. <b>Two knobs bracket the same quantity and we varied
+        one.</b> Sweeping the other took four sessions and six minutes.
+      </p>
+    </div>
+    <div>
+      <img src="../bench/runs/ladder_sweep_3500.timeline.live.svg" alt="min sweep">
+      <p style="font-size:17px;color:#93a4b5;margin:14px 0 0">
+        The red line is where the turn ended. The blue band is the caller's pause.
+        Only <span class="mono">min_turn_silence</span> changes.
+      </p>
+    </div>
+  </div>
+  <p style="font-size:21px;color:#e6edf3;margin:0">
+    The correction also says <b>our own controller points at the wrong knob</b>, and
+    <span class="mono">MIN_MS_CEIL = 900</span> caps the working one at a third of its
+    range. Both are still in the code — retuning a control law on one clip of synthetic
+    speech is tuning by ear.
+  </p>
+  <div class="src">docs/DECISIONS.md ADR-054, ADR-055 · the pilot's own PASS criterion was being met on `aggressive` the whole time, and was not checked</div>
+  <div class="pg">5 / 7</div>
+</section>
+
+<!-- 6 -->
+<section>
+  <div class="kicker">4 · The controller</div>
+  <h2>Built to exercise the instrument.</h2>
+  <p class="lede" style="margin-bottom:28px">
+    A two-gate control law, a per-caller rhythm profiler on fixed-capacity ring
+    buffers, and a session proxy that rewrites turn-detection config mid-stream —
+    out of band, never in the audio path.
+  </p>
+  <div class="grid2">
+    <div class="card">
+      <h3>What is built and tested</h3>
+      <p>Bounded <span class="mono">decide()</span>, p99 under 5 ms, no I/O and no
+         LLM in the decision path. Constant memory per session. Every config change
+         carries a reason record. Fails soft in a call, loud in dev.</p>
+    </div>
+    <div class="card">
+      <h3>What has not been shown</h3>
+      <p>That the closed loop helps a real caller. The controller has never run on
+         human speech, and on the one live sweep the controlled arms were identical
+         to the baseline — the corpus cannot warm the profiler, and the patch census
+         is <b>unmeasured, not zero</b>.</p>
+    </div>
+  </div>
+  <div class="src">src/nod_core · ADR-011, ADR-050 · CLAUDE.md §2 invariants INV-1 through INV-9</div>
+  <div class="pg">6 / 7</div>
+</section>
+
+<!-- 7 -->
+<section>
+  <div class="kicker">6 · Honest scope</div>
+  <h2 style="margin-bottom:20px">What this is not.</h2>
+  <ul style="font-size:19px;line-height:1.45;max-width:86ch">
+    <li><b>The corpus is one macOS <span class="mono">say</span> voice</b>, and its own
+      manifest says it is <i>"not adequate for … any published number"</i>. Every figure
+      here comes from it anyway, and that is stated rather than discovered.</li>
+    <li><b>Nod has never been run on human speech.</b> Track C is written and unrecorded;
+      Track B, the real atypical-speech corpus, is cut. The project is about callers it
+      has not met.</li>
+    <li><b>Our controller is aimed at the wrong knob</b> and caps the right one at 900 ms
+      against a demonstrated 2.4 s. Found by measurement, not fixed.</li>
+    <li><b>Live PCR attributes boundaries to the wrong gap</b>, because it reads the
+      word-timing field in fact 4. TTL and FRAG do not use it and are unaffected.</li>
+    <li><b>740 tests, 98.18 % coverage, 182/182 mutations killed</b> certify less than they
+      look: lines <i>executed</i>, not behaviour asserted, and mutation coverage is
+      file-granular — a kill proves <i>some</i> test noticed, never which.</li>
+    <li><b>Nod is not the first adaptive endpointer.</b> AssemblyAI's own Voice Agent API
+      already ships adaptive pacing. Nod is an open one on the streaming STT path, with
+      the policy written down and the numbers published.</li>
+  </ul>
+  <div class="src">README "Prior art and honest scope" · ADR-053, ADR-055 · data/corpus/source/manifest.json</div>
+  <div class="pg">7 / 7</div>
+</section>

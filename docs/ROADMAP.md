@@ -36,6 +36,43 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
+## Where this stands — 23 Sep, Gate 4f
+
+**Submission assets ship.** `docs/nod-deck.pdf` (7 slides, `make deck` from
+`docs/deck.html`), `docs/VIDEO_SCRIPT.md` (90 s, shot by shot, every on-screen number
+traced to an artifact, runs with no deployed URL), `docs/SUBMISSION.md` (title, short,
+long, tags, and the list of claims deliberately kept out). `LICENSE` and
+`CONTRIBUTING.md` added — both were on DEPLOYMENT §9's checklist and neither existed.
+
+**The framing is (b), the instrument story.** The deck is built around the ADR-054 →
+ADR-055 correction rather than closing with it; the controller is section 4, as what was
+built to exercise the measurement.
+
+**A Gate 4e claim was false and is corrected.** "Then took the continuation as the same
+turn" — it did not. All four swept arms emitted **two** turns; even 2574 ms of patience
+expires 958 ms before the caller resumes on a 3532 ms pause. The sweep shows the knob
+buys time continuously, not that this setting buys enough. Corrected in ADR-055 and the
+README before it reached a slide.
+
+**`LICENSE` is scoped, not blanket.** Code is MIT; the audio under `data/` is macOS
+`say` output that the corpus manifest calls "not redistributable speech" and is not ours
+to relicense. A blanket MIT would have been a false claim about the audio.
+
+**Git history is clean for going public.** All refs plus every unreachable object — 966
+blobs — scanned for the literal key, for secret-shaped assignments and for bare
+`sk-`/`AKIA`/32-hex tokens. Nothing. `.env` was never tracked. The scanner was verified
+against a planted decoy in both directions.
+
+**The published table now carries the PCR anchor caveat**, generated into the
+machine-owned region rather than typed beside it, with the provenance guard seen red on
+a one-digit hand edit and green again on restore.
+
+**Still blocked, both external:** the repository is **private** and the submission needs
+it public; and `scripts/deploy_aws.sh` has not been run, so there is no Application URL.
+Neither blocks the deck or the video.
+
+---
+
 ## Where this stands — 23 Sep, Gate 4e
 
 **The regime is reachable and the controller is aimed at the wrong knob.** Sixteen live

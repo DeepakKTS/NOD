@@ -40,12 +40,14 @@ from nod_bench.ladder import (
     ObservedBoundary,
     Prediction,
     build_from_halves,
+    envelope_of,
     hold_invariance_ms,
     predict,
     read_mono,
     scores,
     segment_take,
     speech_runs,
+    timeline_svg,
     write_mono,
 )
 from nod_bench.perturb import Gap, TruthSpan
@@ -394,10 +396,45 @@ async def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_svg(args: argparse.Namespace) -> int:
+    """Render one timeline per hold from a completed run. No network.
+
+    Reads the committed observations rather than re-running anything: the
+    picture in the video has to be the picture of the run that is in the
+    repository, not of a fresh one that happens to agree.
+    """
+    audio_dir, _, obs_path = _paths(args.out, args.label)
+    if not obs_path.exists():
+        print(f"no observations at {obs_path}; run first", file=sys.stderr)
+        return 2
+    obs = json.loads(obs_path.read_text())
+    rows = [LadderRow.model_validate(r) for r in obs["rows"]]
+    by_hold: dict[int, list[LadderRow]] = {}
+    for row in rows:
+        by_hold.setdefault(row.hold_label_ms, []).append(row)
+
+    written = []
+    for hold, group in by_hold.items():
+        wav = audio_dir / f"ladder_{args.label}_{hold}.wav"
+        samples, rate = read_mono(wav)
+        total = len(samples) / rate * 1000.0
+        caption = (
+            f"{wav.name} - hold {group[0].hold_measured_ms} ms after "
+            f'"...my appointment TO" - red = turn ended inside the pause - '
+            f"{obs_path.name}"
+        )
+        svg = timeline_svg(group, envelope_of(samples), total, caption=caption)
+        dest = args.out / f"ladder_{args.label}_{hold}.timeline.live.svg"
+        dest.write_text(svg)
+        written.append(dest)
+        print(f"wrote {dest}")
+    return 0 if written else 2
+
+
 def main() -> int:
     """Parse and dispatch. Returns the subcommand's exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("predict", "run"))
+    parser.add_argument("command", choices=("predict", "run", "svg"))
     parser.add_argument("--label", required=True, help="say | human | ...")
     parser.add_argument("--out", type=Path, default=Path("bench/runs"))
     parser.add_argument("--holds", default=",".join(str(h) for h in DEFAULT_HOLDS))
@@ -411,6 +448,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.command == "svg":
+        return cmd_svg(args)
     if args.command == "predict":
         if args.take is None and (args.prefix is None or args.continuation is None):
             parser.error("give --take, or both --prefix and --continuation")

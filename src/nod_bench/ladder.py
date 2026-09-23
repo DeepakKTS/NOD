@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 import wave
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
@@ -519,3 +520,97 @@ def hold_invariance_ms(rows: tuple[LadderRow, ...]) -> float | None:
     """
     values = [r.silence_at_fire_ms for r in rows if r.silence_at_fire_ms is not None]
     return max(values) - min(values) if len(values) >= 2 else None
+
+
+# --- rendering ---------------------------------------------------------------
+
+SVG_WIDTH: Final = 1000
+"""Timeline width in px. Milliseconds are scaled to fit."""
+
+ROW_HEIGHT: Final = 74
+"""Vertical px per arm row."""
+
+
+def timeline_svg(
+    rows: Sequence[LadderRow],
+    envelope: Sequence[float],
+    total_ms: float,
+    *,
+    caption: str,
+) -> str:
+    """One arm per row, boundaries marked against the audio. Pure. `O(r + n)`.
+
+    **The caption is not decoration.** A chart leaves the repository as an image
+    and a markdown caption does not survive a screenshot (ADR-016), so the
+    provenance — which audio, which arms, which run — is drawn *inside* the
+    SVG. The turn count per row is drawn too, because "two turns" versus "one
+    turn" is the entire claim this picture makes and a reader should not have to
+    count tick marks to check it.
+
+    Args:
+        rows: One per arm, in draw order. All must share a clip.
+        envelope: Per-bucket RMS in `[0, 1]`, left to right.
+        total_ms: Clip duration, mapping ms to px.
+        caption: Provenance line drawn into the image.
+
+    Returns:
+        A self-contained SVG document.
+    """
+    height = 58 + ROW_HEIGHT * len(rows)
+    scale = SVG_WIDTH / total_ms if total_ms > 0 else 0.0
+    out = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_WIDTH + 260}" '
+        f'height="{height}" font-family="ui-monospace,Menlo,monospace">',
+        f'<rect width="{SVG_WIDTH + 260}" height="{height}" fill="#0b0f14"/>',
+        f'<text x="12" y="22" fill="#7d8b9a" font-size="13">{caption}</text>',
+    ]
+    bucket = SVG_WIDTH / max(len(envelope), 1)
+    for i, row in enumerate(rows):
+        top = 44 + ROW_HEIGHT * i
+        mid = top + 26
+        out.append(
+            f'<text x="12" y="{mid + 4}" fill="#e6edf3" font-size="13">{row.arm}</text>'
+        )
+        for j, amp in enumerate(envelope):
+            h = max(1.0, amp * 21)
+            out.append(
+                f'<rect x="{140 + j * bucket:.1f}" y="{mid - h:.1f}" '
+                f'width="{bucket:.2f}" height="{2 * h:.1f}" fill="#2c3b4a"/>'
+            )
+        hold_x = 140 + row.prefix_end_ms * scale
+        hold_w = row.hold_measured_ms * scale
+        out.append(
+            f'<rect x="{hold_x:.1f}" y="{top + 4}" width="{hold_w:.1f}" '
+            f'height="44" fill="#1d4ed8" opacity="0.18"/>'
+        )
+        for b in row.boundaries:
+            x = 140 + b.fired_at_ms * scale
+            inside = (
+                row.in_hold is not None and b.fired_at_ms == row.in_hold.fired_at_ms
+            )
+            colour = "#f87171" if inside else "#4ade80"
+            out.append(
+                f'<line x1="{x:.1f}" y1="{top + 2}" x2="{x:.1f}" '
+                f'y2="{top + 50}" stroke="{colour}" stroke-width="2.5"/>'
+            )
+        turns = len(row.boundaries)
+        out.append(
+            f'<text x="{SVG_WIDTH + 252}" y="{mid + 4}" fill="#7d8b9a" '
+            f'font-size="12" text-anchor="end">{turns} turn'
+            f"{'' if turns == 1 else 's'}</text>"
+        )
+    out.append("</svg>")
+    return "\n".join(out)
+
+
+def envelope_of(samples: np.ndarray, *, buckets: int = 300) -> tuple[float, ...]:
+    """Normalised RMS per bucket, for drawing. Pure. `O(n)`."""
+    if len(samples) == 0:
+        return ()
+    size = max(1, len(samples) // buckets)
+    vals = [
+        float(np.sqrt(np.mean(samples[i : i + size] ** 2)))
+        for i in range(0, len(samples), size)
+    ]
+    peak = max(vals) or 1.0
+    return tuple(min(1.0, v / peak) for v in vals)
