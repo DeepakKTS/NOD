@@ -17,9 +17,9 @@ import argparse
 import asyncio
 import io
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
-from typing import Final, override
+from typing import Any, Final, override
 
 import numpy as np
 import pytest
@@ -32,7 +32,9 @@ from nod_bench.feeder import FeederDriftError, FeedReport, PacedFeeder
 from nod_bench.perturb import Gap, TruthSpan, UtteranceSpan
 from nod_bench.replay import (
     CONCURRENCY_REFUSED_CODE,
+    STATIC_ARMS,
     TERMINATION_TIMEOUT_S,
+    ArmSettings,
     ClipContext,
     ConcurrencyRefusedError,
     LiveBoundary,
@@ -824,3 +826,77 @@ async def test_feeder_drift_voids_a_controlled_run_rather_than_reporting_it(
             policy=load_policy(POLICY),
             trace_dir=tmp_path / "traces",
         )
+
+
+@pytest.mark.asyncio
+async def test_a_swept_arm_sends_its_override_and_keeps_its_own_label(
+    tmp_path: Path,
+) -> None:
+    """`override` must reach the wire, and must not rewrite the arm label.
+
+    `nod_bench.ladder` sweeps `min_turn_silence` past the three presets, and
+    ADR-055's whole finding is the boundary tracking that number. The failure
+    to guard against is silent and flattering in the familiar way: an override
+    that is accepted and dropped sends `aggressive`'s 160 ms on every swept
+    arm, so four rows come back identical, and "the knob does nothing" is
+    exactly the conclusion ADR-054 reached by a different route.
+
+    The label is asserted separately because the opposite mistake — relabelling
+    a swept row as the preset whose slot it borrowed — would put a non-preset
+    measurement into a table whose rows are supposed to be the vendor's
+    published presets (BENCH_SPEC §3).
+    """
+    clip = _clip(tmp_path)
+    seen: list[Mapping[str, float]] = []
+
+    def capturing(**kwargs: Any) -> FakeProbeSession:
+        seen.append(dict(kwargs["config"]))
+        return FakeProbeSession(**kwargs)
+
+    run = await run_live_clip(
+        clip,
+        "aggressive",
+        session_factory=capturing,
+        api_key="",
+        trace_dir=tmp_path / "traces",
+        override=ArmSettings(
+            end_of_turn_confidence_threshold=0.4,
+            min_turn_silence=1600,
+            max_turn_silence=3600,
+        ),
+    )
+
+    assert seen, "no session was constructed"
+    # 1600, not aggressive's 160. The two differ by a factor of ten so a
+    # partially-applied override cannot pass this by rounding.
+    assert seen[0]["min_turn_silence"] == 1600
+    assert seen[0]["max_turn_silence"] == 3600
+    assert run.observation.arm == "aggressive"
+
+
+@pytest.mark.asyncio
+async def test_without_an_override_a_static_arm_sends_its_preset(
+    tmp_path: Path,
+) -> None:
+    """The default path is unchanged, and that is the half worth pinning.
+
+    `override=None` is every existing caller, including the one that renders
+    the published table. A default that leaked a swept value would corrupt the
+    presets rather than the sweep.
+    """
+    clip = _clip(tmp_path)
+    seen: list[Mapping[str, float]] = []
+
+    def capturing(**kwargs: Any) -> FakeProbeSession:
+        seen.append(dict(kwargs["config"]))
+        return FakeProbeSession(**kwargs)
+
+    await run_live_clip(
+        clip,
+        "conservative",
+        session_factory=capturing,
+        api_key="",
+        trace_dir=tmp_path / "traces",
+    )
+    assert seen[0]["min_turn_silence"] == STATIC_ARMS["conservative"].min_turn_silence
+    assert seen[0]["max_turn_silence"] == STATIC_ARMS["conservative"].max_turn_silence

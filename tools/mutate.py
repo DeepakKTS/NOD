@@ -1059,6 +1059,20 @@ def _ladder_mutations() -> tuple[Mutation, ...]:
             "            if self.prefix_end_ms < b.fired_at_ms < hold_end:",
             "            if self.prefix_end_ms < b.fired_at_ms:",
         ),
+        Mutation(
+            "override: accept the swept gates and send the preset anyway",
+            "src/nod_bench/replay.py",
+            "    settings = override if override is not None else STATIC_ARMS[arm]",
+            "    settings = STATIC_ARMS[arm]",
+            LIVE_TESTS,
+        ),
+        Mutation(
+            "override: apply it to every arm, corrupting the presets",
+            "src/nod_bench/replay.py",
+            "    settings = override if override is not None else STATIC_ARMS[arm]",
+            "    settings = override if override is not None else STATIC_ARMS['aggressive']",
+            LIVE_TESTS,
+        ),
         mutation(
             "ladder: shrink the tail below conservative's gate",
             "TAIL_SILENCE_MS: Final = 4030",
