@@ -15,6 +15,30 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
+## Where this stands — 23 Sep, Gate 4c
+
+**The live table measures the static arms' `min_turn_silence`, and nothing else.**
+`max_turn_silence` — the gate ADR-011 makes Nod's primary lever — **never binds on Track
+A**, and it is not a corpus defect: the pauses reach 2200 ms, 2.75x `conservative`'s min
+gate, and the service judges those points complete anyway (ADR-051). The run also does
+**not** establish that the controller acted: the patch census is **unmeasured, not zero**,
+because the trace sink was the only recorder and it writes nothing when there is nothing
+to write (ADR-050, corrected).
+
+**The published table cannot be re-rendered** under ADR-049's estimator — only per-arm
+aggregates were committed, so the intervals keep the warning that they understate
+(ADR-052). Later runs are re-analysable.
+
+**Deploy has not happened and is blocked twice over**: the repo cannot be pushed (locked
+keychain) so no platform can build from it, and there is no container runtime here to
+build an image instead. `docs/DEPLOYMENT.md` now opens with what has and has not executed.
+
+**`docs/PILOT_REGIME.md` is the next thing to run** — 30 s of audio, before any recording
+session, to find where the incomplete-utterance regime begins on human speech. A FAIL
+there stops a three-hour session that would otherwise produce ten calls of the same null.
+
+---
+
 ## Where this stands — 22 Sep, Gate 4b
 
 **The live path ran against AssemblyAI for the first time, and it could not have run

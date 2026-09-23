@@ -1,7 +1,40 @@
 # Nod — Deployment
 
-Target: one container running FastAPI plus a static Next.js export, deployed to a single
-region with a persistent volume for traces and caches. No external database.
+> ## Status, 23 Sep: **nothing in this document has been executed.**
+>
+> No deployment exists. There is no URL. Every procedure below is written and unrun, and
+> the ones that were "verified" at Gate 4b were verified by grepping the `Dockerfile`,
+> which is how a `TODO` saying the digest pin was outstanding got scored as a digest pin
+> being present (CLAUDE.md §5).
+>
+> | | state |
+> |---|---|
+> | `Dockerfile` | written to §3, **never built** — no container runtime on the dev machine |
+> | image size vs 400 MB | **unverified** |
+> | `HEALTHCHECK` | **never executed** |
+> | base image digest pin | **outstanding**, tag only |
+> | read-only root filesystem | **cannot** be set by a Dockerfile; a runtime flag the platform must pass |
+> | `/healthz`, `/readyz`, `/metrics` | **green locally** against a real writable volume, all four readiness conditions genuinely satisfied |
+> | deployed URL | **does not exist** |
+> | phone-on-mobile-data smoke | **not done** |
+>
+> Two independent blockers, either of which is sufficient: the repository **cannot be
+> pushed** (the macOS keychain has stopped returning credentials, so `git push` hangs on a
+> username prompt — GitHub itself answers 200), so no platform can build from it; and
+> there is no container runtime or platform CLI here to build and push an image instead.
+>
+> **The account budget is shared, and this is the part to decide before deploying.** The
+> AssemblyAI account permits 5 concurrent streams, and Gate 4b measured that a *churning*
+> workload sustains only one new session per 16 s (ADR-048). A deployed demo holds
+> long-lived sessions rather than churning, so `NOD_MAX_SESSIONS = 2` leaves three slots —
+> but the bench's start-rate gate assumes it has the whole account. **Running a live sweep
+> while the demo URL is up will produce 1008s and abort the sweep** (a 1008 anywhere voids
+> it). Sequence them; do not overlap them.
+
+Target: one container running FastAPI and a static console page, deployed to a single
+region with a persistent volume for traces and caches. No external database. **Not
+Next.js** — ADR-038 made the demo screen a static HTML file served from the API
+container.
 
 ## 1. Topology
 
