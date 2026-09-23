@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Final
@@ -290,3 +291,61 @@ def test_the_clamp_model_still_fits_every_committed_in_hold_row() -> None:
             )
             checked += 1
     assert checked == 13, f"the published claim is about 13 rows, found {checked}"
+
+
+PUBLIC_FACING: Final = (
+    "README.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "docs/deck.html",
+    "docs/VIDEO_SCRIPT.md",
+    "docs/SUBMISSION.md",
+    "docs/PILOT_REGIME.md",
+)
+"""Files a judge or a stranger reads first. The claim surface.
+
+`docs/deck.html` stands in for `docs/nod-deck.pdf`: the PDF is generated from
+it by `make deck`, so checking the source checks the artifact, and the PDF's
+compressed text streams are not greppable anyway.
+"""
+
+SHA_PATTERN: Final = re.compile(r"\b[0-9a-f]{7,40}\b")
+
+
+def test_every_commit_sha_in_a_public_file_resolves() -> None:
+    """A fabricated hash reached a shot list; nothing said it was alone.
+
+    Gate 4f cited "committed in `54dcd0a`" in `docs/VIDEO_SCRIPT.md`. No such
+    object exists — it was produced to fit a sentence, and a reader who checked
+    would have found the project inventing its own provenance. Resolving it
+    took one `git log`, which is the whole argument for doing this by machine.
+
+    Hex strings that are not commits are skipped rather than failed: these
+    files legitimately contain sha256 digests and hex colours. The check is
+    "every string that **looks like a short SHA and is referenced as one**
+    resolves", approximated as: a 7-to-40 character hex run that is not a
+    64-character digest and not preceded by `#` must be a real commit. That
+    approximation is deliberately loose in the direction of *more* checking —
+    a false positive here costs a rename, a false negative costs credibility.
+    """
+    unresolved: list[str] = []
+    checked = 0
+    for name in PUBLIC_FACING:
+        text = (REPO / name).read_text()
+        for match in SHA_PATTERN.finditer(text):
+            token = match.group(0)
+            if len(token) == 64:
+                continue  # a sha256 digest, not a commit
+            if match.start() and text[match.start() - 1] == "#":
+                continue  # a CSS hex colour
+            checked += 1
+            resolved = subprocess.run(  # noqa: S603
+                ["git", "cat-file", "-e", f"{token}^{{commit}}"],  # noqa: S607
+                cwd=REPO,
+                capture_output=True,
+                check=False,
+            )
+            if resolved.returncode != 0:
+                unresolved.append(f"{name}: {token}")
+    assert not unresolved, f"unresolvable commit SHAs: {unresolved}"
+    assert checked > 0, "the scan matched nothing; the pattern or file list is broken"

@@ -188,6 +188,12 @@ deck: ## Render docs/deck.html to docs/nod-deck.pdf (needs Google Chrome)
 	  --print-to-pdf=docs/nod-deck.pdf docs/deck.html
 	@echo "wrote docs/nod-deck.pdf"
 
+cover: ## Render docs/cover.html to docs/nod-cover.png (16:9 submission cover)
+	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+	  --headless --disable-gpu --hide-scrollbars --window-size=1280,720 \
+	  --screenshot=docs/nod-cover.png docs/cover.html
+	@echo "wrote docs/nod-cover.png"
+
 audit: ## Check dependencies for known vulnerabilities
 	$(RUN) pip-audit --strict
 

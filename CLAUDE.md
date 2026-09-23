@@ -391,6 +391,37 @@ lines. That file is long-term memory; this file is the standing contract.
     experiment without first writing down what it should produce is what kept that
     distinction real.
 
+  - **The class both corrections belong to: a true term carrying a false one.** Name it
+    and check for it directly, because neither instance was catchable by verifying the
+    number — the number was right both times.
+    - **ADR-054**: the *observation* was exact and reproduced to the millisecond. The
+      *mechanism* inferred from it was wrong, because two knobs bracket the same quantity
+      and only one was varied.
+    - **Gate 4f finding 1**: the *number* (2574 ms held) was exact. The *sentence* around
+      it — "then took the continuation as the same turn" — was false, and a different
+      field in the same committed file said so.
+    - **Gate 4g, the cold open**: the *count* (2 turns vs 1) was exact and survived. The
+      *location* implied by the surrounding prose was wrong — `aggressive` splits
+      **mid-prefix**, never at the pause it was being credited with reacting to.
+    In all three a correct quantity sat inside a sentence whose other terms were never
+    checked. Verifying the quantity harder would not have caught any of them.
+    **The check that works: for every clause in the claim, name the field that would show
+    it, and read that field.** "It held the turn" → `len(boundaries)`. "It cut at the
+    pause" → is the boundary time between `prefix_end` and `continuation_start`? "Two
+    knobs" → which ones were varied? Where no field would show a clause, the clause is an
+    inference and has to be labelled one. This is cheap: all three were settled from data
+    already committed, in under a minute each.
+    **Where it has been applied, as of Gate 4g**: the cold open (count, split location,
+    "same audio/pause/speaker"); ADR-056's continuation result (count, boundary-inside-
+    pause, and that the holding arms' single turn ends on the *continuation's* last word
+    rather than the prefix being dropped); ADR-055's clamp model (13/13 rows, plus the
+    impossible-value check that no silence is below its min gate).
+    **Where it has not**: every figure in the live Track A table — PCR, TTL p90 and FRAG
+    across six arms — which predate the rule and whose surrounding prose has never been
+    read term by term against the artifacts. PCR is already known unreliable there for an
+    unrelated reason (ADR-055 fact 4). The Phase 0–2 ADRs are likewise unaudited. That is
+    stated rather than fixed, because auditing them properly is a gate of its own.
+
   - **The number was right and the sentence around it was wrong — twice in two gates.**
     Gate 4e's sweep table was correct to the millisecond, and the line published beside it
     said the service "then accepted the continuation as the same turn". It did not. All

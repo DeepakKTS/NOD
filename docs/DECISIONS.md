@@ -2910,7 +2910,7 @@ sockets opened:
 | 2400 | 4800 | **4814** | 2574 ms |
 
 4 / 4 inside the 120 ms tolerance. At 2400 the service held the turn open for **2574 ms**
-after the caller stopped mid-sentence on a preposition — **3.2x** the 777 ms the
+after the caller stopped mid-sentence on a preposition — **3.3x** the 777 ms the
 `balanced` default allows, and continuous across the range.
 
 **Corrected before it reached a slide:** an earlier draft of this ADR said the service
@@ -2969,3 +2969,53 @@ README headline changes from "the gate does not engage" to what was actually mea
 both are **left unchanged inside the freeze** — changing a control-law constant on the
 strength of one clip of synthetic speech would be tuning by ear, which §7 forbids. They
 are recorded as the first thing to fix after it.
+
+## ADR-056 — The continuation attaches as one turn, and the demo is evidenced
+2026-09-23 · Status: accepted — Gate 4g, 4 live sessions, predictions committed first
+Context: the deck's punchline was "raise `min_turn_silence` and the caller's sentence
+survives the pause". Gate 4f found the supporting claim false — all four swept arms
+emitted **two** turns — and the reason was structural rather than a measurement error:
+**the ladder's pause is 3532 ms**, longer than any threshold that had been tested, so no
+arm could ever have held through it. The corpus was built to measure firing *time*, the
+demo inherited a clip from it, and the single-turn case was unreachable by construction.
+Decision: **build the clip the claim needs, predict the turn counts before running, and
+take whichever answer the data gives.**
+
+One row, same prefix and continuation, pause **1532 ms** — comfortably under the 2574 ms
+hold Gate 4e demonstrated at `min = 2400` and comfortably over the ~590 ms commit point.
+Predictions committed in `7df3a4f`, **before any socket opened**; results in the commit
+that carries this ADR. That ordering is now git-provable, which ADR-055 records the sweep's
+was not.
+
+| `min_turn_silence` | threshold | predicted | observed | first boundary |
+|---|---|---|---|---|
+| 400 | 590 ms | **2 turns** | **2** | 2988 ms — **inside the pause** |
+| 900 | 900 ms | **2 turns** | **2** | 3407 ms — **inside the pause** |
+| 1600 | 1600 ms | **1 turn** | **1** | end of stream only |
+| 2400 | 2400 ms | **1 turn** | **1** | end of stream only |
+
+**4 / 4.** The crossover sits between 900 and 1600, as predicted from `threshold < pause`
+at 1532 ms. On the two holding arms the single turn's last word is the *continuation's*
+(service clock 4800 against a continuation ending at 5050), so the continuation genuinely
+attached to the prefix rather than the prefix being dropped.
+
+So the punchline is restored and it is now the strongest frame the project has: **same
+audio, same 1532 ms mid-sentence pause; at the vendor default the utterance is cut in two,
+at `min = 2400` it stays whole.** Unlike Gate 4e's clip the cuts fall *inside* the pause,
+so "cut the caller off mid-sentence" is literally rather than only effectively true.
+
+**`Prediction.expected_turns` is what made this checkable, and it is not `fires_in_hold`.**
+A turn splits when the *threshold* is shorter than the pause; the endpoint overhead is
+transmission delay applied after that decision and cannot un-split a turn. `aggressive` on
+the 532 ms row is the measured proof: threshold 400 ms so the utterance split, but the
+frame arrived 83 ms *after* the caller resumed, so `fires_in_hold` is false while the clip
+carries two turns. A demo reading `fires_in_hold` as "did it split" gets that row backwards.
+
+**What this does not establish.** The holding arms were not asked to hold through a pause
+longer than 1532 ms, so the upper limit remains ADR-055's 2574 ms and nothing here extends
+it. `min = 1600` and `min = 2400` are indistinguishable on this clip — both hold — so the
+row does not measure how much margin either has. And this is still one synthesised voice.
+Consequence: the deck carries the evidenced version.
+`bench/runs/ladder_continuation_1500.timeline.live.svg` is the cold open, replacing the
+532 ms frame — where `aggressive`'s split is real but falls **mid-prefix**, not at the
+pause, so the image invited a claim about the pause that the artifact does not support.

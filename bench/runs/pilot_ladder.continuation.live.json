@@ -1,0 +1,84 @@
+{
+ "label": "continuation",
+ "predictions_file": "pilot_ladder.continuation.live.predictions.json",
+ "rows": [
+  {
+   "arm": "min400",
+   "hold_label_ms": 1500,
+   "hold_measured_ms": 1532,
+   "prefix_end_ms": 2240,
+   "boundaries": [
+    {
+     "fired_at_ms": 2988.0,
+     "silence_started_ms": 2800.0,
+     "turn_order": 0,
+     "word_count": 0,
+     "text": ""
+    },
+    {
+     "fired_at_ms": 8729.0,
+     "silence_started_ms": 4800.0,
+     "turn_order": 1,
+     "word_count": 0,
+     "text": ""
+    }
+   ],
+   "flush_turns": 1
+  },
+  {
+   "arm": "min900",
+   "hold_label_ms": 1500,
+   "hold_measured_ms": 1532,
+   "prefix_end_ms": 2240,
+   "boundaries": [
+    {
+     "fired_at_ms": 3407.0,
+     "silence_started_ms": 2800.0,
+     "turn_order": 0,
+     "word_count": 0,
+     "text": ""
+    },
+    {
+     "fired_at_ms": 8721.0,
+     "silence_started_ms": 4800.0,
+     "turn_order": 1,
+     "word_count": 0,
+     "text": ""
+    }
+   ],
+   "flush_turns": 1
+  },
+  {
+   "arm": "min1600",
+   "hold_label_ms": 1500,
+   "hold_measured_ms": 1532,
+   "prefix_end_ms": 2240,
+   "boundaries": [
+    {
+     "fired_at_ms": 8758.0,
+     "silence_started_ms": 4800.0,
+     "turn_order": 0,
+     "word_count": 0,
+     "text": ""
+    }
+   ],
+   "flush_turns": 1
+  },
+  {
+   "arm": "min2400",
+   "hold_label_ms": 1500,
+   "hold_measured_ms": 1532,
+   "prefix_end_ms": 2240,
+   "boundaries": [
+    {
+     "fired_at_ms": 8743.0,
+     "silence_started_ms": 4800.0,
+     "turn_order": 0,
+     "word_count": 0,
+     "text": ""
+    }
+   ],
+   "flush_turns": 1
+  }
+ ]
+}

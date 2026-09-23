@@ -1,0 +1,21 @@
+<html><head><style>
+  *{box-sizing:border-box}
+  @page { size: 1280px 720px; margin:0 }
+  body{margin:0;width:1280px;height:720px;background:#0b0f14;
+       font-family:ui-sans-serif,-apple-system,sans-serif;color:#e6edf3;
+       display:flex;flex-direction:column;justify-content:center;padding:0 52px;
+       -webkit-print-color-adjust:exact}
+  h1{font-size:48px;margin:0 0 6px;letter-spacing:-1.4px;line-height:1.08}
+  p.sub{font-size:21px;color:#93a4b5;margin:0 0 26px;line-height:1.35}
+  .mono{font-family:ui-monospace,Menlo,monospace}
+  img{width:100%;border-radius:8px;border:1px solid #1c2733}
+  .foot{margin-top:20px;font:400 17px ui-monospace,Menlo,monospace;color:#61798f}
+  .n{color:#7dd3fc;font-weight:600}
+</style></head><body>
+  <h1>Same sentence. Same pause. One knob.</h1>
+  <p class="sub">At the vendor default the caller is cut off mid-sentence.<br>
+     At <span class="mono">min_turn_silence = 2400</span> the sentence stays whole.</p>
+  <img src="file:///Users/deepakzedler/Documents/NOD/bench/runs/ladder_continuation_1500.timeline.live.svg">
+  <div class="foot">Nod &nbsp;·&nbsp; a <span class="n">1532 ms</span> mid-sentence pause,
+    measured live against AssemblyAI &nbsp;·&nbsp; github.com/DeepakKTS/NOD</div>
+</body></html>

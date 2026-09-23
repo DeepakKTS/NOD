@@ -27,13 +27,17 @@ background. Terminal: dark, 16 pt, ~100 cols.
 
 | | |
 |---|---|
-| **Screen** | `ladder_say_500.timeline.live.svg`, full width. Three rows: `aggressive`, `balanced`, `conservative`. Same waveform on each. Blue band = the caller's pause. |
-| **Action** | Nothing moves for 3 s. Then highlight the right-hand column: **2 turns / 1 turn / 1 turn**. |
-| **VO** | "Same sentence, same pause, same speaker. Three turn-detection configs. The top one cut the caller off in the middle of it. The other two didn't." |
-| **Artifact** | `bench/runs/pilot_ladder.say.live.json`, row `aggressive` hold 500: `[2855, 4587]`. Row `balanced` hold 500: `[5406]`. |
+| **Screen** | `ladder_continuation_1500.timeline.live.svg`, full width. Four rows, `min400` → `min2400`. Same waveform on each. Blue band = the caller's pause. |
+| **Action** | Nothing moves for 3 s. Then highlight the right column: **2 / 2 / 1 / 1 turns**, and the red marks vanishing on the bottom two rows. |
+| **VO** | "Same sentence. Same pause in the middle of it. One setting changed. The top two cut the caller off while they were still mid-sentence. The bottom two waited, and took the rest of the sentence as the same turn." |
+| **Artifact** | `bench/runs/pilot_ladder.continuation.live.json`. Turn counts **2 / 2 / 1 / 1**, predicted in `7df3a4f` **before** the run (ADR-056). First boundary 2988 ms and 3407 ms — both **inside** the 1532 ms pause. |
 
-> The pause is **532 ms**, after *"I need to reschedule my appointment **to**"* — a
+> The pause is **1532 ms**, after *"I need to reschedule my appointment **to**"* — a
 > prefix English cannot end on. Drawn in the image caption, so it survives a screenshot.
+>
+> **Do not use the 532 ms frame for this shot.** `aggressive` does emit two turns there,
+> but its split falls **mid-prefix**, not at the pause — the image would invite a claim
+> about the pause that the artifact does not support (ADR-056).
 
 ## 0:14–0:30 — The dial
 
@@ -112,7 +116,7 @@ C ≈ 590 ms          overhead ≈ 175 ms
 | | |
 |---|---|
 | **Screen** | Four lines, plain, no animation. |
-| **On screen** | • synthetic speech, one macOS `say` voice<br>• never run on a human<br>• 740 tests certify lines executed, not behaviour asserted<br>• live PCR attributes to the wrong gap; TTL and FRAG don't |
+| **On screen** | • synthetic speech, one macOS `say` voice<br>• never run on a human<br>• 743 tests certify lines executed, not behaviour asserted<br>• live PCR attributes to the wrong gap; TTL and FRAG don't |
 | **VO** | "What it isn't: this has never met a real caller. The corpus is one synthesised voice whose own manifest says it isn't good enough for a published number. We're reporting it anyway, and saying so." |
 | **Artifact** | `data/corpus/source/manifest.json`; README honest-scope; ADR-053; ADR-055. |
 
@@ -144,10 +148,10 @@ Nothing not on this list may appear. Each is regenerable.
 | 532 ms, 3532 ms | measured holds, `pilot_ladder.*.live.json` geometry |
 | 2 turns / 1 turn | `len(boundaries)` per row, drawn by `timeline_svg` |
 | 777 / 1170 / 1765 / 2574 ms | sweep rows, held silence |
-| 3.2× | 2574 ÷ 777 |
+| 3.3× | 2574 ÷ 777 |
 | C ≈ 590 ms, overhead ≈ 175 ms | ADR-055 |
 | 400 / 900 / 1600 / 2400 | the swept `min_turn_silence` values |
-| 740 tests, 98.18 % | `make gate` |
+| 743 tests, 98.18 % | `make gate` |
 | MIN_MS_CEIL = 900 | `src/nod_core/arbiter.py` |
 
 **Forbidden on screen, in VO, or in the description:** any claim that Nod beats the

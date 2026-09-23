@@ -51,7 +51,7 @@ the pause gets longer, and it does not care that the sentence is grammatically
 unfinished.
 
 So min_turn_silence is the lever that buys a hesitating caller time, continuously, from
-777 ms at the vendor default to 2574 ms at 2400 — a 3.2x range. max_turn_silence only
+777 ms at the vendor default to 2574 ms at 2400 — a 3.3x range. max_turn_silence only
 binds below C, where binding cuts the caller off sooner, or at end of stream.
 
 And the service's word-timing field is not a usable silence anchor: on one clip it puts
@@ -110,9 +110,11 @@ roles and has not been run.
 
 ## Cover image
 
-16:9. Use a crop of `bench/runs/ladder_say_500.timeline.live.svg` — three arms on the
-same waveform, with the turn counts visible on the right. It carries its own provenance
-caption, which is the point.
+**`docs/nod-cover.png`** — 1280x720, exactly 16:9, `make cover` from `docs/cover.html`.
+The continuation frame: four arms on the same waveform and the same 1532 ms pause, turn
+counts **2 / 2 / 1 / 1** legible on the right, provenance drawn inside the embedded SVG
+so it survives being cropped or rehosted. Not the 532 ms frame — `aggressive` splits
+there too, but mid-prefix rather than at the pause (ADR-056).
 
 ---
 

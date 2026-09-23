@@ -588,7 +588,8 @@ def timeline_svg(
     scale = SVG_WIDTH / total_ms if total_ms > 0 else 0.0
     out = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{SVG_WIDTH + 260}" '
-        f'height="{height}" font-family="ui-monospace,Menlo,monospace">',
+        f'height="{height}" viewBox="0 0 {SVG_WIDTH + 260} {height}" '
+        f'font-family="ui-monospace,Menlo,monospace">',
         f'<rect width="{SVG_WIDTH + 260}" height="{height}" fill="#0b0f14"/>',
         f'<text x="12" y="22" fill="#7d8b9a" font-size="13">{caption}</text>',
     ]

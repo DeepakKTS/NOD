@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="280" font-family="ui-monospace,Menlo,monospace">
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="280" viewBox="0 0 1260 280" font-family="ui-monospace,Menlo,monospace">
 <rect width="1260" height="280" fill="#0b0f14"/>
 <text x="12" y="22" fill="#7d8b9a" font-size="13">ladder_say_500.wav - hold 532 ms after "...my appointment TO" - red = turn ended inside the pause - pilot_ladder.say.live.json</text>
 <text x="12" y="74" fill="#e6edf3" font-size="13">aggressive</text>

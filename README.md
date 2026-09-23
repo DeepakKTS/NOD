@@ -151,16 +151,30 @@ sockets opened:
 | 2400 ms | 4800 | **4814** | **2574 ms** |
 
 At 2400 the service held the turn open for **2.57 seconds** after the caller
-stopped mid-sentence on a preposition — **3.2x** the 777 ms it allows at the
+stopped mid-sentence on a preposition — **3.3x** the 777 ms it allows at the
 `balanced` default. The lever is continuous across that range and it is the
 thing a controller can actually move.
 
-**It did not keep the utterance whole, and that is worth stating.** All four
-swept arms emitted **two** turns on this clip: the pause was 3532 ms and even
-2574 ms of patience ends before the caller resumes. Keeping a pause whole needs
-`min_turn_silence` above the pause itself, which is past anything measured here.
-What the sweep shows is that the knob buys time continuously, not that this
-setting buys enough.
+**On this clip it did not keep the utterance whole**, and that was worth
+stating: the pause is 3532 ms, so all four swept arms emitted **two** turns.
+The clip was built to measure firing *time* and cannot reach the single-turn
+case at all.
+
+**A clip that can, does.** Same prefix and continuation, pause **1532 ms**, turn
+counts predicted before the sockets opened and committed a commit earlier:
+
+| `min_turn_silence` | threshold | predicted | observed |
+|---|---|---|---|
+| 400 (the vendor default) | 590 ms | 2 turns | **2** — cut at 2988 ms, inside the pause |
+| 900 | 900 ms | 2 turns | **2** — cut at 3407 ms, inside the pause |
+| 1600 | 1600 ms | 1 turn | **1** |
+| 2400 | 2400 ms | 1 turn | **1** |
+
+4/4. At `min = 2400` the caller stopped mid-sentence on a preposition for a
+second and a half, and the service took the rest of the sentence as the **same
+turn** (ADR-056). That is the behaviour this project exists to produce. The
+upper limit is still 2574 ms — nothing here extends it, and 1600 and 2400 are
+indistinguishable on this clip because both hold.
 
 **What it costs us.** Two defects in our own controller, found by measurement
 and **not fixed inside the freeze**, because changing a control-law constant on
@@ -247,11 +261,11 @@ benchmark that does publish them can see which two are missing and why.
 - Nod adapts to pauses. It does not interpret them. There is no inference of emotion,
   stress, honesty, or any clinical condition from speech timing, and there never will be.
 - **What the test numbers certify, which is less than they look.** The suite reports
-  740 passing tests, 98.18 % line coverage and **184 mutations** killed. Read
+  743 passing tests, 98.18 % line coverage and **184 mutations** killed. Read
   precisely: mutation coverage is **file-granular**, so a kill proves *some* test in
   that file noticed the change, never which — it certifies files, not tests.
   Coverage certifies **lines executed**, not behaviour asserted. And **23 of 39 test
-  files are the target of no mutation at all**, holding **258 of 591 test definitions,
+  files are the target of no mutation at all**, holding **258 of 592 test definitions,
   so 44 % of the suite has never been given anything to catch** (ADR-053). That census
   is checked against the tree by `test_the_readme_mutation_census_matches_the_tree`,
   because the previous copy of this paragraph said 38 files and 565 definitions for two

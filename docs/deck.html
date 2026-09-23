@@ -82,18 +82,18 @@
 <!-- 2 -->
 <section>
   <div class="kicker">1 · The problem</div>
-  <h2 style="margin-bottom:18px">One threshold, tuned for an average speaker,<br>applied to everyone who calls.</h2>
-  <p class="lede" style="margin-bottom:22px;font-size:23px">
+  <h2 style="margin-bottom:12px;font-size:36px">One threshold, tuned for an average speaker,<br>applied to everyone who calls.</h2>
+  <p class="lede" style="margin-bottom:14px;font-size:19px;max-width:none">
     It cuts off the people who pause mid-sentence: older callers, non-native
     speakers, anyone reading a number off a card.
   </p>
-  <img src="../bench/runs/ladder_say_500.timeline.live.svg" alt="three arms, same audio">
-  <p class="lede" style="margin-top:20px;font-size:22px;margin-bottom:0">
-    Same sentence. Same <span class="num">532 ms</span> pause after
-    <span class="mono">"…my appointment <b>to</b>"</span>. Three configs.
-    The first splits it in <span class="bad">two</span>.
+  <img src="../bench/runs/ladder_continuation_1500.timeline.live.svg" alt="four arms, same audio, one knob">
+  <p class="lede" style="margin-top:12px;font-size:19px;margin-bottom:0;max-width:none">
+    Same sentence, same <span class="num">1532 ms</span> pause, one knob — at the
+    vendor default it is cut in <span class="bad">two</span>, at 2400 ms it stays
+    <span class="good">whole</span>.
   </p>
-  <div class="src">bench/runs/pilot_ladder.say.live.json · aggressive [2855, 4587] · balanced [5406] · image written by scripts/pilot_ladder.py svg</div>
+  <div class="src">bench/runs/pilot_ladder.continuation.live.json · turn counts 2/2/1/1, predicted before the run in 7df3a4f · ADR-056</div>
   <div class="pg">2 / 7</div>
 </section>
 
@@ -246,7 +246,7 @@
       against a demonstrated 2.4 s. Found by measurement, not fixed.</li>
     <li><b>Live PCR attributes boundaries to the wrong gap</b>, because it reads the
       word-timing field in fact 4. TTL and FRAG do not use it and are unaffected.</li>
-    <li><b>740 tests, 98.18 % coverage, 184/184 mutations killed</b> certify less than they
+    <li><b>743 tests, 98.18 % coverage, 184/184 mutations killed</b> certify less than they
       look: lines <i>executed</i>, not behaviour asserted, and mutation coverage is
       file-granular — a kill proves <i>some</i> test noticed, never which.</li>
     <li><b>Nod is not the first adaptive endpointer.</b> AssemblyAI's own Voice Agent API
