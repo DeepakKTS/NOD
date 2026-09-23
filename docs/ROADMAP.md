@@ -1,8 +1,29 @@
 # Nod — Build plan
 
 Window: 15 September → 30 September 2026. Submission closes 30 Sep, 11:00 EDT.
-**Feature freeze is 26 September.** The last four days are for the things that always go
-wrong: audio devices, deployment, and video.
+
+> **The 26 Sep feature freeze is declared LAPSED as of 23 Sep, and here is what changed.**
+> It was written to protect the last four days for audio devices, deployment and video.
+> Two of those three are not merely unfinished, they are blocked on things a freeze cannot
+> help: **deploy** is blocked on a locked macOS keychain that stops `git push`, so no
+> platform can build from the repo, and there is no local container runtime to build an
+> image instead. **Audio** is blocked on a reader who has not been booked.
+>
+> The freeze is not moved to a later date, because moving it would assert a second date on
+> the same evidence as the first. It is declared lapsed, which is the honest description
+> of what happened: the date passed the work rather than the work meeting the date.
+>
+> **What replaces it is a scope decision, not a schedule.** ADR-054 established that the
+> incomplete-utterance regime — the thing the controller exists to serve — has not been
+> shown to be reachable on this service. That changes what the remaining work is *for*:
+> the video and the deck must be written against "three static arms measured live, the
+> mechanism not yet exercised, and here is the evidence it may not be exercisable", which
+> is a different and more defensible artifact than the one the freeze was protecting.
+> **Code is frozen from here: bug fixes, docs and the two cheap checks ADR-054 names.**
+> No new features, which is what the freeze was for.
+
+**Feature freeze: 26 September — LAPSED, see above.** The last four days are for the
+things that always go wrong: audio devices, deployment, and video.
 
 Each phase has exit criteria. Do not start the next phase until they are all true. If a
 phase slips, cut from the Cut List (§3), never from the harness.

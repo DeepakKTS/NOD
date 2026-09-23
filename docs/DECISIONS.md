@@ -2673,15 +2673,41 @@ The discriminating cases are clips whose pause exceeds an arm's **min** gate whi
 
 | arm | min / max | cuts observed | predicted if min binds | predicted if max binds | in-window pauses |
 |---|---|---|---|---|---|
-| `aggressive` | 160 / 400 | 10 | 9 | 6 | 200, 260, 400 |
+| `aggressive` | 160 / 400 | 10 | 9 **(unexplained +1)** | 6 | 200, 260, 400 |
 | `balanced` | 400 / 1280 | **6** | **6** | 3 | 600, 780, 800 |
 | `conservative` | 800 / 3600 | **3** | **3** | 0 | 1800, 2000, 2200 |
 
 `balanced` cut on 600/780/800 ms pauses below its 1280 ms max gate; `conservative` cut on
 1800–2200 ms pauses far below its 3600 ms gate. The min-gate column matches observation
-exactly on both; the max-gate column matches neither. `aggressive` is 10 against a
-predicted 9 — one extra clip, unsurprising when its min gate is 160 ms and the median
-inter-word gap is also 160 ms, so an intrinsic gap can trip it.
+exactly on both; the max-gate column matches neither. **`aggressive` is 10 against a predicted 9, and that cell is unexplained** — see the
+correction below; the hand-wave about intrinsic gaps that stood here was not checked.
+
+> **Gate 4d, on the `aggressive` residual.** Two of the four candidates are ruled out by
+> arithmetic on the committed table. Each Track A clip is one utterance, so `FRAG x 12` is
+> the total boundary count, and it equals `cuts + 12` **exactly** on all three arms
+> (22 = 10+12, 18 = 6+12, 15 = 3+12). So every clip emitted one end-of-clip boundary and
+> the premature cuts are all genuinely mid-clip: **an end-of-clip boundary miscounted as
+> premature is ruled out**, since that clip would carry one boundary rather than two and
+> `aggressive`'s FRAG would be 1.750, not the observed 1.833. **An inclusive/exclusive
+> off-by-one is ruled out** too: no pause equals 160 ms, the nearest below is 120 ms, so
+> `>` versus `>=` changes nothing for this arm. (`pcr` uses a strict `<` against
+> `final_word_end_ms`; no gate comparison in the control law is implicated.) And the
+> 400 ms pause sitting on the max gate cannot be it — it is already inside the
+> nine-clip min-binds set.
+>
+> **So it is a real extra mid-clip boundary**, on one of the three clips with no inserted
+> pause over 160 ms: `prolong_018`, `repeat_015` or `noise_027`, whose `source_intrinsic`
+> gaps are 200, 250 and 200 ms. Exactly one of them fired. **Which one cannot be
+> determined from the committed artifacts**, because per-clip boundary times were not
+> persisted (ADR-052).
+>
+> The tempting explanation — intrinsic gaps are heard — does not survive contact:
+> including them predicts 12 cuts for `aggressive` and 7 for `balanced` against 10 and 6,
+> and `balanced` ignored a **700 ms** intrinsic gap at a 400 ms gate while `aggressive`
+> apparently heard a ~200 ms one at 160 ms. A model where the service hears intrinsic
+> silence as materially shorter than our −44 dBFS detector measures it would fit all three
+> arms, and is ADR-031's direction — but it is one free parameter fitted to three points,
+> so it is recorded as a hypothesis and not as the answer.
 
 **So the pauses are ample** — 2200 ms is 2.75× `conservative`'s min gate — and the service
 simply does not treat those points as incomplete. The complement confirms the model is
@@ -2736,3 +2762,97 @@ Consequence: `_live_sweep` now writes `observations.live.json` and `patch_census
 redone from it without re-acquiring the data. "The numbers are committed" is not that —
 the numbers are the *output* of the analysis, and committing only them fixes the estimator
 forever at whatever was in the tree the day the run happened.
+
+## ADR-053 — Mutation coverage is file-granular, and the number certifies files
+2026-09-23 · Status: accepted — Gate 4d, a known limitation carried deliberately
+Context: `make mutate` reports `149/149 killed`, and that has been read across several
+gates as though the suite were verified. It is not what the number means. The harness
+applies a mutation and runs **whole test files**, so a kill establishes that *some* test
+in the file noticed — never which, and never that the others would.
+
+Counted at Gate 4d: **24 of 38 test files are the target of no mutation at all**, holding
+**264 of 565 test definitions — 47 % of the suite has never been given anything to catch.**
+Within the other 301, the file-granularity ceiling applies, so 301 is an upper bound on
+individually-verified tests and the true figure is lower.
+
+**A floor now exists for the published-number path.** A new `audit_test_ids` mode drops
+`-x`, disables colour and collects the individual ids that die, run over the `metrics`,
+`report` and `wire` catalogues: **22 of 79 definitions in those three files are
+individually seen red.** Not extended to the whole suite inside the freeze window, and not
+extended to the `live` catalogue, whose file takes ~126 s per mutation.
+
+So the honest reading of the three headline numbers:
+- `149/149 killed` certifies **files**, not tests.
+- `98.18 % coverage` certifies **lines executed**, not behaviour asserted.
+- `714 passed` is 714 assertions of which a minority are known to be load-bearing.
+Decision: **carry the limitation, state it, and do not fix it now.**
+
+Fixing it means per-test attribution: run each mutation against each test individually, or
+run the file and record the failing ids — the second is what `audit_test_ids` does and it
+roughly doubles a full run because it cannot stop at the first failure. Across 149
+mutations, with the `live` file at ~126 s, that is hours per full pass and it would land
+three days before submission. The value is real but the timing is wrong.
+
+What it would take, recorded so a later session does not re-derive it: make
+`name_failures` the default, store the id set per mutation in a committed JSON beside the
+catalogue, and add a target that reports tests with no killing mutation. That turns the
+catalogue into a coverage map rather than a pass/fail gate, and the map is the thing worth
+having — it names the tests that would not notice.
+Consequence: §5 gains the entry; the README's honest-scope section gains it too, because
+this is a claim about the evidence and belongs where the claims are, not only in the
+operating contract. The three numbers stay in the record, with what each certifies stated
+next to it. Nothing in the catalogue changes.
+
+## ADR-054 — The incomplete-utterance regime was not reachable, and that is the headline
+2026-09-23 · Status: accepted — Gate 4d pilot, **FAIL branch taken**
+Context: ADR-051 established that `max_turn_silence` never binds on Track A and left open
+whether that was the corpus or the service. `docs/PILOT_REGIME.md` was written to decide
+it. The pilot was run on `say`-synthesised audio rather than a human — deliberately, to
+hold the voice constant with Track A and isolate the **prefix** as the only variable.
+
+Four holds — 500, 1000, 2000, 3500 ms — after a prefix that English cannot end on:
+*"I need to reschedule my appointment **to**"*. Three static arms, twelve live sessions.
+Decision: **the regime was not reached on any arm at any hold, and the project says so.**
+
+The decisive observation needs no clock arithmetic: **the firing time does not move with
+the hold.** `balanced` ended the turn at 3008 / 2980 / 3010 ms for holds of 1000 / 2000 /
+3500 ms; `conservative` at 3218 / 3235 / 3231 ms. A service waiting out `max_turn_silence`
+could not fire *inside* a 1000 ms hold at all — `balanced`'s max gate is 1280 ms. It ends
+the turn promptly after the prefix and the extra seconds change nothing. `aggressive` cut
+earlier still, mid-phrase, its transcript stopping at *"…my appointment"* with the final
+*"to"* lost entirely.
+
+**What this is evidence about.** ADR-001 measured `end_of_turn_confidence_threshold`
+**INERT** on `universal-streaming-english`. Taken with this pilot, the reading is that the
+semantic gate we are allowed to configure is not operative for us, so turns end on silence
+at approximately `min_turn_silence`, and `max_turn_silence` — the knob ADR-011 makes
+Nod's primary lever, and the only one that tolerates a mid-sentence pause — does not
+engage at a mid-utterance pause however long the pause or however unfinished the sentence.
+
+**The one reconciliation, stated because it cuts against the finding.** Track A's TTL p90
+sits at each arm's max gate + ~162 ms (559 / 1444 / 3762), which is real evidence that max
+binds *somewhere*. The coherent reading is that it binds at **end of stream** — when the
+audio stops — and not at a pause inside a live utterance. That distinction is not a
+technicality: the pause inside a live utterance is the entire case Nod exists for. The
+reading is inferred, not measured, and the measurement that would settle it needs a clock
+alignment the harness does not currently establish (the feeder clock and the service's
+word timings differ by an unmeasured offset, visible here as silences of 180–435 ms
+against min gates of 400 and 800).
+Consequence: **this becomes the README's headline, not a footnote about the corpus.** It
+is a finding about the service and about the premise, and softening it into "Track A was
+unrepresentative" would be false — a second corpus, built the same way, was also unable to
+reach the regime.
+
+What survives is worth being precise about. The controller, the two-gate law, the
+profiler, the harness and the closed loop are all built and tested; `min_turn_silence` is
+demonstrably live and moves the boundary (the three arms separate cleanly on it). What has
+**not** been shown is that the regime the controller is *for* can be entered on this
+service with the knobs it exposes. **Nod may be a correct controller for a gate that does
+not engage**, and until a human recording or a different model says otherwise, that is the
+honest position.
+
+Before the claim is weakened further or abandoned, two cheap checks remain, in this order:
+run the same ladder against a **human** voice, since every negative so far is on `say`
+output and prosody is a plausible completion cue; and run it with
+`end_of_turn_confidence_threshold` swept, to confirm ADR-001's INERT verdict still holds
+on the current model version rather than the one probed at P1.

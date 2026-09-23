@@ -1,5 +1,12 @@
 # Pilot gate — where does the incomplete-utterance regime begin?
 
+> **Run on 23 Sep against `say` audio: FAIL.** Four holds to 3.5 s after a
+> preposition-final prefix, three arms, twelve sessions — the regime was not
+> reached and firing time did not move with the hold (ADR-054). The human
+> version below is still worth running, because every negative so far is on
+> synthesised speech and prosody is a plausible completion cue. It is now a
+> check on a stated negative rather than a sizing exercise for a script.
+
 **Thirty seconds of audio, recorded before any Track C session is booked.**
 
 This is a second pilot, additional to `TRACK_C_SCRIPT.md` §9. That one asks whether the

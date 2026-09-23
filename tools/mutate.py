@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1299,8 +1300,20 @@ def _purge() -> None:
             shutil.rmtree(cache, ignore_errors=True)
 
 
-def _run_tests(tests: Sequence[str]) -> bool:
-    """Run `tests` in a subprocess. Returns True when they failed (mutation killed)."""
+def _run_tests(tests: Sequence[str], *, name_failures: bool = False) -> bool:
+    """Run `tests` in a subprocess. Returns True when they failed (mutation killed).
+
+    Args:
+        tests: Test paths to run.
+        name_failures: Collect the *individual* test ids that died into
+            `KILLED_TEST_IDS` and drop `-x`, so every test that would notice the
+            mutation is seen rather than only the first. Off by default: it
+            makes each mutation run the whole file instead of stopping at the
+            first failure, which roughly doubles a full run.
+
+    Returns:
+        Whether the suite failed, i.e. whether the mutation was killed.
+    """
     env = {
         **os.environ,
         "PYTHONDONTWRITEBYTECODE": "1",
@@ -1314,9 +1327,14 @@ def _run_tests(tests: Sequence[str]) -> bool:
             *tests,
             "--no-cov",
             "-q",
-            "-x",
             "-p",
             "no:cacheprovider",
+            # Without this pytest colours the summary, so a `FAILED ` prefix
+            # match sees an escape sequence and silently finds nothing — which
+            # is what it did on the first run of this audit, reporting 0 of 79
+            # while every mutation was being killed.
+            "--color=no",
+            *([] if name_failures else ["-x"]),
         ],
         cwd=REPO,
         env=env,
@@ -1324,7 +1342,20 @@ def _run_tests(tests: Sequence[str]) -> bool:
         text=True,
         check=False,
     )
+    if name_failures:
+        for line in completed.stdout.splitlines():
+            if line.startswith("FAILED "):
+                KILLED_TEST_IDS.add(line.split()[1].split(" - ")[0])
     return completed.returncode != 0
+
+
+KILLED_TEST_IDS: set[str] = set()
+"""Individual test ids observed failing under some mutation, when asked.
+
+**This is the only way to answer "which tests have been seen red".** The
+catalogue is file-granular — a kill proves *some* test in the file noticed, not
+which — so `149/149 killed` certifies files and not tests (ADR-053).
+"""
 
 
 def _apply(mutation: Mutation, original: str, baseline: str) -> None:
@@ -1426,6 +1457,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         selected.extend(CATALOGUE[name])
     print(f"mutating: {', '.join(names)}  ({len(selected)} mutations)\n")
     return run(selected)
+
+
+def audit_test_ids(modules: Sequence[str]) -> int:
+    """Report which individual tests are seen red by `modules`' mutations.
+
+    A floor, never a ceiling: it names tests that *did* die under at least one
+    catalogued mutation. Silence about a test means only that no mutation in
+    this catalogue reached it.
+    """
+    KILLED_TEST_IDS.clear()
+    selected = [m for name in modules for m in CATALOGUE[name]]
+    files = sorted({t for m in selected for t in m.tests})
+    print(f"auditing {len(selected)} mutations over {len(files)} file(s)\n")
+    for mutation in selected:
+        target = REPO / mutation.target
+        original = target.read_text()
+        baseline = _digest(target)
+        try:
+            _apply(mutation, original, baseline)
+            _run_tests(mutation.tests, name_failures=True)
+        finally:
+            _purge()
+            target.write_text(original)
+            _purge()
+    total = sum(
+        len(re.findall(r"^\s*(?:async )?def (test_\w+)", (REPO / f).read_text(), re.M))
+        for f in files
+    )
+    print(
+        f"individually seen red: {len(KILLED_TEST_IDS)} of {total} defs in those files"
+    )
+    for tid in sorted(KILLED_TEST_IDS):
+        print(f"  {tid}")
+    return 0
 
 
 if __name__ == "__main__":

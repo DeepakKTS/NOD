@@ -112,34 +112,55 @@ once a closed session's slot is counted, which puts 3,600 sessions at about 16 h
 (ADR-048). Every interval below is therefore much wider than the design intended, and the
 clip bootstrap rests on twelve clips rather than 120.
 
-**The Track A corpus does not exercise the mechanism Nod implements.** That is
-the result, and it is a weaker statement than the table looks.
+**The regime Nod exists for has not been shown to be reachable.** That is the
+headline, it is a finding about the service rather than about our corpus, and it
+is stated first because everything else here is downstream of it.
 
-Nod's lever is `max_turn_silence`, the gate that governs an *incomplete*
-utterance — the only one that tolerates a mid-sentence pause. **On this corpus
-it never binds.** Measured against the live service: predicted cut rates from
-each arm's `max_turn_silence` match nothing observed, and predictions from
-`min_turn_silence` match exactly — `balanced` cut on 600–800 ms pauses that sit
-below its 1280 ms max gate, `conservative` on 1800–2200 ms pauses far below its
-3600 ms gate. The pauses are ample; the service simply does not treat those
-points as incomplete (ADR-051). So the three static arms above differ by their
-*min* gates, and the chart is a tradeoff curve for a knob Nod is not primarily
-moving.
+`max_turn_silence` is the gate that governs an *incomplete* utterance — the only
+one that tolerates a mid-sentence pause, and the knob the controller primarily
+moves. **It never bound.** Not on the 12-clip live sweep, where predicted cut
+rates from each arm's max gate match nothing observed while min-gate predictions
+match exactly. And not on a pilot built specifically to force it: four holds of
+0.5–3.5 s after *"I need to reschedule my appointment **to**"*, a prefix English
+cannot end on, across all three arms. **The firing time did not move with the
+hold** — `balanced` ended the turn at 3008 / 2980 / 3010 ms for holds of 1000 /
+2000 / 3500 ms — and a service waiting out a 1280 ms max gate cannot fire inside
+a 1000 ms hold. `aggressive` cut mid-phrase and lost the final word.
 
-**Nor does the run establish that the controller acted.** The nod arms read the
+Read with ADR-001, which measured `end_of_turn_confidence_threshold` **inert** on
+this model, the position is: turns end on silence at roughly `min_turn_silence`,
+and the gate that would let a speaker pause mid-sentence does not engage.
+Track A's latencies do sit at each arm's max gate, which says max binds
+*somewhere* — most likely at end of stream, when the audio stops, rather than at
+a pause inside a live utterance. That is inferred, not measured (ADR-054), and
+the distinction is the whole case Nod was built for.
+
+**What that costs the claim, precisely.** The controller, the two-gate law, the
+profiler, the closed loop and the harness are built, tested and working.
+`min_turn_silence` is demonstrably live — the three static arms separate cleanly
+on it, which is what the table below shows. What has *not* been demonstrated is
+that the regime the controller exists to serve can be entered on this service
+with the knobs it exposes. **Nod may be a correct controller for a gate that
+does not engage.** Two cheap checks remain before that is taken as settled: the
+same ladder against a human voice, since every negative so far is `say` output
+and prosody is a plausible completion cue; and a fresh sweep of
+`end_of_turn_confidence_threshold`, to confirm the inert verdict still holds on
+the current model version.
+
+**Nor does the sweep establish that the controller acted.** The nod arms read the
 same as `balanced` — expected, since Track A is one utterance per clip so the
 profiler cannot reach its 24-gap warm threshold, and Track A declares no answer
-classes so the context axis has no input. But "the controller ran and correctly
-did nothing" and "the controller never ran" produced byte-identical evidence:
-the trace sink was the only recorder, every emit is branch-guarded, and it
-writes lazily, so 180 controlled sessions left 360 empty directories and no
-other record anywhere. **The patch count is unmeasured, not zero** (ADR-050).
+classes so the context axis has no input. But "ran and correctly did nothing" and
+"never ran" produced byte-identical evidence: the trace sink was the only
+recorder and it writes nothing when there is nothing to write. **The patch count
+is unmeasured, not zero** (ADR-050).
 
-Taken together: this table is a live measurement of three static configurations
-on a synthetic corpus. It is **not** evidence for or against the claim the
-project exists to test. That claim needs a corpus with genuine mid-utterance
-pauses and enough turns to warm the profiler, which is Track C, which has not
-been recorded.
+**One cell in the table is unexplained.** `aggressive`'s PCR is 0.833, ten cuts
+against nine predicted. Arithmetic on FRAG rules out a miscounted end-of-clip
+boundary and an off-by-one at the gate, so it is a real tenth mid-clip boundary
+on one of three candidate clips — but which, and why, cannot be recovered,
+because per-clip boundary times were not persisted (ADR-051, ADR-052). It is
+marked rather than left to read as a match.
 
 **Two of BENCH_SPEC §5's seven metrics are absent and will stay absent.** TCT and RES both
 require a caller who reacts to being cut off, and recorded audio does not react — TCT would
@@ -187,6 +208,18 @@ benchmark that does publish them can see which two are missing and why.
   came from.
 - Nod adapts to pauses. It does not interpret them. There is no inference of emotion,
   stress, honesty, or any clinical condition from speech timing, and there never will be.
+- **What the test numbers certify, which is less than they look.** The suite reports
+  714 passing tests, 98.18 % line coverage and `149/149` mutations killed. Read
+  precisely: mutation coverage is **file-granular**, so a kill proves *some* test in
+  that file noticed the change, never which — `149/149` certifies files, not tests.
+  Coverage certifies **lines executed**, not behaviour asserted. And **24 of 38 test
+  files are the target of no mutation at all**, holding **264 of 565 test definitions,
+  so 47 % of the suite has never been given anything to catch** (ADR-053). A floor does
+  exist where it matters most: over the published-number path's fast suites — metrics,
+  report and the wire encoding — **22 of 79 definitions have individually been seen
+  red**. This is stated because the alternative is a reader taking three large green
+  numbers as three guarantees, and Gate 4b found a fix whose test had never once failed.
+
 - **The corpus is synthetic speech from one macOS `say` voice, and every published
   number here comes from it.** Not CC-licensed human recordings — the source manifest
   says `"generated by macOS say, not redistributable speech"`, one voice (Samantha) at

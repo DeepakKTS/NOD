@@ -322,6 +322,35 @@ lines. That file is long-term memory; this file is the standing contract.
     are known to be load-bearing**, and the number belongs in the record so that "the
     tests pass" is never again mistaken for "the tests would notice".
 
+  - **An analysis filter that quietly changed the question.** Gate 4c's script predicted
+    cut rates by taking, per clip, the longest gap whose `origin` equalled the clip's
+    perturbation type. That silently excluded every intrinsic and word-timing silence, so
+    "9 predicted" was never a prediction about the corpus — it was a prediction about
+    generator-inserted pauses, presented as though it were about the clip. Two arms
+    matched exactly and the third was off by one, and the mismatch was waved through as
+    "an intrinsic gap, unsurprising". It was not checked, and when Gate 4d checked it the
+    hand-wave failed: including intrinsic gaps over-predicts `aggressive` by 2 **and**
+    breaks `balanced` by 1.
+    What resolved it was a quantity already in the published table. Each Track A clip is
+    one utterance, so `FRAG x 12` is the total boundary count, and it equals `cuts + 12`
+    exactly on all three arms — which rules out a miscounted end-of-clip boundary, since
+    that clip would carry one boundary and `aggressive`'s FRAG would be 1.750 rather than
+    the observed 1.833. **The check that settled it cost nothing and was available the
+    whole time.** The lesson is narrow and practical: when a prediction misses, the first
+    move is to re-read the predicate, not to name a plausible cause — and a second
+    published metric is often already constraining the answer.
+  - **A parser that found nothing and reported it as a result.** The per-test audit added
+    at Gate 4d matched `line.startswith("FAILED ")` against pytest output and reported
+    **0 of 79 tests seen red** while every mutation in the run was being killed. pytest
+    colours its summary, so the line begins with an escape sequence and the prefix never
+    matched. The number was not a measurement of the suite; it was a measurement of the
+    parser, and it arrived in exactly the shape a real answer would have.
+    This is the disconnected-instrument shape again, one gate after ADR-050's published
+    zero, and it was caught only because **0 was implausible on its face** — the mutations
+    were demonstrably killing something. That is the check worth keeping: a parser that
+    reports the extreme value should be suspected before it is believed, because "found
+    nothing" is what both an empty world and a broken instrument look like.
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.
