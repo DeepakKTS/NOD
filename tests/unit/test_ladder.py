@@ -317,7 +317,7 @@ def test_a_boundary_outside_the_hold_is_not_an_in_hold_boundary() -> None:
     assert row.silence_at_fire_ms is None
 
 
-def _prediction(*, in_hold: bool, at: float) -> Prediction:
+def _prediction(*, in_hold: bool, at: float, turns: int = 2) -> Prediction:
     """One prediction, for scoring."""
     return Prediction(
         arm="balanced",
@@ -325,6 +325,7 @@ def _prediction(*, in_hold: bool, at: float) -> Prediction:
         hypothesis="confidence",
         fires_in_hold=in_hold,
         fired_at_ms=at,
+        expected_turns=turns,
     )
 
 
@@ -458,3 +459,62 @@ def test_the_envelope_normalises_to_its_own_peak() -> None:
     )
     assert max(loud) == pytest.approx(1.0)
     assert max(quiet) == pytest.approx(1.0)
+
+
+def test_a_split_turn_is_predicted_without_the_overhead() -> None:
+    """`expected_turns` and `fires_in_hold` must be able to disagree.
+
+    This is the `aggressive` 532 ms row, the case that proves the two are
+    different questions. Its threshold is 400 ms, so the silence timer expired
+    inside the pause and the utterance split; but the boundary frame arrived
+    590 ms after the prefix ended, 58 ms *after* the 532 ms pause was over, so
+    it did not land in the hold. A demo that read `fires_in_hold` as "did it
+    split" would call this one turn. The clip carries two.
+    """
+    geo = LadderGeometry(
+        hold_label_ms=500,
+        hold_measured_ms=532,
+        prefix_end_ms=2240,
+        continuation_start_ms=2772,
+        continuation_end_ms=4050,
+        total_ms=4050 + TAIL_SILENCE_MS,
+    )
+    agg = STATIC_ARMS["aggressive"]
+    p = predict(
+        geo,
+        "aggressive",
+        agg.min_turn_silence,
+        agg.max_turn_silence,
+        "clamped",
+        confidence_ms=590.0,
+    )
+    assert p.expected_turns == 2, "the 400 ms threshold is shorter than the pause"
+    assert p.fires_in_hold is False, "but the frame lands after the caller resumed"
+
+
+def test_a_threshold_longer_than_the_pause_keeps_one_turn() -> None:
+    """The other side of the same boundary, and the demo's punchline.
+
+    `conservative`'s 800 ms threshold outlasts a 532 ms pause, so the caller
+    resumes before the timer expires and the utterance stays whole. The two
+    arms differ only in their gates and land on different turn counts, which is
+    the entire claim the cold open makes.
+    """
+    geo = LadderGeometry(
+        hold_label_ms=500,
+        hold_measured_ms=532,
+        prefix_end_ms=2240,
+        continuation_start_ms=2772,
+        continuation_end_ms=4050,
+        total_ms=4050 + TAIL_SILENCE_MS,
+    )
+    con = STATIC_ARMS["conservative"]
+    p = predict(
+        geo,
+        "conservative",
+        con.min_turn_silence,
+        con.max_turn_silence,
+        "clamped",
+        confidence_ms=590.0,
+    )
+    assert p.expected_turns == 1

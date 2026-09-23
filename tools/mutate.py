@@ -1103,6 +1103,16 @@ def _ladder_mutations() -> tuple[Mutation, ...]:
             SMOKE_TESTS,
         ),
         mutation(
+            "turns: include the overhead, so a split turn reads as whole",
+            "        expected_turns=2 if silence_ms < geometry.hold_measured_ms else 1,",
+            "        expected_turns=2 if wait_ms < geometry.hold_measured_ms else 1,",
+        ),
+        mutation(
+            "turns: always predict a split",
+            "        expected_turns=2 if silence_ms < geometry.hold_measured_ms else 1,",
+            "        expected_turns=2,",
+        ),
+        mutation(
             "svg: draw one turn count for every row",
             "        turns = len(row.boundaries)",
             "        turns = len(rows[0].boundaries)",

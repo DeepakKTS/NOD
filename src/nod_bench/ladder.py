@@ -344,6 +344,33 @@ class Prediction(BaseModel):
     instead, so every prediction names a time and none of them is unfalsifiable.
     """
 
+    expected_turns: int
+    """Word-bearing turns predicted for the whole clip: 1 if the utterance
+    survives the pause, 2 if it splits.
+
+    **Computed without the endpoint overhead, and `fires_in_hold` is computed
+    with it.** The two answer different questions and the difference is not
+    academic — it is measured. The service's silence timer resets when the
+    caller resumes, so the turn splits when the *threshold* is shorter than the
+    pause; the overhead is transmission delay applied after that decision and
+    cannot un-split a turn. `aggressive` on the 532 ms row is the proof: its
+    threshold is 400 ms so the turn ended, but the boundary frame arrived at
+    2855 ms, **83 ms after the caller had already resumed** — outside the hold.
+    `fires_in_hold` is therefore false there while the clip genuinely carries
+    two turns.
+
+    Gate 4f published a correct number inside a wrong sentence (ADR-055). This
+    field exists so the sentence the demo makes — "this config splits the
+    utterance, that one does not" — is itself pre-registered rather than
+    derived afterwards from a field that answers something adjacent.
+
+    **Two assumptions, stated because they are how it can be wrong.** It counts
+    exactly one end-of-stream boundary, which held 16/16 at Gate 4e. And it
+    assumes no fragmentation *inside* an utterance — which `aggressive` violates
+    on every ladder row, closing a turn mid-prefix at its 400 ms max gate. For
+    any arm whose max gate sits below the commit point this under-counts.
+    """
+
 
 def predict(
     geometry: LadderGeometry,
@@ -407,6 +434,7 @@ def predict(
         hypothesis=hypothesis,
         fires_in_hold=in_hold,
         fired_at_ms=anchor + wait_ms,
+        expected_turns=2 if silence_ms < geometry.hold_measured_ms else 1,
     )
 
 

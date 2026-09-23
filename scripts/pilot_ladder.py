@@ -259,8 +259,7 @@ def cmd_predict(args: argparse.Namespace) -> int:
                     and r.hold_label_ms == geo.hold_label_ms
                     and r.hypothesis == h
                 )
-                mark = "in-hold" if p.fires_in_hold else "AFTER  "
-                cells.append(f"{p.fired_at_ms:7.0f} {mark}")
+                cells.append(f"{p.fired_at_ms:6.0f} {p.expected_turns}turn")
             print(
                 f"{arm:14s} {geo.hold_label_ms:6d} "
                 + " ".join(f"{c:>18s}" for c in cells)
@@ -370,6 +369,22 @@ async def cmd_run(args: argparse.Namespace) -> int:
         )
         print(
             f"  {arm:14s} spread {('--' if spread is None else f'{spread:.0f} ms'):>9s}  {verdict}"
+        )
+
+    print("\nturn count — the claim the demo makes (clamped hypothesis):")
+    for row in rows:
+        p = next(
+            r
+            for r in pred["predictions"]
+            if r["arm"] == row.arm
+            and r["hold_label_ms"] == row.hold_label_ms
+            and r["hypothesis"] == "clamped"
+        )
+        got, want = len(row.boundaries), p["expected_turns"]
+        print(
+            f"  {row.arm:14s} hold {row.hold_label_ms:5d}  predicted {want} "
+            f"turn{'' if want == 1 else 's'}, observed {got}  "
+            f"{'OK' if got == want else 'MISS'}"
         )
 
     print(
