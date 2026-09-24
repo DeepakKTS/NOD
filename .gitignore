@@ -79,3 +79,11 @@ out/
 # hypothesis example database; a local cache of falsifying examples
 .hypothesis/
 .gate.ok
+
+# /brag scratch output. Generated, timestamped, never committed.
+brag-output-*/
+brag-output/
+
+# Demo-video voiceover renders. Regenerable from docs/VIDEO_SCRIPT.md via
+# `hyperframes tts --voice af_heart`; 21 MB of WAV does not belong in git.
+video-vo-*/
