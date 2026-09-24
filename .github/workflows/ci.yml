@@ -22,6 +22,13 @@ jobs:
     # marker filter fails on a missing key rather than quietly spending credits.
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `test_every_commit_sha_in_a_public_file_resolves` resolves the commit
+          # SHAs cited in README, the deck and the video script with `git cat-file`.
+          # A shallow clone has none of them, so the test failed on correct
+          # documents for four runs — it was reporting a property of the checkout
+          # as a property of the docs (CLAUDE.md §5, instrument scope).
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -62,6 +69,13 @@ jobs:
     # rather than masking a lint or type regression (ARCHITECTURE.md §10).
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `test_every_commit_sha_in_a_public_file_resolves` resolves the commit
+          # SHAs cited in README, the deck and the video script with `git cat-file`.
+          # A shallow clone has none of them, so the test failed on correct
+          # documents for four runs — it was reporting a property of the checkout
+          # as a property of the docs (CLAUDE.md §5, instrument scope).
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6

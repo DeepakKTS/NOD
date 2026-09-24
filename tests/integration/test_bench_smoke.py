@@ -328,6 +328,26 @@ def test_every_commit_sha_in_a_public_file_resolves() -> None:
     approximation is deliberately loose in the direction of *more* checking —
     a false positive here costs a rename, a false negative costs credibility.
     """
+    # **A shallow clone cannot answer this question, and must not pretend to.**
+    # GitHub Actions checks out with `fetch-depth: 1` by default, so
+    # `git cat-file` finds none of the cited commits and every correct document
+    # looks broken. That is the instrument-scope failure in CLAUDE.md §5 —
+    # `git cat-file` observes the local object store, and "is this a real commit
+    # in the project's history" is outside that set when the store is a stump.
+    # Checked first so the failure names the clone rather than the docs.
+    shallow = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],  # noqa: S607
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert shallow.stdout.strip() == "false", (
+        "this repository is a shallow clone, so no commit SHA can be resolved "
+        "and this test can say nothing about the documents. Set "
+        "`fetch-depth: 0` on actions/checkout."
+    )
+
     unresolved: list[str] = []
     checked = 0
     for name in PUBLIC_FACING:

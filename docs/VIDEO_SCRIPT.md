@@ -209,16 +209,39 @@ Session ✓ and Events subscribed ✓ with the three audio rows grey.
 **On screen:** orb scales with your voice and turns amber; transcript fills line by line.
 **VO:** "It is listening, and transcribing through AssemblyAI."
 
-### Take 4 — the controller moves. **The shot the film is for.** (12 s)
+### Take 4 — the controller moves. **The shot the film is for.** (14 s)
 
 **Action:** keep talking until `state` flips **cold → warm**, then stop.
 **Frame:** Listening window card and the reason line under the meter, both visible.
 **On screen:** `state` → `warm`, `min` and `max` change, **Patches** climbs off 0, the
 reason line appears reading `turn — waiting up to N s (speaker+context)`, and the meter
 capsule springs to its new width.
-**VO:** "It has learned this caller's rhythm and changed the listening window mid-call —
-and it says why. This is a demonstration, not a measurement."
-*The last sentence is mandatory and must be audible in the take.*
+
+**VO — say all four sentences, in this order:**
+
+> "It has learned this caller's rhythm, and changed the listening window mid-call —
+> and it tells you why.
+> Where it lands depends on the voice; yours will be a different number from mine.
+> The movement is the claim, not the number.
+> This is a demonstration, not a measurement."
+
+The last two sentences are **mandatory and must be audible.** The third is what stops
+a viewer reconciling the on-screen value against the deck's; the fourth is the label
+that appears beside the number in every written asset.
+
+> **Why the caption says "depends on the voice", and why no number is spoken.**
+> The same controller on the same config has landed `min_turn_silence` at **1839 ms**
+> on one voice and **271 ms** on another — the owner's live session and the Gate 4i
+> verification run. That is a 4.7x spread, and it is per-caller adaptation visible in
+> two points: precisely the thing the controller exists to do.
+>
+> **It is deliberately not spoken.** At n = 2 it is two anecdotes, and a voice-over is
+> the least qualifiable medium in the submission — the deck can set a red box beside a
+> number, speech cannot. "4.7x" would be the most quotable line in the film and the
+> least defensible one. So the *reason* the caption is voice-dependent lives here, in
+> the repository, where it can carry its own caveat; the film says only that the value
+> varies. Smoothing it over as "variance" would have been the dishonest alternative —
+> it is not noise, it is the mechanism.
 
 ### Take 5 — the pause (10 s)
 
