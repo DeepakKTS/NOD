@@ -243,6 +243,41 @@ that appears beside the number in every written asset.
 > varies. Smoothing it over as "variance" would have been the dishonest alternative —
 > it is not noise, it is the mechanism.
 
+> ### Take 4b — the context axis — **cut, and here is why**
+>
+> `?context=on` connects the context axis (ADR-059): the reference agent asks five
+> scripted intake questions, and the window is multiplied per question — 2.4x for
+> spelling, 2.0x for an identifier, **0.7x** for a yes/no.
+>
+> **It works.** Driven through a real browser over CDP at Gate 4l: the agent asked
+> *"Can I take your member number?"*, the chip read `expects: entity id`, ten patches
+> went out and the window moved on every turn.
+>
+> **It is not filmable as a numbered take**, which is a different question and the one
+> this format exists to answer. Two reasons, both correct behaviour rather than bugs:
+>
+> - The arbiter **rate-limits** each change, so the window *moves toward* a class's
+>   target across several turns instead of landing on it. There is no frame where the
+>   screen reads "2.4x".
+> - Looping audio tripped the **anti-oscillation guard** into `FROZEN`
+>   (`FREEZE_REVERSALS`), which holds the speaker axis and lets only the context axis
+>   through. Correct, and it means the on-screen values are path-dependent.
+>
+> So a caption for this take cannot be written in advance — the numbers depend on how
+> the call goes — and **a take whose caption is decided with a camera running is exactly
+> what this document exists to prevent.** Take 4 needs nothing from this path.
+>
+> The axis stays in the repository, tested (17 unit, 3 integration) and mutation-guarded
+> (6/6), and the deck claims it as built rather than filmed.
+
+> ### The two URLs are not the same agent
+>
+> Anyone assembling the film needs this. **Without the flag** the reference agent replies
+> with one constant line, *"Got it — thank you."*, to everything. **With `?context=on`**
+> it asks five different intake questions. That is deliberate — the stub brain asks
+> nothing, so the axis could never fire without a script (ADR-059) — but it means audio
+> recorded on the two URLs will not cut together. **Film every take on the plain URL.**
+
 ### Take 5 — the pause (10 s)
 
 **Action:** say *"I need to move it to"* — **stop for a slow two-count** — *"the following
