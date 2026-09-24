@@ -21,6 +21,7 @@ import time
 from collections.abc import Iterator
 from http import HTTPStatus
 from pathlib import Path
+from typing import Final
 
 import httpx
 import pytest
@@ -286,6 +287,21 @@ def uvicorn_server() -> Iterator[str]:
                 process.wait(timeout=10)
 
 
+READYZ_CHECKS: Final = frozenset(
+    {
+        "config_loaded",
+        "data_volume_writable",
+        "sqlite_reachable",
+        "capability_probe_cached",
+    }
+)
+"""The four conditions DEPLOYMENT §4 requires `/readyz` to report (ADR-041).
+
+Named here rather than read back from the response, so dropping a check is a
+failure rather than a smaller set that still agrees with itself.
+"""
+
+
 def test_make_run_binds_and_serves_health(uvicorn_server: str) -> None:
     """`make run` binds a port and serves both health endpoints.
 
@@ -297,9 +313,25 @@ def test_make_run_binds_and_serves_health(uvicorn_server: str) -> None:
     assert health.status_code == HTTPStatus.OK
     assert health.json() == {"status": "ok"}
 
+    # **Not asserted: which verdict `/readyz` returns.** It used to assert
+    # `503 not_ready`, which held only because no `.env` existed — the moment
+    # the app was configured well enough to actually run (Gate 4h-prep), the
+    # paths became writable, the probe cache resolved, and the same server the
+    # docstring is about started returning `200 ready`. A test that fails when
+    # the software is configured correctly is testing the developer's machine.
+    #
+    # What is asserted is the part that is environment-independent and is what
+    # this test is for: the endpoint is served, the document is well formed,
+    # and the verdict **agrees with its own checks**. That last line is the
+    # aggregation invariant, and it is stronger than the status code was.
     ready = httpx.get(f"{uvicorn_server}/readyz", timeout=5.0)
-    assert ready.status_code == HTTPStatus.SERVICE_UNAVAILABLE
-    assert ready.json()["status"] == "not_ready"
+    assert ready.status_code in {HTTPStatus.OK, HTTPStatus.SERVICE_UNAVAILABLE}
+    body = ready.json()
+    assert {c["name"] for c in body["checks"]} == READYZ_CHECKS
+    failing = [c["name"] for c in body["checks"] if not c["ready"]]
+    assert sorted(body["not_ready"]) == sorted(failing)
+    assert body["status"] == ("ready" if not failing else "not_ready")
+    assert (ready.status_code == HTTPStatus.OK) == (not failing)
 
 
 # --- NOD_MAX_SESSIONS, the cost bound that replaced auth (ADR-042) ----------

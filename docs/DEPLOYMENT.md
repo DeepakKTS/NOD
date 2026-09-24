@@ -129,6 +129,19 @@ Secrets are injected by the platform's secret store. `.env` is git-ignored;
 - Target image under 400 MB. `librosa` and `soundfile` are bench-only dependencies and are
   excluded from the runtime image via an extras group.
 
+> **The metrics named in §5 and §7 are not wired (ADR-057).** `nod_turns_total`,
+> `nod_cuts_total`, `nod_config_patches_total`, `nod_session_active` and
+> `nod_decide_seconds` are declared in `telemetry.py` and never incremented anywhere in
+> `src/`; only `nod_console_dropped_total` moves. They read `0.0` regardless of what the
+> service does, and a zero from any of them carries no information. Measured against
+> ground truth: a live session's trace read `patches_sent: 11` while
+> `nod_config_patches_total` read `0.0`.
+>
+> **Until they are wired, read the trace, not the endpoint.**
+> `controller_closed.payload` carries `turns_observed`, `patches_sent`,
+> `controller_errors` and `rejected_updates` per session, and it is emitted
+> unconditionally, so a session that did nothing still says so.
+
 ## 4. Health semantics
 
 | Endpoint | Green when |

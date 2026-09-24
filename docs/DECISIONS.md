@@ -3019,3 +3019,65 @@ Consequence: the deck carries the evidenced version.
 `bench/runs/ladder_continuation_1500.timeline.live.svg` is the cold open, replacing the
 532 ms frame — where `aggressive`'s split is real but falls **mid-prefix**, not at the
 pause, so the image invited a claim about the pause that the artifact does not support.
+
+## ADR-057 — The first live look: the loop runs, and two instruments do not
+2026-09-24 · Status: accepted — Gate 4h-prep, one guided browser session
+Context: eleven gates had produced a controller, a harness and a deck, and **nobody had
+watched the software work**. The server was started with `make run` and driven through
+the demo screen by hand while the trace directory and `/metrics` were read from the
+other side.
+Decision: record three findings, in the order of how much they change.
+
+**1. The closed loop runs, and the patch census is no longer unmeasured.**
+Session `s-ggNyjkQ-g0Oh` emitted **11 `config_decision` / `config_applied` pairs** with
+`dir:"up"`, `state:"warm"`, `rule_id:"speaker+context"`. The profiler **warmed on a live
+session** — it never had before; ADR-050 could only reason about why Track A could not
+warm it. `min_turn_silence` moved `400 → 352 → 309 → 238 → … → 160`; `max_turn_silence`
+`1280 → 1600 → 1606 → 1243 → … → 668`. INV-4 holds: every change carries its trigger,
+rule id, changed fields and values.
+
+ADR-050 published the census as *unmeasured rather than zero*. It is now **11 on one
+session**, directly observed, with `config_applied` proving the patch reached the socket
+and not merely the log — which is exactly the pair §5 requires for `send_patch_upstream`.
+
+**2. `/metrics` is a disconnected instrument, and the runbook points at it.**
+`nod_turns_total`, `nod_cuts_total`, `nod_config_patches_total`, `nod_session_active`
+and `nod_decide_seconds` are declared in `telemetry.py` and **`.inc()` / `.observe()` /
+`.set()` is never called on any of them anywhere in `src/`**. Only
+`CONSOLE_DROPPED_TOTAL` is ever incremented. Measured against ground truth in the same
+instant: the trace read `patches_sent: 11` while `nod_config_patches_total` read `0.0`.
+
+So `nod_config_patches_total` **cannot** be the live patch census; it is structurally
+incapable of moving, and a zero there carries no information at all. This is ADR-050's
+own shape one layer up, and it has been sitting under an endpoint that DEPLOYMENT §5 and
+§7's runbook instruct an operator to watch. The field that does distinguish "did not
+patch" from "did not record" is `controller_closed.payload.patches_sent`.
+
+**3. The demo screen renders nothing, and the fault is client-side.**
+A screenshot taken while the controller was at `min 160 / max 668 / warm / 11 patches`
+showed `min 400 / max 1 280 / cold / 0 patches` and `Transcript: Nothing yet.`, with the
+status pill reading `live`.
+
+Not diagnosed by reading code — measured. Subscribing to `ws://…/v1/console` directly
+returned a continuous stream of `turn.partial` and `turn.final` frames, so
+`ConsoleTeeSink` (`app.py:288`), the hub, `CONSOLE_KINDS` and the socket are all correct.
+`nod_console_dropped_total` is 0, and the client's `ws.onclose` would have flipped the
+pill to `closed`. **The server publishes and the browser does not render.** Left
+undiagnosed here because it needs a browser console, and recorded so the next session
+starts from the client rather than the server.
+
+**4. The input was not the caller, and this is the part to carry.**
+The transcripts the console probe returned were *"in-game footage"*, *"believe me"*,
+*"yes i can feel it"* — at `turn_order` 45+ and `start_ms` ≈ 299 520. The microphone was
+picking up audio playing on the machine. **The controller adapted to a video.**
+
+Everything in finding 1 stands: the loop ran, the patches were real, the profiler warmed.
+But nothing here is a measurement *of a caller*, and the direction the controller moved —
+`min` down to its `MIN_MS_FLOOR` of 160 — is exactly what a continuous fluent speaker with
+short inter-word gaps should produce. The control law behaved correctly on the input it
+was given, and the input was wrong.
+Consequence: no figure from this session enters any published table. `docs/DEPLOYMENT.md`
+gains a warning that the metrics it names are unwired. The demo screen is **not** usable
+for the video in its current state, so `docs/VIDEO_SCRIPT.md` keeps its terminal-and-SVG
+shot list, which needs no UI. Wiring the counters and fixing the client are both after the
+freeze; neither is a control-law change and neither affects a published number.

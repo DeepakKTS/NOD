@@ -4,20 +4,31 @@
 **Framing:** (b), the instrument story — a capability probe that measured a production
 service, with the controller as what was built to exercise it (Gate 4e, ROADMAP §3).
 
-> Field constraints below are as understood from lablab's public guidance. The
-> submission form itself is behind a login and could not be read directly, so **check
-> each limit against the live form before pasting.** Where a limit is uncertain the copy
-> is written short.
+> ## Every numeric constraint below is **inferred, not stated**.
+>
+> Checked again at Gate 4h-prep against the event page itself
+> (`lablab.ai/ai-hackathons/assemblyai-voice-agent-hackathon`): it states the dates
+> ("Sep 1–30, 2026") and the prize ("$10,000 Prize Pool") **and no field constraints at
+> all**. `lablab.ai/delivering-your-hackathon-solution` and `/hackathon-rules` render
+> their content in JavaScript and return only a page title to a fetch, and the
+> submission form is behind a login.
+>
+> So the limits marked below — 50 characters, 255 characters, 100 words, MP4 under
+> 300 MB and 5 minutes, PDF, public repository — come from **search-result summaries of
+> lablab's guidance, not from any page this project has read**. They are written as
+> `inferred` for that reason. **Check every one against the live form before pasting.**
+> The copy is deliberately written short so that a tighter real limit does not require
+> a rewrite.
 
 ---
 
-## Title — 43 characters
+## Title — 43 characters (limit 50, *inferred*)
 
 ```
 Nod — measuring a voice agent's turn timing
 ```
 
-## Short description — 230 characters
+## Short description — 230 characters (limit 255, *inferred*)
 
 ```
 We measured AssemblyAI's turn-detection knobs against the live API and published the
@@ -25,7 +36,7 @@ transfer function. One knob is inert. One buys a hesitating caller 2.6 seconds. 
 the headline wrong once and the correction is in the repo.
 ```
 
-## Long description — 354 words
+## Long description — 354 words (minimum 100, *inferred*)
 
 ```
 Every voice agent picks one silence threshold and applies it to everyone who calls.

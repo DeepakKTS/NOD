@@ -391,6 +391,30 @@ lines. That file is long-term memory; this file is the standing contract.
     experiment without first writing down what it should produce is what kept that
     distinction real.
 
+  - **A run can be correct in every internal detail and still measure the wrong thing,
+    because nobody verified the input.** The first live session looked like an
+    unqualified success: the profiler warmed, eleven patches went out, `config_applied`
+    confirmed each reached the socket, and the trace was well-formed throughout. Every
+    internal check passed. The transcripts were *"in-game footage"*, *"believe me"*,
+    *"yes i can feel it"* — **the microphone was picking up a video playing on the
+    machine**, and the controller had spent five minutes adapting to it.
+    What makes this its own entry rather than an instance of the clause rule: there was
+    no false clause to catch. "The profiler warmed" was true. "Eleven patches were sent"
+    was true. The defect was one level below every claim — in what the instrument was
+    pointed at — and no amount of checking the *output* would have found it. It was
+    caught only because the console probe happened to print transcript text, which was
+    incidental to why the probe was written.
+    The direction is the trap: the controller drove `min_turn_silence` **down** to its
+    160 ms floor, which is correct behaviour for a fluent continuous speaker and exactly
+    wrong for the demo's story. A result that moves the wrong way is a gift, because it
+    prompts the question; a result that had moved the *right* way on the same bad input
+    would have been written up.
+    **So: for any live measurement, record what the input actually was, not what it was
+    supposed to be.** Print the first transcript. Confirm the source device. A session
+    whose input is unverified is not a measurement, however clean its internals — and
+    "the numbers came out plausible" is the weakest possible evidence that the microphone
+    was pointed at a person.
+
   - **The class both corrections belong to: a true term carrying a false one.** Name it
     and check for it directly, because neither instance was catchable by verifying the
     number — the number was right both times.

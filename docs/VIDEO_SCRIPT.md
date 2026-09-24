@@ -13,13 +13,16 @@ images from the committed observations, so the picture on screen is the picture 
 run in the repository rather than of a fresh run that happens to agree:
 
 ```sh
-uv run --extra bench python scripts/pilot_ladder.py svg --label say
+uv run --extra bench python scripts/pilot_ladder.py svg --label continuation
 uv run --extra bench python scripts/pilot_ladder.py svg --label sweep
 ```
 
-Open `bench/runs/ladder_say_500.timeline.live.svg` and
+Open `bench/runs/ladder_continuation_1500.timeline.live.svg` and
 `bench/runs/ladder_sweep_3500.timeline.live.svg` in a browser at 1280 px wide, dark
 background. Terminal: dark, 16 pt, ~100 cols.
+
+**No `--label say`.** That renders the retired 532 ms frame; see the shot list below
+for why it is not used.
 
 ---
 
