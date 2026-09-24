@@ -391,6 +391,30 @@ lines. That file is long-term memory; this file is the standing contract.
     experiment without first writing down what it should produce is what kept that
     distinction real.
 
+  - **A probe written to locate a fault can exonerate the half it is testing and be
+    useless, because it is not the client that matters.** The demo screen rendered
+    nothing while the controller patched. To decide client-versus-server I wrote a Python
+    client against `/v1/console` and it received every frame perfectly — so the server was
+    fine and the browser was at fault. Both halves of that were true and the conclusion
+    led nowhere for three rounds.
+    The defect was `send_bytes`: a browser receives a binary frame as a `Blob` and
+    `JSON.parse` throws on it, so every frame arrived and every frame was discarded.
+    `json.loads` accepts `bytes` without complaint, so the Python probe could not have
+    failed no matter how broken the contract was. **It tested the transport and declared
+    the protocol sound.**
+    This is §5's fake-versus-contract entry reached by a different road — not a committed
+    fake this time but a diagnostic written in the moment, which gets less scrutiny
+    precisely because it is throwaway. The rule that would have caught it: **a probe
+    standing in for a client must differ from that client only in the way under test.**
+    A Python client is not a browser in the one respect that mattered — how it decodes a
+    frame — and that was the whole question.
+    The same session had the harness lying in the other direction: a headless
+    reproduction using Chrome's `--virtual-time-budget` fast-forwards the clock and had
+    almost certainly exited before the audio arrived, so it would have reported the page
+    broken however well it worked. **One instrument said "fine" when it could not see the
+    bug; the other said "broken" when it had seen nothing at all.** Neither was checked
+    against a known-good case first, which is the cheap step that separates them.
+
   - **A run can be correct in every internal detail and still measure the wrong thing,
     because nobody verified the input.** The first live session looked like an
     unqualified success: the profiler warmed, eleven patches went out, `config_applied`

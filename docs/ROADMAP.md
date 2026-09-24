@@ -36,6 +36,38 @@ been relaxed — the next session must justify its own, not inherit this one.
 
 ---
 
+## Where this stands — 24 Sep, Gate 4h-prep
+
+**The software has been watched working, for the first time in twelve gates.** The
+owner drove a live session end to end: **35 turns observed, profiler warm, 3 patches**,
+and `max_turn_silence` widened **1280 → 1839 ms** on a human voice with a reason
+attached. That is the project's thesis running live. No figure from it enters a
+published table — it is one operator, one room, unscripted speech — but the mechanism
+is no longer only argued for.
+
+**Nobody had seen it because of four stacked defects between browser and server**
+(ADR-058): a permanent `429` lockout from a session registry that never evicted, a
+client that read `session_id` off an error body, a console route that accepted unknown
+ids, and `send_bytes` delivering JSON as a `Blob` that `JSON.parse` throws on. A test
+had asserted the lockout as correct behaviour. All four fixed.
+
+**Two instruments lied in opposite directions while diagnosing it.** A Python probe on
+the identical endpoint received every frame — `json.loads` accepts bytes — and declared
+the server sound, which was true and useless. A headless reproduction using
+`--virtual-time-budget` had exited before the audio arrived and would have called the
+page broken however well it worked. Neither was checked against a known-good case first.
+
+**`configure_logging` is implemented** — it was the `NotImplementedError` stub ADR-050
+recorded, which is why server-side diagnostics written to chase this produced nothing.
+**Four of seven counters are now wired**; `nod_cuts_total` and `nod_decide_seconds` are
+not, and `cut.detected` is never published, so the console's Cuts tile cannot leave
+zero. All three stated in DEPLOYMENT §3 rather than quietly left.
+
+**The demo screen is now usable for the video** and `VIDEO_SCRIPT.md` carries it as an
+optional shot, with the terminal-and-SVG list kept as the fallback that needs no UI.
+
+---
+
 ## Where this stands — 23 Sep, Gate 4f
 
 **Submission assets ship.** `docs/nod-deck.pdf` (7 slides, `make deck` from

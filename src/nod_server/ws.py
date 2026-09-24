@@ -14,12 +14,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from typing import TYPE_CHECKING, Final
 
 from fastapi import WebSocket, WebSocketDisconnect
 
 from nod_core.arbiter import DEFAULT_CEILING_MS
 from nod_core.types import JsonValue, NodMode, SessionBegin, Termination, Turn
+from nod_server.telemetry import TURNS_TOTAL
+
+_log = logging.getLogger("nod.stream")
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only
     from nod_core.proxy import SessionProxy
@@ -99,6 +103,11 @@ async def stream_endpoint(
         async for event in proxy.client_events():
             if isinstance(event, Turn):
                 kind = "turn.final" if event.end_of_turn else "turn.partial"
+                if event.end_of_turn and event.words:
+                    # Wordless finalised turns are the `Terminate` flush, not a
+                    # caller turn (ADR-047); counting them put FRAG at exactly
+                    # 2.000 on every arm once already.
+                    TURNS_TOTAL.inc()
                 hub.publish(session_id, kind, _turn_payload(event))
             elif isinstance(event, SessionBegin):
                 hub.publish(
@@ -113,12 +122,42 @@ async def stream_endpoint(
                     )
 
     pump = asyncio.create_task(downstream())
+    # **Counted server-side on purpose.** Whether the browser is sending audio
+    # at all is the one question a silent failure makes unanswerable, and the
+    # browser is exactly the component under suspicion when it is asked. This
+    # number comes from the socket, so it is true regardless of what the client
+    # believes about itself.
+    frames = 0
+    peak = 0  # loudest sample seen, 0..32767
+    loud = 0  # frames whose RMS clears a whisper
     try:
         while True:
             message = await ws.receive()
             if message.get("type") == "websocket.disconnect":
                 break
             if (frame := message.get("bytes")) is not None:
+                frames += 1
+                # **Measure what arrived, not just that something did.** A
+                # granted microphone that captures silence sends perfectly
+                # well-formed frames, and every counter upstream of the audio
+                # agrees it is working. Amplitude is the field that separates
+                # "the client is broken" from "the client is fine and the room
+                # is quiet" — and it is cheap: one pass over 800 samples.
+                block = memoryview(frame).cast("h")
+                block_peak = max(
+                    (abs(v) for v in block[::8]), default=0
+                )  # every 8th sample is enough to spot silence
+                peak = max(peak, block_peak)
+                if block_peak > 150:
+                    loud += 1
+                if frames in (1, 20) or frames % 200 == 0:
+                    _log.info(
+                        "audio_frames session=%s frames=%d bytes=%d peak=%d",
+                        session_id,
+                        frames,
+                        len(frame),
+                        block_peak,
+                    )
                 proxy.feed_audio(frame)
             elif (text := message.get("text")) is not None:
                 await _handle_control(proxy, text)
@@ -128,6 +167,15 @@ async def stream_endpoint(
         pump.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await pump
+        _log.info(
+            "stream_closed session=%s frames_received=%d loud_frames=%d "
+            "peak=%d stream_ms=%d",
+            session_id,
+            frames,
+            loud,
+            peak,
+            proxy.stream_ms,
+        )
         hub.publish(session_id, "session.ended", {"t_ms": proxy.stream_ms})
 
 

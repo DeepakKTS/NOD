@@ -5,214 +5,437 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Nod — live call</title>
 <style>
-  /* DESIGN_SYSTEM.md §3, verbatim. Four functional colours, each meaning one
-     thing. Amber is never decorative: if something is amber the caller has
-     the floor. */
-  :root {
-    --ink-900: #0A0E14; --ink-800: #121821; --ink-700: #1B2430;
-    --floor: #F0A63C; --agent: #64D2FF; --cut: #FF453A; --calm: #30D158;
-    --text-1: rgba(255,255,255,0.92);
-    --text-2: rgba(255,255,255,0.62);
-    --text-3: rgba(255,255,255,0.38);
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--ink-900); color: var(--text-1);
-    font: 15px/1.5 ui-sans-serif, -apple-system, system-ui, sans-serif;
-    font-variant-numeric: tabular-nums;
-  }
-  .bar {
-    height: 52px; display: flex; align-items: center; gap: 16px; padding: 0 24px;
-    background: rgba(27,36,48,0.55); backdrop-filter: blur(20px) saturate(1.4);
-    border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0;
-  }
-  .bar h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .01em; }
-  .dot { margin-left: auto; font-size: 13px; color: var(--text-2); }
-  .dot b { color: var(--calm); font-weight: 400; }
-  .dot.degraded b { color: var(--cut); }
-  main { max-width: 1200px; padding: 32px 24px; }
+  /* DESIGN_SYSTEM.md §3 keeps the four functional colours and what each means:
+     amber = the caller has the floor, cyan = the agent, red = a cut, green =
+     calm. Nothing here is decorative in those four. Everything else — the
+     glass, the aurora, the orb — is surface, and surface never encodes state
+     that a colour already encodes.
 
-  /* §5: the Floor Meter is the hero and must not sit on glass, or the fill
-     loses contrast. Solid on the field. */
-  .meter-wrap { margin-bottom: 8px; }
-  .meter {
-    position: relative; height: 34px; border-radius: 17px;
-    background: var(--ink-700); overflow: hidden;
-    /* §2: the capsule's LENGTH is max_turn_silence. This is the spring, and
-       it is the only non-user-triggered motion in the app. */
-    transition: width 520ms cubic-bezier(.2,.9,.3,1.2);
-    width: 40%;
+     ADR-038: one static file, no build step. So the glass is hand-rolled and
+     the type stack is the system one. */
+  :root{
+    --bg:#060709; --bg-2:#0A0C10;
+    --glass:rgba(255,255,255,.045);
+    --glass-2:rgba(255,255,255,.028);
+    --edge:rgba(255,255,255,.09);
+    --edge-hi:rgba(255,255,255,.16);
+    --floor:#FFB340; --agent:#5AC8FA; --cut:#FF453A; --calm:#32D74B;
+    --t1:rgba(255,255,255,.96); --t2:rgba(255,255,255,.60); --t3:rgba(255,255,255,.34);
+    --r:20px; --r-sm:14px;
   }
-  .fill {
-    position: absolute; inset: 0 auto 0 0; width: 0%;
-    background: var(--floor); border-radius: 17px;
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  html,body{height:100%}
+  body{
+    margin:0;color:var(--t1);background:var(--bg);
+    font:14.5px/1.55 ui-sans-serif,-apple-system,BlinkMacSystemFont,"SF Pro Text",
+         "Segoe UI",Inter,Roboto,sans-serif;
+    font-variant-numeric:tabular-nums;letter-spacing:-.008em;
+    overflow-x:hidden;
   }
-  .tick {
-    position: absolute; top: 0; bottom: 0; width: 1px;
-    background: rgba(255,255,255,0.5);
+  /* Aurora. Two slow blobs; the only ambient motion in the app. */
+  body::before,body::after{
+    content:"";position:fixed;z-index:0;border-radius:50%;filter:blur(90px);
+    pointer-events:none;
   }
-  .tick.soft { background: rgba(100,210,255,0.45); }
-  .meter-row { display: flex; align-items: baseline; gap: 14px; }
-  .meter-val { font-size: 22px; font-weight: 500; }
-  .reason { font-size: 13px; color: var(--text-2); margin: 6px 0 28px; min-height: 19px; }
+  body::before{
+    width:52vw;height:52vw;left:-14vw;top:-18vw;
+    background:radial-gradient(circle,rgba(255,179,64,.16),transparent 68%);
+    animation:drift1 34s ease-in-out infinite;
+  }
+  body::after{
+    width:46vw;height:46vw;right:-12vw;bottom:-16vw;
+    background:radial-gradient(circle,rgba(90,200,250,.15),transparent 68%);
+    animation:drift2 41s ease-in-out infinite;
+  }
+  @keyframes drift1{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(6vw,4vw,0)}}
+  @keyframes drift2{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(-5vw,-4vw,0)}}
 
-  .cols { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
-  .card {
-    background: rgba(27,36,48,0.42); backdrop-filter: blur(14px);
-    border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 16px 18px;
+  .glass{
+    background:linear-gradient(180deg,var(--glass),var(--glass-2));
+    border:1px solid var(--edge);border-radius:var(--r);
+    backdrop-filter:blur(26px) saturate(180%);
+    -webkit-backdrop-filter:blur(26px) saturate(180%);
+    box-shadow:0 1px 0 0 var(--edge-hi) inset,
+               0 -1px 0 0 rgba(0,0,0,.28) inset,
+               0 18px 44px -22px rgba(0,0,0,.9);
   }
-  .card h2 {
-    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
-    color: var(--text-3); margin: 0 0 12px; font-weight: 600;
-  }
-  .strip div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
-  .strip span:first-child { color: var(--text-2); }
-  .up { color: var(--agent); }
-  .down { color: var(--text-3); }
-  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
-  .tile .n { font-size: 26px; font-weight: 500; }
-  .tile .l { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--text-3); }
-  #transcript { min-height: 180px; max-height: 320px; overflow-y: auto; font-size: 15px; }
-  #transcript .partial { color: var(--text-3); }
-  .empty { color: var(--text-3); font-size: 13px; }
-  button {
-    font: inherit; color: var(--ink-900); background: var(--floor);
-    border: 0; border-radius: 9px; padding: 8px 16px; cursor: pointer;
-  }
-  button[disabled] { background: var(--ink-700); color: var(--text-3); cursor: default; }
 
-  /* §9: reduced motion jumps to the new length instead of springing. No
-     component library here to do it (ADR-038), so it is written by hand. */
-  @media (prefers-reduced-motion: reduce) {
-    .meter { transition: none; }
+  header{
+    position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;
+    padding:12px 22px;margin:0;border:0;border-bottom:1px solid var(--edge);
+    background:rgba(6,7,9,.66);backdrop-filter:blur(22px) saturate(180%);
+    -webkit-backdrop-filter:blur(22px) saturate(180%);
+  }
+  .brand{display:flex;align-items:baseline;gap:9px}
+  .brand b{font-size:15px;font-weight:650;letter-spacing:-.02em}
+  .brand span{font-size:12.5px;color:var(--t3)}
+  .aai{
+    margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11.5px;
+    color:var(--t3);letter-spacing:.01em;white-space:nowrap;
+  }
+  .aai svg{opacity:.85}
+  .pill{
+    display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2);
+    border:1px solid var(--edge);border-radius:999px;padding:5px 12px 5px 10px;
+    background:rgba(255,255,255,.04);backdrop-filter:blur(12px);
+  }
+  .pill i{width:7px;height:7px;border-radius:50%;background:var(--t3);flex:none;
+          transition:background .35s,box-shadow .35s}
+  .pill.ok i{background:var(--calm);box-shadow:0 0 10px var(--calm)}
+  .pill.warn i{background:var(--floor);box-shadow:0 0 10px var(--floor)}
+  .pill.err i{background:var(--cut);box-shadow:0 0 10px var(--cut)}
+  .pill.live i{animation:pulse 2.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  main{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:30px 22px 44px}
+
+  .banner{
+    display:none;margin:0 0 20px;padding:12px 16px;border-radius:var(--r-sm);
+    font-size:13px;border:1px solid rgba(255,69,58,.32);
+    background:rgba(255,69,58,.10);color:#FFD2D0;backdrop-filter:blur(14px);
+  }
+  .banner.on{display:block;animation:rise .32s cubic-bezier(.2,.9,.3,1)}
+  .banner b{color:#fff}
+
+  /* ---- stage: orb + meter ------------------------------------------- */
+  .stage{display:grid;grid-template-columns:230px 1fr;gap:30px;align-items:center;
+         padding:26px 28px;margin-bottom:16px}
+  .orbwrap{position:relative;display:grid;place-items:center;height:186px}
+  .orb{
+    position:relative;width:150px;height:150px;border-radius:50%;
+    transition:transform .12s ease-out,box-shadow .5s ease;
+    background:
+      radial-gradient(circle at 34% 30%,rgba(255,255,255,.85),transparent 42%),
+      radial-gradient(circle at 68% 74%,rgba(255,179,64,.75),transparent 56%),
+      radial-gradient(circle at 30% 76%,rgba(90,200,250,.55),transparent 58%),
+      linear-gradient(160deg,#2A2118,#11151C);
+    box-shadow:0 0 0 1px rgba(255,255,255,.10) inset,
+               0 10px 40px -8px rgba(255,179,64,.30),
+               0 0 70px -14px rgba(255,179,64,.40);
+  }
+  .orb::after{
+    content:"";position:absolute;inset:-22%;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent,rgba(255,179,64,.22),
+               transparent 42%,rgba(90,200,250,.18),transparent 78%);
+    animation:spin 14s linear infinite;filter:blur(13px);z-index:-1;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .orb.listening{
+    background:
+      radial-gradient(circle at 34% 30%,rgba(255,255,255,.9),transparent 42%),
+      radial-gradient(circle at 66% 72%,rgba(255,179,64,.92),transparent 56%),
+      linear-gradient(160deg,#3A2A14,#12151B);
+    box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,
+               0 0 90px -10px rgba(255,179,64,.65);
+  }
+  .orb.speaking{
+    background:
+      radial-gradient(circle at 34% 30%,rgba(255,255,255,.92),transparent 42%),
+      radial-gradient(circle at 66% 72%,rgba(90,200,250,.92),transparent 56%),
+      linear-gradient(160deg,#102A3A,#0D141B);
+    box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,
+               0 0 90px -10px rgba(90,200,250,.65);
+  }
+  .orb.ended{filter:grayscale(.75) brightness(.62)}
+  .orblabel{position:absolute;bottom:2px;font-size:11px;letter-spacing:.09em;
+            text-transform:uppercase;color:var(--t3)}
+
+  .meter{
+    position:relative;height:44px;border-radius:22px;overflow:hidden;
+    background:rgba(255,255,255,.05);border:1px solid var(--edge);
+    box-shadow:0 1px 0 0 rgba(255,255,255,.08) inset,0 6px 20px -12px #000 inset;
+    transition:width 560ms cubic-bezier(.2,.9,.3,1.25);width:42%;
+  }
+  .fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:22px;
+        background:linear-gradient(90deg,rgba(255,179,64,.35),var(--floor));
+        box-shadow:0 0 26px -4px rgba(255,179,64,.75)}
+  .fill.over{background:linear-gradient(90deg,rgba(255,69,58,.4),var(--cut));
+             box-shadow:0 0 26px -4px rgba(255,69,58,.8)}
+  .tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.5)}
+  .axis{position:relative;height:16px;margin-top:6px;width:42%;
+        transition:width 560ms cubic-bezier(.2,.9,.3,1.25)}
+  .axis span{position:absolute;transform:translateX(-50%);font-size:10.5px;
+             color:var(--t3);white-space:nowrap;transition:left 560ms cubic-bezier(.2,.9,.3,1.25)}
+  .mrow{display:flex;align-items:baseline;gap:13px;margin-top:16px}
+  .mval{font-size:32px;font-weight:600;letter-spacing:-.03em}
+  .mstate{font-size:13.5px;color:var(--t2)}
+  .reason{font-size:12.5px;color:var(--t2);margin-top:8px;min-height:18px}
+
+  .controls{display:flex;align-items:center;gap:16px;margin-top:20px}
+  button{
+    font:inherit;font-weight:600;font-size:13.5px;color:#07080A;cursor:pointer;
+    background:linear-gradient(180deg,#fff,#E3E6EA);border:0;border-radius:12px;
+    padding:11px 20px;transition:transform .14s,filter .2s,opacity .2s;
+    box-shadow:0 6px 18px -8px rgba(255,255,255,.5);
+  }
+  button:hover:not([disabled]){transform:translateY(-1px);filter:brightness(1.05)}
+  button[disabled]{background:rgba(255,255,255,.07);color:var(--t3);
+                   cursor:not-allowed;box-shadow:none}
+  button.stop{background:rgba(255,69,58,.14);color:#FF7A73;
+              box-shadow:inset 0 0 0 1px rgba(255,69,58,.36)}
+  .wave{display:flex;align-items:center;gap:3px;height:30px;opacity:.22;
+        transition:opacity .35s}
+  .wave.on{opacity:1}
+  .wave b{width:3px;border-radius:3px;height:3px;background:var(--floor);
+          box-shadow:0 0 8px rgba(255,179,64,.6);transition:height 70ms linear}
+  .wave.agent b{background:var(--agent);box-shadow:0 0 8px rgba(90,200,250,.6)}
+  .agentline{font-size:13px;color:var(--agent);max-width:40ch;overflow:hidden;
+             text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---- panels --------------------------------------------------------- */
+  .cols{display:grid;grid-template-columns:1fr 322px;gap:16px;align-items:start}
+  .card{padding:18px 20px}
+  .card h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;
+           color:var(--t3);margin:0 0 13px;font-weight:650}
+  #transcript{min-height:248px;max-height:380px;overflow-y:auto;font-size:15px;
+              scrollbar-width:thin}
+  #transcript div{padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);
+                  animation:rise .3s cubic-bezier(.2,.9,.3,1)}
+  #transcript div:last-child{border-bottom:0}
+  #transcript .partial{color:var(--t3)}
+  #transcript .cut{color:var(--cut)}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .empty{color:var(--t3);font-size:13px}
+  .strip div{display:flex;justify-content:space-between;padding:7px 0;font-size:14px}
+  .strip div+div{border-top:1px solid rgba(255,255,255,.05)}
+  .strip span:first-child{color:var(--t2)}
+  .strip b{font-weight:600;transition:color .35s}
+  .strip b.bump{color:var(--floor)}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .tile{padding:15px 17px}
+  .tile .n{font-size:27px;font-weight:600;letter-spacing:-.03em}
+  .tile .l{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--t3)}
+  .steps div{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:12.5px;
+             color:var(--t3)}
+  .steps i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.12);
+           flex:none;transition:background .35s,box-shadow .35s}
+  .steps div.ok{color:var(--t2)}
+  .steps div.ok i{background:var(--calm);box-shadow:0 0 8px var(--calm)}
+  .steps div.err{color:var(--cut)}
+  .steps div.err i{background:var(--cut);box-shadow:0 0 8px var(--cut)}
+  .steps div.busy i{background:var(--floor);box-shadow:0 0 8px var(--floor);
+                    animation:pulse 1.1s ease-in-out infinite}
+
+  footer{position:relative;z-index:1;text-align:center;padding:10px 0 30px;
+         font-size:11.5px;color:var(--t3)}
+  footer a{color:var(--t2);text-decoration:none}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation: none !important; transition: none !important}
+    .orb{transform: none !important}
+  }
+  @media (max-width:900px){
+    .cols{grid-template-columns:1fr}
+    .stage{grid-template-columns:1fr;text-align:center}
+    .meter,.axis{width:100%!important}
   }
 </style>
 </head>
 <body>
-<div class="bar">
-  <h1>Nod</h1>
-  <span style="color:var(--text-2);font-size:13px">Live call</span>
-  <span class="dot" id="status">◉ <b>waiting</b></span>
-</div>
+<header>
+  <div class="brand"><b>Nod</b><span>Live call</span></div>
+  <div class="aai">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2 2 21h4.4l1.8-3.6h7.6L17.6 21H22L12 2Zm0 6.6 2.6 5.3H9.4L12 8.6Z"
+            fill="currentColor"/>
+    </svg>
+    Powered by <b style="color:var(--t2);font-weight:600">AssemblyAI</b>
+  </div>
+  <span class="pill" id="pill"><i></i><span id="pillText">connecting</span></span>
+</header>
 
 <main>
-  <div class="meter-wrap">
-    <div class="meter" id="meter">
-      <div class="fill" id="fill"></div>
-      <div class="tick" id="tickMin"></div>
-      <div class="tick soft" id="tickConf" hidden></div>
+  <div class="banner" id="banner"></div>
+
+  <section class="glass stage">
+    <div class="orbwrap">
+      <div class="orb" id="orb"></div>
+      <div class="orblabel" id="orbLabel">idle</div>
     </div>
-  </div>
-  <div class="meter-row">
-    <span class="meter-val" id="meterVal">1.28 s</span>
-    <span style="color:var(--text-2);font-size:13px" id="meterState">Waiting for the caller</span>
-  </div>
-  <div class="reason" id="reason"></div>
-  <div style="margin:-14px 0 24px"><button id="mic">Start call</button>
-    <span id="agentLine" style="margin-left:14px;font-size:13px;color:var(--agent)"></span></div>
+    <div>
+      <div class="meter" id="meter">
+        <div class="fill" id="fill"></div>
+        <div class="tick" id="tickMin"></div>
+      </div>
+      <div class="axis" id="axis"><span id="axisMin">min 400 ms</span></div>
+      <div class="mrow">
+        <span class="mval" id="meterVal">1.28 s</span>
+        <span class="mstate" id="meterState">Waiting for the caller</span>
+      </div>
+      <div class="reason" id="reason"></div>
+      <div class="controls">
+        <button id="mic">Start call</button>
+        <div class="wave" id="wave"></div>
+        <span class="agentline" id="agentLine"></span>
+      </div>
+    </div>
+  </section>
 
   <div class="cols">
-    <div class="card">
+    <div class="glass card">
       <h2>Transcript</h2>
       <div id="transcript"><div class="empty">Nothing yet.</div></div>
     </div>
     <div>
-      <div class="card">
+      <div class="glass card">
         <h2>Listening window</h2>
         <div class="strip">
-          <div><span>min</span><span id="cMin">400 ms</span></div>
-          <div><span>max</span><span id="cMax">1 280 ms</span></div>
-          <div><span>state</span><span id="cState">cold</span></div>
+          <div><span>min</span><b id="cMin">400 ms</b></div>
+          <div><span>max</span><b id="cMax">1 280 ms</b></div>
+          <div><span>state</span><b id="cState">cold</b></div>
         </div>
       </div>
       <div class="tiles">
-        <div class="card tile"><div class="n" id="tCuts">0</div><div class="l">Cuts</div></div>
-        <div class="card tile"><div class="n" id="tPatches">0</div><div class="l">Patches</div></div>
+        <div class="glass tile"><div class="n" id="tCuts">0</div><div class="l">Cuts</div></div>
+        <div class="glass tile"><div class="n" id="tPatches">0</div><div class="l">Patches</div></div>
+      </div>
+      <div class="glass card" style="margin-top:12px">
+        <h2>Connection</h2>
+        <div class="steps" id="steps"></div>
       </div>
     </div>
   </div>
 </main>
 
+<footer>
+  Speech-to-text by <a href="https://www.assemblyai.com" target="_blank" rel="noopener">AssemblyAI</a>
+  &nbsp;·&nbsp; Nod adapts turn timing. It does not interpret pauses.
+</footer>
 <script>
-// The capsule's length is max_turn_silence on a fixed scale, so a widening
-// window is visibly a longer capsule rather than a rescaled one.
-const MAX_SCALE_MS = 4000;
+"use strict";
 const $ = (id) => document.getElementById(id);
 
-let maxMs = 1280, minMs = 400, patches = 0, cuts = 0;
-let lastWordEndMs = null, streamT0 = null, wallT0 = null;
+// ---------------------------------------------------------------------------
+// Handshake. Every step is *verified*, never assumed.
+//
+// The screen used to claim "live" whenever the console socket opened, and
+// "Call running" whenever startMic() was called. Both were true while the page
+// was connected to a session that did not exist: the POST had returned 429, the
+// client read `session_id` off the error body as `undefined`, /v1/console
+// accepted it anyway and /v1/stream refused it. The pill was green, the mic
+// button said running, and no audio ever left the browser (ADR-058).
+//
+// So each step now has its own observable and its own failure text.
+// ---------------------------------------------------------------------------
+// --- the orb: one visual, four states, driven by real signals only ---------
+let orbLevel = 0;
+function setOrb(s) {
+  const o = $("orb");
+  if (!o) return;
+  o.className = "orb" + (s === "idle" ? "" : " " + s);
+  $("orbLabel").textContent =
+    s === "listening" ? "listening" : s === "speaking" ? "speaking"
+    : s === "ended" ? "ended" : "idle";
+}
+function orbPulse(rms) {
+  // Scale tracks measured RMS, smoothed. It is deliberately not a loop: an orb
+  // that breathes on a timer looks alive while the microphone is dead, which is
+  // the class of defect this whole screen was rebuilt to stop (ADR-057).
+  orbLevel += (Math.min(1, rms * 9) - orbLevel) * 0.28;
+  const o = $("orb");
+  if (o) o.style.transform = "scale(" + (1 + orbLevel * 0.13).toFixed(3) + ")";
+}
 
-function fmt(ms) { return (ms / 1000).toFixed(2) + " s"; }
-function group(ms) { return String(Math.round(ms)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " ms"; }
+const STEPS = [
+  ["session", "Session created"],
+  ["console", "Events subscribed"],
+  ["mic",     "Microphone granted"],
+  ["stream",  "Audio uplink open"],
+  ["audio",   "Audio flowing"],
+];
+const state = {};
+STEPS.forEach(([k, label]) => {
+  state[k] = "idle";
+  const d = document.createElement("div");
+  d.innerHTML = `<i></i><span>${label}</span>`;
+  d.id = "step-" + k;
+  $("steps").appendChild(d);
+});
+function step(k, s, note) {
+  state[k] = s;
+  const el = $("step-" + k);
+  el.className = s === "ok" ? "ok" : s === "err" ? "err" : s === "busy" ? "busy" : "";
+  if (note) el.lastChild.textContent = note;
+  paintPill();
+}
+function paintPill() {
+  const p = $("pill"), t = $("pillText");
+  if (Object.values(state).includes("err")) {
+    p.className = "pill err"; t.textContent = "error";
+  } else if (state.audio === "ok") {
+    p.className = "pill ok live"; t.textContent = "live";
+  } else if (state.stream === "ok") {
+    p.className = "pill warn live"; t.textContent = "listening";
+  } else if (state.console === "ok") {
+    p.className = "pill warn"; t.textContent = "ready";
+  } else {
+    p.className = "pill"; t.textContent = "connecting";
+  }
+}
+function fail(msg, detail) {
+  const b = $("banner");
+  b.className = "banner on";
+  b.innerHTML = `<b>${msg}</b>${detail ? " — " + detail : ""}`;
+}
+paintPill();
+
+// ---------------------------------------------------------------------------
+// Floor meter. The capsule's LENGTH is max_turn_silence; the fill is how much
+// of that silence has elapsed, run on the browser's clock from the last word so
+// the server never ticks at us for a cosmetic animation (DESIGN_SYSTEM §2).
+// ---------------------------------------------------------------------------
+let minMs = 400, maxMs = 1280, lastWordEnd = null, patches = 0, cuts = 0;
+const fmt = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : Math.round(ms) + " ms");
+const group = (ms) => String(Math.round(ms)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " ms";
 
 function layout() {
-  $("meter").style.width = Math.max(6, Math.min(100, (maxMs / MAX_SCALE_MS) * 100)) + "%";
-  $("tickMin").style.left = Math.min(100, (minMs / maxMs) * 100) + "%";
+  const CEIL = 4000;
+  const w = Math.max(14, Math.min(100, (maxMs / CEIL) * 100)) + "%";
+  $("meter").style.width = w;
+  $("axis").style.width = w;
+  const at = Math.min(100, (minMs / maxMs) * 100) + "%";
+  $("tickMin").style.left = at;
+  $("axisMin").style.left = at;
+  $("axisMin").textContent = "min " + fmt(minMs);
   $("meterVal").textContent = fmt(maxMs);
   $("cMin").textContent = group(minMs);
   $("cMax").textContent = group(maxMs);
 }
-
-// The fill runs on the browser's own clock from the last word's end, so the
-// server never ticks at us for a cosmetic animation.
+function bump(el) {
+  el.classList.add("bump");
+  setTimeout(() => el.classList.remove("bump"), 420);
+}
 function tick() {
-  if (lastWordEndMs !== null && wallT0 !== null) {
-    const silent = performance.now() - wallT0;
+  if (lastWordEnd !== null) {
+    const silent = performance.now() - lastWordEnd;
     const pct = Math.max(0, Math.min(100, (silent / maxMs) * 100));
     $("fill").style.width = pct + "%";
-    $("meterState").textContent = pct >= 100
-      ? "Agent takes the floor" : "Caller holds the floor";
+    $("fill").classList.toggle("over", silent > maxMs);
+    if (!agentSpeaking) {
+      $("meterState").textContent =
+        silent > maxMs ? "Agent takes the floor" : "Caller holds the floor";
+    }
   }
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
 
+// ---------------------------------------------------------------------------
+// Transcript
+// ---------------------------------------------------------------------------
 function addTurn(p, final) {
   const box = $("transcript");
-  if (box.querySelector(".empty")) box.innerHTML = "";
+  const blank = box.querySelector(".empty");
+  if (blank) blank.remove();
   let row = box.querySelector(".partial");
   if (!row) { row = document.createElement("div"); box.appendChild(row); }
   row.textContent = p.transcript || "";
   row.className = final ? "" : "partial";
   box.scrollTop = box.scrollHeight;
-  lastWordEndMs = p.t_ms;
-  wallT0 = performance.now();
-  if (streamT0 === null) streamT0 = p.t_ms;
+  lastWordEnd = performance.now();
+  if (state.audio !== "ok") step("audio", "ok", "Audio flowing \u2014 transcript live");
 }
 
-function connect(sessionId) {
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/v1/console?session_id=${sessionId}`);
-  ws.onopen = () => { $("status").innerHTML = "◉ <b>live</b>"; };
-  ws.onclose = () => { $("status").classList.add("degraded"); $("status").innerHTML = "◉ <b>closed</b>"; };
-  ws.onmessage = (ev) => {
-    const m = JSON.parse(ev.data);
-    if (m.kind === "config.changed") {
-      // INV-4: no capsule moves without the explanation that came with it.
-      maxMs = m.max_turn_silence ?? maxMs;
-      minMs = m.min_turn_silence ?? minMs;
-      patches += 1;
-      $("tPatches").textContent = patches;
-      $("cState").textContent = m.state ?? "-";
-      $("reason").textContent = reasonLine(m);
-      layout();
-    } else if (m.kind === "turn.partial") {
-      bargeIn();
-      addTurn(m, false);
-    } else if (m.kind === "turn.final") {
-      addTurn(m, true);
-      replyTo(m.transcript);
-    } else if (m.kind === "cut.detected") {
-      cuts += 1; $("tCuts").textContent = cuts;
-    } else if (m.kind === "agent.state" && m.state) {
-      $("meterState").textContent = m.state;
-    } else if (m.kind === "session.ended") {
-      $("status").innerHTML = "◉ <b>ended</b>";
-    }
-  };
-}
-
-// §6's copy rule: plain language, never "p90=1400".
 const TRIGGERS = {
   pause_p90_rose: "Caller is pausing longer",
   pause_p90_fell: "Caller is pausing less",
@@ -220,91 +443,395 @@ const TRIGGERS = {
   cut_detected: "Cut the caller off — widening",
   cold_start: "Learning this caller's rhythm",
 };
-function reasonLine(m) {
-  const base = TRIGGERS[m.trigger] || m.trigger || "Adjusted";
-  return `${base} — waiting up to ${fmt(m.max_turn_silence)} (${m.rule_id})`;
-}
+const reasonLine = (m) =>
+  `${TRIGGERS[m.trigger] || m.trigger || "Adjusted"} — waiting up to ${fmt(m.max_turn_silence)} (${m.rule_id})`;
 
 // ---------------------------------------------------------------------------
-// The thin agent (ADR-035 clause 1): browser TTS, one LLM call, no filler and
-// no false-barge recovery. Barge-in is here because it is three lines.
+// Console socket
 // ---------------------------------------------------------------------------
+let sessionId = null, stream = null, agentSpeaking = false;
+// **Set the moment the operator ends the call.** Ending a call closes the
+// console socket too, and an earlier handler reported that as "lost the event
+// stream" — a red banner on the one path that is entirely correct. A teardown
+// and a fault have to be told apart at the point the teardown starts, because
+// afterwards they look identical from a close event.
+let callOver = false;
 
-let sessionId = null, stream = null, speaking = false;
-
-function speak(text) {
-  if (!text || !window.speechSynthesis) return;
-  $("agentLine").textContent = "\u201c" + text + "\u201d";
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 1.03;
-  u.onstart = () => { speaking = true; };
-  u.onend = () => { speaking = false; };
-  speechSynthesis.speak(u);
-}
-
-// Barge-in: the caller starting again cuts the agent off mid-word. No
-// false-barge recovery — if the VAD was wrong the agent simply stops, which
-// ADR-035 records as cut rather than pretended.
-function bargeIn() {
-  if (speaking && window.speechSynthesis) { speechSynthesis.cancel(); speaking = false; }
-}
-
-async function replyTo(transcript) {
-  if (!transcript) return;
-  const r = await fetch(`/v1/sessions/${sessionId}/reply`, {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({transcript}),
-  });
-  speak((await r.json()).text);
-}
-
-// Mic capture. The upstream wants mono 16 kHz PCM16 in 50 ms frames, and
-// getUserMedia gives float32 at the device rate, so this decimates and packs.
-async function startMic() {
-  const media = await navigator.mediaDevices.getUserMedia({audio: {
-    channelCount: 1, echoCancellation: true, noiseSuppression: true,
-  }});
-  const ctx = new AudioContext();
-  const src = ctx.createMediaStreamSource(media);
-  const node = ctx.createScriptProcessor(4096, 1, 1);
-  const RATE = 16000, FRAME = RATE * 0.05;
-  let carry = [];
-  node.onaudioprocess = (e) => {
-    const input = e.inputBuffer.getChannelData(0);
-    const ratio = ctx.sampleRate / RATE;
-    for (let i = 0; i < input.length / ratio; i++) {
-      carry.push(input[Math.floor(i * ratio)]);
-    }
-    while (carry.length >= FRAME) {
-      const chunk = carry.splice(0, FRAME);
-      const pcm = new Int16Array(chunk.length);
-      for (let i = 0; i < chunk.length; i++) {
-        pcm[i] = Math.max(-1, Math.min(1, chunk[i])) * 32767;
-      }
-      if (stream && stream.readyState === 1) stream.send(pcm.buffer);
+function connect(id) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/v1/console?session_id=${id}`);
+  // **The server sends JSON with `send_bytes`.** Left as the default `blob`,
+  // every frame arrives as a Blob and `JSON.parse` throws on it, so a console
+  // that is connected and receiving renders nothing at all. `arraybuffer` is
+  // synchronously decodable; a Blob is not.
+  ws.binaryType = "arraybuffer";
+  let opened = false;
+  step("console", "busy");
+  ws.onopen = () => { opened = true; step("console", "ok"); };
+  ws.onclose = (e) => {
+    // **Every close path has to land somewhere.** An unknown session is
+    // refused before the handshake completes, so the browser reports 1006 and
+    // never sees the server's 4404 — an earlier draft of this handler checked
+    // only for 4404 and for an already-open socket, which left exactly one
+    // gap: a console that never connected, reported as nothing at all. That is
+    // the defect this screen exists to have stopped having (ADR-058).
+    if (!opened) {
+      step("console", "err", "Refused (" + e.code + ")");
+      fail("The server refused the event stream.",
+           "The session no longer exists. Reload the page.");
+    } else {
+      if (callOver) { step("console", "idle", "Events subscribed"); return; }
+      step("console", "err", "Event stream closed");
+      if (state.audio === "ok") fail("Lost the event stream.", "Reload to reconnect.");
     }
   };
-  src.connect(node); node.connect(ctx.destination);
-
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  stream = new WebSocket(`${proto}://${location.host}/v1/stream?session_id=${sessionId}`);
-  stream.binaryType = "arraybuffer";
-  $("mic").textContent = "Call running";
-  $("mic").disabled = true;
+  let rx = 0;
+  ws.onmessage = (ev) => {
+    // Counted and shown: "subscribed" and "receiving" are different claims,
+    // and a console that is attached but silent is the exact state this panel
+    // exists to make visible.
+    rx += 1;
+    if (rx === 1 || rx % 10 === 0) step("console", "ok", `Events subscribed \u2014 ${rx} received`);
+    let m;
+    try {
+      const text = typeof ev.data === "string"
+        ? ev.data
+        : new TextDecoder().decode(ev.data);
+      m = JSON.parse(text);
+    } catch (e) {
+      console.error("[nod] bad console frame", e, ev.data);
+      step("console", "err", "Unreadable frame");
+      return;
+    }
+    if (rx <= 3) console.info("[nod] console frame", m.kind, m);
+    if (m.kind === "config.changed") {
+      maxMs = m.max_turn_silence ?? maxMs;
+      minMs = m.min_turn_silence ?? minMs;
+      patches += 1;
+      $("tPatches").textContent = patches;
+      $("cState").textContent = m.state ?? "-";
+      bump($("cState")); bump($("cMin")); bump($("cMax"));
+      $("reason").textContent = reasonLine(m);
+      layout();
+    } else if (m.kind === "turn.partial") {
+      bargeIn(); addTurn(m, false);
+    } else if (m.kind === "turn.final") {
+      addTurn(m, true); replyTo(m.transcript);
+    } else if (m.kind === "cut.detected") {
+      cuts += 1; $("tCuts").textContent = cuts;
+      const r = $("transcript").lastElementChild;
+      if (r) r.classList.add("cut");
+    } else if (m.kind === "agent.state" && m.state) {
+      $("meterState").textContent = m.state;
+    } else if (m.kind === "session.ended") {
+      callOver = true; setOrb("ended");
+      step("audio", "idle", "Audio flowing");
+      step("stream", "idle", "Audio uplink open");
+      $("pillText").textContent = "ended";
+    }
+  };
 }
 
+// ---------------------------------------------------------------------------
+// The thin agent (ADR-035 clause 1): browser TTS, one LLM call, no filler.
+// ---------------------------------------------------------------------------
+function speak(text) {
+  if (!text || !window.speechSynthesis) return;
+  $("agentLine").textContent = "“" + text + "”";
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 1.03;
+  u.onstart = () => {
+    agentSpeaking = true;
+    $("wave").classList.add("agent");
+    setOrb("speaking");
+    $("meterState").textContent = "Agent is speaking";
+  };
+  u.onend = () => {
+    agentSpeaking = false;
+    $("wave").classList.remove("agent");
+    if (!callOver) setOrb("listening");
+  };
+  speechSynthesis.speak(u);
+}
+function bargeIn() {
+  if (agentSpeaking && window.speechSynthesis) {
+    speechSynthesis.cancel(); agentSpeaking = false;
+    $("wave").classList.remove("agent");
+    if (!callOver) setOrb("listening");
+  }
+}
+async function replyTo(transcript) {
+  if (!transcript || !sessionId) return;
+  try {
+    const r = await fetch(`/v1/sessions/${sessionId}/reply`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcript }),
+    });
+    if (!r.ok) return;
+    speak((await r.json()).text);
+  } catch { /* the agent is optional; the measurement is not */ }
+}
+
+// ---------------------------------------------------------------------------
+// Mic. Upstream wants mono 16 kHz PCM16 in 50 ms frames; getUserMedia gives
+// float32 at the device rate, so this decimates and packs.
+// ---------------------------------------------------------------------------
+const BARS = 22;
+for (let i = 0; i < BARS; i++) $("wave").appendChild(document.createElement("b"));
+
+async function startMic() {
+  // **Constructed before the first `await`, deliberately.** A context created
+  // later in this function is outside the click's gesture and Chrome starts it
+  // suspended, which fires no process callback and produces exactly the
+  // failure this replaced: every step green, no audio, no transcript.
+  const ctx = new AudioContext();
+  step("mic", "busy");
+  let media;
+  try {
+    media = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (e) {
+    step("mic", "err", "Microphone refused");
+    fail("Microphone unavailable.", e.message);
+    ctx.close();
+    throw e;
+  }
+  step("mic", "ok");
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  step("stream", "busy");
+  stream = new WebSocket(`${proto}://${location.host}/v1/stream?session_id=${sessionId}`);
+  stream.binaryType = "arraybuffer";
+
+  // **Wait for the socket before claiming the call is running.** The old
+  // screen set "Call running" synchronously, so a refused uplink still looked
+  // like a call in progress.
+  //
+  // `opened` is tracked separately from the step state because the close
+  // handler outlives the open one: an earlier draft reported *every* close as
+  // "uplink refused", so a call that connected, ran and ended normally painted
+  // the same red banner as one that never connected. A handler that cannot
+  // tell success from failure is the defect this screen is a fix for.
+  let up = false, ended = false;
+  const openedOk = await new Promise((resolve) => {
+    const settle = (v) => { clearTimeout(timer); resolve(v); };
+    const timer = setTimeout(() => {
+      step("stream", "err", "Uplink timed out");
+      fail("Audio uplink timed out.", "The server accepted nothing within 8 s.");
+      settle(false);
+    }, 8000);
+    stream.onopen = () => { up = true; step("stream", "ok"); settle(true); };
+    stream.onclose = (e) => {
+      if (up) return;               // handled by the post-open handler below
+      const why = e.code === 4404 ? "Session not found"
+                : e.code === 4429 ? "Server at capacity"
+                : "Refused before opening (" + e.code + ")";
+      console.error("[nod] uplink close before open", e.code, e.reason);
+      step("stream", "err", why);
+      fail("Audio uplink refused.", why + ". Reload the page to start a new session.");
+      settle(false);
+    };
+  });
+  if (!openedOk) { ctx.close(); return; }
+
+  // From here a close is either the user ending the call or a genuine drop.
+  stream.onclose = (e) => {
+    console.warn("[nod] uplink closed", e.code, e.reason, "ended=" + ended);
+    if (ended) return;
+    step("stream", "err", "Uplink dropped (" + e.code + ")");
+    step("audio", "idle", "Audio flowing");
+    fail("The audio uplink dropped mid-call.",
+         "Close code " + e.code + ". Reload the page to start a new session.");
+  };
+
+  // ---------------------------------------------------------------------
+  // Capture. Two things the first version got wrong, both of them silent:
+  //
+  // 1. `new AudioContext()` is constructed *after* awaiting getUserMedia and
+  //    the socket, so it is outside the click's user-gesture window and Chrome
+  //    creates it **suspended**. A suspended context never fires a process
+  //    callback: no frames, no transcript, and every other step legitimately
+  //    green. `resume()` is awaited and the state is asserted below.
+  //
+  // 2. `ScriptProcessorNode` is deprecated and runs the resample on the main
+  //    thread, competing with rendering. An `AudioWorklet` does it on the
+  //    audio thread. The worklet is the path; the old node stays only as a
+  //    fallback for a browser without `audioWorklet`, and says so on screen.
+  // ---------------------------------------------------------------------
+  const RATE = 16000, FRAME = 800;              // 50 ms at 16 kHz
+  if (ctx.state === "suspended") await ctx.resume();
+  if (ctx.state !== "running") {
+    step("audio", "err", "Audio context " + ctx.state);
+    fail("The browser suspended audio capture.", "Click the page and try again.");
+    return;
+  }
+
+  const source = ctx.createMediaStreamSource(media);
+  const bars = $("wave").children;
+  $("wave").classList.add("on");
+  let sent = 0;
+
+  const onLevel = (rms) => {
+    orbPulse(rms);
+    const h = Math.max(3, Math.min(30, rms * 620));
+    for (let i = bars.length - 1; i > 0; i--) bars[i].style.height = bars[i - 1].style.height;
+    bars[0].style.height = h + "px";
+  };
+  const onFrame = (buf) => {
+    if (!stream || stream.readyState !== 1) return;
+    stream.send(buf);
+    sent += 1;
+    if (sent === 10 || sent % 40 === 0) {
+      step("audio", state.audio === "ok" ? "ok" : "busy",
+           `Audio flowing \u2014 ${sent} frames sent`);
+    }
+  };
+
+  let node = null;
+  if (ctx.audioWorklet) try {
+    const src = `
+      class Pcm16Frames extends AudioWorkletProcessor {
+        constructor(o){
+          super();
+          const p = o.processorOptions;
+          this.ratio = sampleRate / p.rate;
+          this.buf = new Int16Array(p.frame);
+          this.n = 0; this.pos = 0;
+        }
+        process(inputs){
+          const ch = inputs[0] && inputs[0][0];
+          if (!ch) return true;
+          let sum = 0;
+          for (let i = 0; i < ch.length; i++) sum += ch[i] * ch[i];
+          this.port.postMessage({level: Math.sqrt(sum / ch.length)});
+          while (this.pos < ch.length) {
+            const v = ch[this.pos | 0];
+            this.buf[this.n++] = Math.max(-1, Math.min(1, v)) * 32767;
+            if (this.n === this.buf.length) {
+              const out = this.buf.slice().buffer;
+              this.port.postMessage({pcm: out}, [out]);
+              this.n = 0;
+            }
+            this.pos += this.ratio;
+          }
+          this.pos -= ch.length;   // carry the fraction across blocks
+          return true;
+        }
+      }
+      registerProcessor("pcm16-frames", Pcm16Frames);`;
+    const url = URL.createObjectURL(new Blob([src], {type: "application/javascript"}));
+    await ctx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+    node = new AudioWorkletNode(ctx, "pcm16-frames", {
+      processorOptions: {rate: RATE, frame: FRAME},
+    });
+    node.port.onmessage = (e) => {
+      if (e.data.pcm) onFrame(e.data.pcm); else onLevel(e.data.level);
+    };
+  } catch (e) {
+    // A worklet can fail to load for reasons that have nothing to do with
+    // audio — a blocked blob: URL, for one. Falling back beats dying, and the
+    // screen says which path is running so the fallback is never invisible.
+    console.warn("[nod] worklet unavailable, falling back", e);
+    node = null;
+  }
+  if (!node) {
+    step("audio", "busy", "Audio flowing (legacy capture)");
+    node = ctx.createScriptProcessor(4096, 1, 1);
+    let carry = [];
+    node.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      onLevel(Math.sqrt(sum / input.length));
+      const ratio = ctx.sampleRate / RATE;
+      for (let i = 0; i < input.length / ratio; i++) carry.push(input[(i * ratio) | 0]);
+      while (carry.length >= FRAME) {
+        const chunk = carry.splice(0, FRAME);
+        const pcm = new Int16Array(chunk.length);
+        for (let i = 0; i < chunk.length; i++) {
+          pcm[i] = Math.max(-1, Math.min(1, chunk[i])) * 32767;
+        }
+        onFrame(pcm.buffer);
+      }
+    };
+  }
+
+  // A muted sink. The graph needs a path to the destination to be pulled, and
+  // routing the caller's own microphone to the speakers would be a feedback
+  // loop straight back into the transcript — which is how the first live
+  // session ended up profiling a video (ADR-057).
+  setOrb("listening");
+  const mute = ctx.createGain();
+  mute.gain.value = 0;
+  source.connect(node); node.connect(mute); mute.connect(ctx.destination);
+  console.info("[nod] capture running", ctx.state, ctx.sampleRate + " Hz",
+               ctx.audioWorklet ? "worklet" : "scriptprocessor");
+
+  const btn = $("mic");
+  btn.textContent = "End call";
+  btn.className = "stop";
+  btn.onclick = () => {
+    ended = true; callOver = true; setOrb("ended");
+    node.disconnect(); source.disconnect(); mute.disconnect(); ctx.close();
+    media.getTracks().forEach((t) => t.stop());
+    if (stream && stream.readyState === 1) stream.close();
+    $("wave").classList.remove("on");
+    btn.disabled = true; btn.textContent = "Call ended"; btn.className = "";
+    step("audio", "idle", "Audio flowing");
+    step("stream", "idle", "Audio uplink open");
+    $("pillText").textContent = "ended";
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Boot. The POST's status is checked — that is the whole bug from ADR-058.
+// ---------------------------------------------------------------------------
 layout();
 const preset = new URLSearchParams(location.search).get("session_id");
+step("session", "busy");
+
 const ready = preset
   ? Promise.resolve(preset)
   : fetch("/v1/sessions", {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: "{}",
-    }).then(r => r.json()).then(b => b.session_id);
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    }).then(async (r) => {
+      if (!r.ok) {
+        const detail = await r.text().catch(() => "");
+        throw new Error(`server returned ${r.status}. ${detail.slice(0, 160)}`);
+      }
+      const body = await r.json();
+      if (!body.session_id) throw new Error("response carried no session_id");
+      return body.session_id;
+    });
 
-ready.then((id) => { sessionId = id; connect(id); });
-$("mic").onclick = () => startMic().catch((e) => {
-  $("reason").textContent = "Microphone unavailable: " + e.message;
+ready.then((id) => {
+  sessionId = id;
+  step("session", "ok", "Session " + id);
+  connect(id);
+}).catch((e) => {
+  step("session", "err", "Session refused");
+  fail("Could not create a session.", e.message);
+  $("mic").disabled = true;
 });
+
+$("mic").onclick = () => {
+  if (state.session !== "ok") { fail("No session.", "Reload the page."); return; }
+  // **Never swallowed.** An earlier `.catch(() => {})` here hid a throw
+  // inside startMic entirely: the panel stopped at "Audio uplink open" and
+  // nothing said why. Any failure after the uplink opens is reported.
+  startMic().catch((e) => {
+    console.error("[nod] startMic failed", e);
+    if (state.audio !== "ok") {
+      step("audio", "err", String(e && e.message || e).slice(0, 60));
+      fail("Capture failed after the uplink opened.", String(e && e.message || e));
+    }
+  });
+};
 </script>
+</body>
+</html>
+
 </body>
 </html>

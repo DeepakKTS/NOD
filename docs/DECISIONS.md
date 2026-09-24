@@ -3081,3 +3081,61 @@ gains a warning that the metrics it names are unwired. The demo screen is **not*
 for the video in its current state, so `docs/VIDEO_SCRIPT.md` keeps its terminal-and-SVG
 shot list, which needs no UI. Wiring the counters and fixing the client are both after the
 freeze; neither is a control-law change and neither affects a published number.
+
+## ADR-058 — Why nobody had seen the screen work: four defects between browser and server
+2026-09-24 · Status: accepted — Gate 4h-prep, driven live by the owner
+Context: ADR-057 recorded that the demo screen rendered nothing while the controller
+patched happily, and left the fault "client-side, undiagnosed". Diagnosing it took a
+guided session and found not one defect but four, stacked, each of which alone was
+enough to produce a blank screen. They are recorded together because the *shape* they
+share is the finding.
+Decision: fix all four, and name what let them hide.
+
+**1. `POST /v1/sessions` was a permanent lockout.** Session records were never removed
+from the registry and the cap was checked against registry *size*, so the third page
+load of a process's life returned 429 — and every load after it, for ever.
+`_stream`'s own docstring already said the cap belongs on the socket ("that route only
+adds a dict entry and costs nothing"); the POST capped anyway, on a number that only
+grew. **A test asserted the 429 as correct behaviour**, which is how it survived: the
+symptom had been written down as the contract. Records are now evicted at
+`SESSION_REGISTRY_CAP` and released when the stream closes.
+
+**2. The browser read `session_id` off the error body.** `fetch(...).then(r => r.json())`
+never checked the status, so a 429 produced `session_id === undefined`.
+
+**3. `/v1/console` accepted `session_id=undefined`.** The socket opened, the status pill
+went green, and the page subscribed to a session that did not exist. `/v1/stream`
+refused the same id correctly, so the two routes disagreed about whether an unknown
+session was an error. The console now refuses it too.
+
+**4. The console sent binary and the browser could not read it.** `console_endpoint`
+uses `await ws.send_bytes(line)`. In a browser a binary frame arrives as a **`Blob`**,
+and `JSON.parse(blob)` throws — so every frame was received and every frame was
+discarded. Fixed with `binaryType = "arraybuffer"` and an explicit decode.
+
+**What let (4) hide is the part worth carrying.** A Python probe against the *identical*
+endpoint received every frame perfectly, because `json.loads` accepts `bytes`. That
+probe was written specifically to decide whether the fault was client-side or
+server-side, and it answered "server is fine" — correctly, and uselessly. **The defect
+lived exactly in the gap between the test client and the real one**, which is CLAUDE.md
+§5's "a fake earns trust for the orchestration it drives and none at all for the
+contract it stubs", arriving through a hand-written probe rather than a committed fake.
+
+**The harness was lying too.** The first headless reproduction used Chrome's
+`--virtual-time-budget`, which fast-forwards the clock; it had almost certainly exited
+before the audio arrived, so it would have reported the page broken however well it
+worked. Replaced with a real browser driven over CDP on the wall clock, which is what
+verified the fix.
+
+**Three more, found on the way out.** `configure_logging` was still the
+`NotImplementedError` stub ADR-050 recorded, so the root logger had no handler and every
+server-side diagnostic written to chase this went to `lastResort` at WARNING and was
+discarded. Four of the seven counters ADR-057 found unwired are now incremented where
+the server already observes the event — `nod_turns_total` moved 0 → 2 against two
+`turn.final` frames on its first run. **`nod_cuts_total` and `nod_decide_seconds` are
+still unwired, and `cut.detected` is never published at all**, so the console's Cuts
+tile can never leave zero. Named rather than removed: a tile that cannot change is a
+disconnected instrument in the UI, and it is now written down as one.
+Consequence: the screen works, and the owner's first successful session widened
+`max_turn_silence` 1280 → 1839 ms on a human voice across 3 patches with the profiler
+warm. `docs/DEPLOYMENT.md`'s metrics warning is narrowed to what is still true.

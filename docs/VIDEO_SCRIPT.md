@@ -127,6 +127,40 @@ C ≈ 590 ms          overhead ≈ 175 ms
 
 ---
 
+## The live screen — now usable, and it was not before
+
+Gate 4h-prep was the first time anyone watched the software run. The screen rendered
+nothing for four stacked reasons (ADR-058); all four are fixed, and the owner's first
+working session produced this:
+
+```
+min  400 → 271 ms      max 1280 → 1839 ms      3 patches      state: warm
+reason: "turn — waiting up to 1.84 s (speaker+context)"
+```
+
+**The controller widened the listening window to 1.84 s on a human voice, with a reason
+attached.** That is the thesis of the project, live, and it is the strongest single shot
+available — better than any SVG, because it is unarguably real time.
+
+**Optional shot, inserted at 0:30 in place of the terminal beat.** Screen recording of
+`http://127.0.0.1:8000/`: the orb tracking the speaker's voice, the Listening window
+stepping `400 → 271` and `1280 → 1839`, the Patches tile climbing, the reason line
+appearing under the meter.
+
+| | |
+|---|---|
+| **VO** | "This is it running. One knob, moving, mid-call — and it says why." |
+| **Artifact** | The session's trace under `data/traces/s-*.jsonl`: `config_decision` / `config_applied` pairs with `rule_id`, and `controller_closed` with `turns_observed` and `patches_sent`. |
+
+**Two things must not be filmed.** The **Cuts tile can never leave zero** —
+`cut.detected` is never published (ADR-058) — so do not let it sit on screen implying a
+measured zero. And the transcript is whatever the operator says, so it is a demo of the
+*mechanism*, never a measurement: no number from a live screen recording enters a table.
+
+**The terminal-and-SVG shot list below remains the fallback** and still needs no UI, no
+microphone and no deploy. If the screen misbehaves on the day, cut to it and lose
+nothing that carries a claim.
+
 ## Optional shots — only if `scripts/deploy_aws.sh` has run
 
 Insert at 0:44, pushing the credibility beat to 0:50 and trimming the model beat by 6 s.

@@ -29,7 +29,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, WebSocket
+from fastapi import APIRouter, FastAPI, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -39,7 +39,13 @@ from nod_adapters.protocols import Message
 from nod_core.arbiter import DEFAULT_CEILING_MS
 from nod_core.config import Settings
 from nod_core.types import JsonValue, NodMode, Voice
-from nod_server.telemetry import ConsoleTeeSink, TelemetryHub, render_metrics
+from nod_server.telemetry import (
+    SESSION_ACTIVE,
+    ConsoleTeeSink,
+    TelemetryHub,
+    configure_logging,
+    render_metrics,
+)
 from nod_server.ws import console_endpoint, stream_endpoint
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only
@@ -53,6 +59,15 @@ CONSOLE_HTML: Final = Path(__file__).parent / "static" / "index.html"
 
 SAMPLE_RATE_HZ: Final = 16000
 """Caller audio is mono 16 kHz PCM16 (ARCHITECTURE.md §7)."""
+
+SESSION_REGISTRY_CAP: Final = 32
+"""Created-but-unconnected session records kept before the oldest is evicted.
+
+A record is a dict entry and costs nothing; the credit is spent by the
+**stream** socket, which is where `NOD_MAX_SESSIONS` binds. Bounded anyway so
+a long-running server cannot grow one entry per page load for ever (INV-3's
+spirit, applied to the registry rather than to a call).
+"""
 
 WS_CLOSE_UNKNOWN_SESSION: Final = 4404
 """WebSocket close code for an unknown `session_id`. Mirrors HTTP 404."""
@@ -315,6 +330,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         The configured application.
     """
     resolved = settings if settings is not None else Settings()
+    configure_logging(resolved.nod_log_level)
 
     app = FastAPI(
         title="Nod",
@@ -366,6 +382,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         factory = app.state.proxy_factory
         proxy, run = await factory(record, app.state.hub)
         app.state.live_streams += 1
+        SESSION_ACTIVE.inc()
         task = asyncio.create_task(run())
         try:
             await stream_endpoint(
@@ -379,6 +396,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         finally:
             app.state.live_streams -= 1
+            SESSION_ACTIVE.dec()
+            # A session is single-use: its record exists to carry preset/mode
+            # from the POST to the socket, and once the socket is gone nothing
+            # can reach it again. Dropping it here is what keeps the registry
+            # from being a leak (ADR-058).
+            app.state.sessions.pop(session_id, None)
             task.cancel()
             await proxy.aclose()
 
@@ -396,7 +419,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _console(  # pragma: no cover - exercised by the integration test
         websocket: WebSocket, session_id: str
     ) -> None:
-        """Route `WS /v1/console` onto the fan-out."""
+        """Route `WS /v1/console` onto the fan-out.
+
+        **Unknown ids are refused**, matching `/v1/stream`. Accepting them made
+        a broken client look healthy: a browser that had failed to create a
+        session connected `?session_id=undefined`, the socket was accepted, the
+        status pill went green, and nothing ever arrived because no such
+        session existed. A console that subscribes to nothing must say so
+        (ADR-058).
+        """
+        if session_id not in app.state.sessions:
+            await websocket.close(code=WS_CLOSE_UNKNOWN_SESSION)
+            return
         await console_endpoint(websocket, session_id, hub=app.state.hub)
 
     return app
@@ -434,16 +468,16 @@ async def create_session(
     Returns:
         `session_id`, `ws_url` and `console_url`.
     """
-    settings: Settings = request.app.state.settings
     registry_now: dict[str, SessionRecord] = request.app.state.sessions
-    if len(registry_now) >= settings.nod_max_sessions:
-        raise HTTPException(
-            status_code=HTTPStatus.TOO_MANY_REQUESTS,
-            detail=(
-                f"at capacity: {len(registry_now)} of {settings.nod_max_sessions} "
-                "sessions (NOD_MAX_SESSIONS)"
-            ),
-        )
+    # **The cap does not belong here, and putting it here was a lockout.**
+    # This route adds a dict entry; `WS /v1/stream` opens the upstream socket
+    # and is where `NOD_MAX_SESSIONS` binds (see `_stream`). Records were never
+    # removed, so capping on registry *size* refused every page load after the
+    # second one, permanently, until the process restarted — and the browser
+    # read `session_id` off the 429 body as `undefined` and connected a console
+    # to a session that did not exist (ADR-058). Bound by eviction instead.
+    while len(registry_now) >= SESSION_REGISTRY_CAP:
+        registry_now.pop(next(iter(registry_now)))
     preset = str(body.get("preset", "balanced"))
     mode = NodMode(str(body.get("mode", NodMode.ADAPT.value)))
     ceiling = int(body.get("ceiling_ms", DEFAULT_CEILING_MS))  # type: ignore[arg-type]

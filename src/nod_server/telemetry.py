@@ -9,10 +9,18 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 from collections.abc import AsyncIterator, Mapping
 from typing import Final, override
 
-from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
+import structlog
+from prometheus_client import (
+    REGISTRY,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 from nod_core.trace import TraceSink
 from nod_core.types import JsonValue
@@ -51,17 +59,49 @@ CONSOLE_DROPPED_TOTAL: Final = Counter(
     "nod_console_dropped_total",
     "Console clients disconnected for falling behind.",
 )
+CONTROLLER_ERRORS_TOTAL: Final = Counter(
+    "nod_controller_errors_total",
+    "Controller exceptions caught by the arbiter's SAFE path (INV-8).",
+)
 
 
 def configure_logging(level: str) -> None:
     """Configure structlog: one event per line, never in the hot loop.
 
-    Every log line carries `session_id` and `turn_order` (ARCHITECTURE.md §9).
+    **This was a `NotImplementedError` stub for eleven gates.** ADR-050 recorded
+    the consequence rather than fixing it: when the live patch census was being
+    reconstructed there were no structured logs to fall back on, because there
+    were no logs at all. The stdlib root logger has no handler by default, so
+    every `_log.info` in this package went to the `lastResort` handler at
+    WARNING and was dropped — which is how a server-side frame counter written
+    specifically to diagnose a silent client produced nothing.
+
+    Idempotent: `create_app` may be called more than once in a test session, and
+    adding a second handler would double every line.
 
     Args:
-        level: `NOD_LOG_LEVEL`.
+        level: `NOD_LOG_LEVEL`, e.g. `info`.
     """
-    raise NotImplementedError
+    structlog.configure(
+        processors=[
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, level.upper(), logging.INFO)
+        ),
+        cache_logger_on_first_use=True,
+    )
+    root = logging.getLogger()
+    root.setLevel(getattr(logging, level.upper(), logging.INFO))
+    if not any(getattr(h, "_nod", False) for h in root.handlers):
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+        handler._nod = True  # type: ignore[attr-defined]
+        root.addHandler(handler)
 
 
 def render_metrics() -> bytes:
@@ -206,8 +246,26 @@ class ConsoleTeeSink(TraceSink):
         t_ms: int,
         direction: str = "local",
     ) -> None:
-        """Trace the record, then publish the console view of it. `O(1)`."""
+        """Trace the record, publish the console view, and count it. `O(1)`.
+
+        **The counters are incremented here because this is the one place the
+        server already sees every controller event.** They were declared and
+        never incremented for eleven gates (ADR-057): `/metrics` reported 0.0
+        while a live session's trace read `patches_sent: 12`. A metric that
+        cannot move is worse than no metric, because a zero from it reads as a
+        measurement.
+
+        `config_applied` is the one counted, not `config_decision`: the former
+        is emitted after the frame reaches the socket, so the counter means
+        "patches the upstream accepted" rather than "patches we thought of".
+        """
         super().emit(kind, payload, t_ms=t_ms, direction=direction)
+        if kind == "config_applied":
+            CONFIG_PATCHES_TOTAL.inc()
+        elif kind == "controller_error":
+            CONTROLLER_ERRORS_TOTAL.inc()
+        elif kind == "upstream_rotated":
+            UPSTREAM_RECONNECTS_TOTAL.inc()
         console_kind = CONSOLE_KINDS.get(kind)
         if console_kind is None:
             return

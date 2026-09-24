@@ -27,7 +27,7 @@ import httpx
 import pytest
 
 from nod_core.config import Settings
-from nod_server.app import READINESS_PROBES, create_app, readiness
+from nod_server.app import READINESS_PROBES, SESSION_REGISTRY_CAP, create_app, readiness
 
 SERVER_BOOT_TIMEOUT_S = 30.0
 SERVER_POLL_INTERVAL_S = 0.2
@@ -364,31 +364,45 @@ def test_the_session_cap_is_derived_from_the_measured_upstream_limit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_creating_more_sessions_than_the_cap_is_refused_with_429() -> None:
-    """A public URL must not accept unbounded sessions (ADR-042)."""
+async def test_creating_sessions_is_never_refused_by_registry_size() -> None:
+    """`POST /v1/sessions` must not lock a server out, and it used to.
+
+    This test replaces one that asserted the third POST returns 429 against
+    `nod_max_sessions = 2`. That behaviour was real and it was a **permanent
+    lockout**: no record was ever removed from the registry, so the third page
+    load of the server's life 429'd and every load after it did too, until the
+    process restarted. `_stream`'s own docstring already said the cap belongs on
+    the socket — "that route only adds a dict entry and costs nothing" — and the
+    POST capped anyway, on a number that only ever grew (ADR-058).
+
+    The old test passed, which is the point worth keeping: it asserted the
+    symptom as though it were the contract.
+    """
     settings = _settings(nod_max_sessions=2)
     async with _client(settings) as client:
-        first = await client.post("/v1/sessions", json={})
-        second = await client.post("/v1/sessions", json={})
-        third = await client.post("/v1/sessions", json={})
-
-    assert first.status_code == HTTPStatus.OK
-    assert second.status_code == HTTPStatus.OK
-    assert third.status_code == HTTPStatus.TOO_MANY_REQUESTS
-    assert "NOD_MAX_SESSIONS" in third.json()["detail"]
+        codes = [
+            (await client.post("/v1/sessions", json={})).status_code for _ in range(6)
+        ]
+    assert codes == [HTTPStatus.OK] * 6, "three times the cap, none refused"
 
 
 @pytest.mark.asyncio
-async def test_the_cap_admits_sessions_up_to_the_limit() -> None:
-    """The companion direction: a cap that refuses everything is not a cap.
+async def test_the_session_registry_is_bounded_by_eviction() -> None:
+    """Unbounded is the other failure, so the registry evicts rather than grows.
 
-    Written because the test above passes against `nod_max_sessions = 0`, where
-    nothing is ever admitted and the endpoint is simply broken.
+    One entry per page load, for ever, is a leak on a long-running server.
+    Asserted against `SESSION_REGISTRY_CAP` by *behaviour* — the oldest id stops
+    resolving — rather than by reading `len()`, so a cap that is counted but not
+    enforced fails here.
     """
-    settings = _settings(nod_max_sessions=3)
+    settings = _settings(nod_max_sessions=2)
     async with _client(settings) as client:
-        codes = [
-            (await client.post("/v1/sessions", json={})).status_code for _ in range(3)
-        ]
+        first = (await client.post("/v1/sessions", json={})).json()["session_id"]
+        for _ in range(SESSION_REGISTRY_CAP):
+            await client.post("/v1/sessions", json={})
+        newest = (await client.post("/v1/sessions", json={})).json()["session_id"]
+        registry = client._transport.app.state.sessions  # type: ignore[attr-defined]
 
-    assert codes == [HTTPStatus.OK] * 3
+    assert first not in registry, "the oldest record should have been evicted"
+    assert newest in registry, "the newest record must survive"
+    assert len(registry) <= SESSION_REGISTRY_CAP
