@@ -34,11 +34,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 
-from nod_adapters.llm.anthropic import AnthropicClient
+from nod_adapters.llm.anthropic import FALLBACK, AnthropicClient
 from nod_adapters.protocols import Message
 from nod_core.arbiter import DEFAULT_CEILING_MS
 from nod_core.config import Settings
-from nod_core.types import JsonValue, NodMode, Voice
+from nod_core.policy import load_policy
+from nod_core.types import ExpectedAnswer, JsonValue, NodMode, Voice
+from nod_server.context import DeclaredContext, classify_prompt
 from nod_server.telemetry import (
     SESSION_ACTIVE,
     ConsoleTeeSink,
@@ -305,6 +307,7 @@ def default_proxy_factory(
             ),
             mode=record.mode,
             ceiling_ms=record.ceiling_ms,
+            context=record.context,
         )
         return proxy, proxy.run
 
@@ -353,7 +356,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sessions = {}
     app.state.live_streams = 0
     app.state.hub = TelemetryHub()
+    app.state.last_reply_text = ""
     app.state.proxy_factory = default_proxy_factory(resolved)
+    # Compiled once per app rather than per session: `hint_for` is on the
+    # controller's per-turn path and re-reading a YAML file there would be I/O
+    # inside the decision loop (INV-2).
+    try:
+        app.state.policy = load_policy(Path("config/policy.yaml"))
+    except (OSError, ValueError):
+        # A missing or malformed policy leaves the axis neutral rather than
+        # refusing to boot — INV-8's direction applied to configuration.
+        app.state.policy = None
     app.state.llm = AnthropicClient(
         resolved.llm_api_key.get_secret_value() if resolved.llm_api_key else ""
     )
@@ -444,6 +457,13 @@ class SessionRecord:
     preset: str
     mode: NodMode
     ceiling_ms: int
+    context: DeclaredContext | None = None
+    """The context axis for this session, or `None` when not opted in.
+
+    **Opt-in, and off by default.** The axis multiplies the window the speaker
+    profile computed, so switching it on changes the behaviour the demo was
+    verified against. `?context=on` keeps the filmed path byte-identical while
+    the new one is exercised beside it (Gate 4k)."""
 
 
 def new_session_id() -> str:
@@ -478,11 +498,16 @@ async def create_session(
     # to a session that did not exist (ADR-058). Bound by eviction instead.
     while len(registry_now) >= SESSION_REGISTRY_CAP:
         registry_now.pop(next(iter(registry_now)))
+    want_context = bool(body.get("context", False))
     preset = str(body.get("preset", "balanced"))
     mode = NodMode(str(body.get("mode", NodMode.ADAPT.value)))
     ceiling = int(body.get("ceiling_ms", DEFAULT_CEILING_MS))  # type: ignore[arg-type]
     record = SessionRecord(
-        session_id=new_session_id(), preset=preset, mode=mode, ceiling_ms=ceiling
+        session_id=new_session_id(),
+        preset=preset,
+        mode=mode,
+        ceiling_ms=ceiling,
+        context=DeclaredContext(request.app.state.policy) if want_context else None,
     )
     registry: dict[str, SessionRecord] = request.app.state.sessions
     registry[record.session_id] = record
@@ -493,6 +518,7 @@ async def create_session(
         "preset": record.preset,
         "mode": record.mode.value,
         "ceiling_ms": record.ceiling_ms,
+        "context": record.context is not None,
     }
 
 
@@ -532,12 +558,36 @@ async def agent_reply(
     transcript = str(body.get("transcript", "")).strip()
     if not transcript:
         return {"text": ""}
+    record = request.app.state.sessions.get(session_id)
     client = request.app.state.llm
     text = await client.reply([Message(role="user", content=transcript)])
+
+    # **The scripted intake agent, on the opted-in path only.** Without an LLM
+    # key the brain returns one constant, which asks nothing, so the context
+    # axis would be switched on and still never fire. The script asks real
+    # intake questions; the classifier reads them exactly as it would read a
+    # model's. A configured model wins — `reply()` returns `FALLBACK` only when
+    # there is no client at all.
+    if record is not None and record.context is not None and text == FALLBACK:
+        text = record.context.next_prompt()
+
+    # **The agent declares what its own question invites.** Off the turn-timing
+    # path by construction: this runs after a turn ended, and the class applies
+    # to the *next* one (CLAUDE.md §7, and the route docstring above).
+    # Kept so a test can assert the declared class was derived from *this*
+    # reply rather than from a constant it also hard-codes.
+    request.app.state.last_reply_text = text
+    declared: ExpectedAnswer | None = None
+    if record is not None and record.context is not None:
+        declared = classify_prompt(text)
+        record.context.declare(declared)
+
     request.app.state.hub.publish(
-        session_id, "agent.state", {"state": "speaking", "text": text, "t_ms": 0}
+        session_id,
+        "agent.state",
+        {"state": "speaking", "text": text, "expects": declared or "", "t_ms": 0},
     )
-    return {"text": text}
+    return {"text": text, "expects": declared or ""}
 
 
 @router.get("/voices")

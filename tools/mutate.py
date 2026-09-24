@@ -71,6 +71,10 @@ LIVE_TESTS: Final = ("tests/integration/test_live_path.py",)
 WIRE_TESTS: Final = ("tests/unit/test_live_path_wire.py",)
 REPORT_TESTS: Final = ("tests/unit/test_replay_report.py",)
 SMOKE_TESTS: Final = ("tests/integration/test_bench_smoke.py",)
+CONTEXT_TESTS: Final = (
+    "tests/unit/test_context_axis.py",
+    "tests/integration/test_console_loop.py",
+)
 LADDER_TESTS: Final = ("tests/unit/test_ladder.py",)
 
 
@@ -1135,6 +1139,59 @@ def _ladder_mutations() -> tuple[Mutation, ...]:
     )
 
 
+def _context_mutations() -> tuple[Mutation, ...]:
+    """The context axis on the server path. First tier under §5's second rule.
+
+    `hint.min_mult` multiplies `min_ms`, and `min_ms` is the gate ADR-055
+    measured as the only lever that moves a live boundary. A wrong multiplier is
+    therefore a wrong window on a real call, arriving with no symptom — every
+    value in the strip stays plausible. The axis was also inert for two phases
+    while looking implemented, which is the failure these guard against
+    returning.
+    """
+    src = "src/nod_server/context.py"
+
+    def mutation(label: str, old: str, new: str) -> Mutation:
+        return Mutation(label, src, old, new, CONTEXT_TESTS)
+
+    return (
+        mutation(
+            "context: never release the class, so it widens every later turn",
+            "        pending, self._pending = self._pending, None",
+            "        pending = self._pending",
+        ),
+        mutation(
+            "context: declare nothing, so the axis is inert again",
+            "        self._pending = answer",
+            "        self._pending = None",
+        ),
+        mutation(
+            "context: return the first cue that matches any class order",
+            "    for answer, cues in ANSWER_CUES:",
+            "    for answer, cues in reversed(ANSWER_CUES):",
+        ),
+        mutation(
+            "context: match the raw cue, so casing and punctuation defeat it",
+            '            if _WORD_BOUNDARY.sub(" ", cue).strip() in hay:',
+            "            if cue in text:",
+        ),
+        Mutation(
+            "context: enable the axis by default, defeating the demo guard",
+            "src/nod_server/app.py",
+            '    want_context = bool(body.get("context", False))',
+            '    want_context = bool(body.get("context", True))',
+            CONTEXT_TESTS,
+        ),
+        Mutation(
+            "context: classify the caller's words instead of the agent's",
+            "src/nod_server/app.py",
+            "        declared = classify_prompt(text)",
+            "        declared = classify_prompt(transcript)",
+            CONTEXT_TESTS,
+        ),
+    )
+
+
 def _flush_mutations() -> tuple[Mutation, ...]:
     """`is_caller_turn`. First tier: it decides what FRAG and TTL are computed over.
 
@@ -1426,6 +1483,7 @@ CATALOGUE: Final[dict[str, tuple[Mutation, ...]]] = {
     "wire": _wire_mutations(),
     "flush": _flush_mutations(),
     "ladder": _ladder_mutations(),
+    "context": _context_mutations(),
     "selftest": _self_test_mutations(),
 }
 """Mutations per module, first tier only (CLAUDE.md §5)."""

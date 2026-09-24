@@ -3139,3 +3139,55 @@ disconnected instrument in the UI, and it is now written down as one.
 Consequence: the screen works, and the owner's first successful session widened
 `max_turn_silence` 1280 → 1839 ms on a human voice across 3 patches with the profiler
 warm. `docs/DEPLOYMENT.md`'s metrics warning is narrowed to what is still true.
+
+## ADR-059 — The context axis was built, guarded, and inert on the server path
+2026-09-24 · Status: accepted — Gate 4k
+Context: asked for a feature to add before filming, the honest answer was that the most
+demo-able one already existed. `config/policy.yaml` has carried the context multipliers
+since Phase 2 — `spelling` widens the window 2.4x, `boolean` narrows it to 0.7 —
+`CompiledPolicy` applies them, `ContextSource` was wired into `SessionProxy` at ADR-044,
+and ROADMAP §3 calls the axis "half the originality". **The console path passed no source
+at all**, so a caller asked to spell their name got exactly the same window as one
+answering yes or no.
+Decision: connect it, behind an opt-in flag, and fix the two things that would have left
+it inert anyway.
+
+**Opt-in, `?context=on`, off by default.** The axis multiplies the window the speaker
+profile computed, so enabling it changes the behaviour the demo was verified against.
+The default path stays byte-identical to the recorded one; a mutation
+(`enable the axis by default`) guards that.
+
+**The class comes from the agent's own question, deterministically.** A keyword table
+over the shapes an intake call produces, not the LLM. §7 forbids a model in the
+turn-timing decision path — this is off it, running after a turn has ended for the next
+one — but a rule table keeps the distance obvious instead of arguable, and INV-7 means a
+deterministic classifier is testable in full while a model-derived one is testable only
+against a fixture. Unrecognised questions return `None`, which yields the policy default
+and applies no multiplier: unknown means unchanged.
+
+**Two things would have left it inert even switched on, and both were found by taking
+the call rather than by a test.**
+
+- **The stub brain is a constant.** With no LLM key, `reply()` returns "Got it — thank
+  you." every time, which asks nothing and cues nothing. The axis would have been on and
+  never fired. `INTAKE_SCRIPT` gives the reference agent five real questions that walk
+  the axis across its range — `entity_id`, `entity_date`, `spelling`, `number`,
+  `boolean` — including the one class *below* 1.0, so the demo can show the controller
+  choosing to be less patient as well as more. Used only on the opted-in path; a
+  configured model still wins.
+- **One scripted line cued nothing.** "Is that everything you needed today?" matched no
+  boolean cue, so the fifth turn silently skipped the axis. Fixed, and
+  `test_every_scripted_question_classifies` now fails if any line cues `None` — because a
+  question the classifier shrugs at produces a turn where the axis does nothing for no
+  visible reason, which is the inert failure one level down again.
+
+**A mutation caught a test that could not fail.** `test_the_agent_declares_what_its_own
+_question_invites` compared the declared class against `classify_prompt(last_reply_text)`
+and passed whether the code read the agent's reply or the caller's transcript, because
+both strings happened to classify to `None`. `classify_prompt(transcript)` survived the
+run. The test now asserts the agent's class **and** denies the caller's, on inputs chosen
+to disagree. The direction matters: reading the caller's last words would widen the window
+for the question they had already finished asking, one turn late, every time.
+Consequence: 6/6 mutations in a new `context` catalogue, 765 tests. The axis is
+demonstrable for the first time — ask the agent's spelling question and the window
+visibly widens with the reason line reading "Reading out an identifier".

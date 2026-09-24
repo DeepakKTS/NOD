@@ -261,12 +261,12 @@ benchmark that does publish them can see which two are missing and why.
 - Nod adapts to pauses. It does not interpret them. There is no inference of emotion,
   stress, honesty, or any clinical condition from speech timing, and there never will be.
 - **What the test numbers certify, which is less than they look.** The suite reports
-  744 passing tests, 98.18 % line coverage and **184 mutations** killed. Read
+  765 passing tests, 98.18 % line coverage and **190 mutations** killed. Read
   precisely: mutation coverage is **file-granular**, so a kill proves *some* test in
   that file noticed the change, never which — it certifies files, not tests.
-  Coverage certifies **lines executed**, not behaviour asserted. And **23 of 39 test
-  files are the target of no mutation at all**, holding **259 of 593 test definitions,
-  so 44 % of the suite has never been given anything to catch** (ADR-053). That census
+  Coverage certifies **lines executed**, not behaviour asserted. And **22 of 40 test
+  files are the target of no mutation at all**, holding **245 of 606 test definitions,
+  so 40 % of the suite has never been given anything to catch** (ADR-053). That census
   is checked against the tree by `test_the_readme_mutation_census_matches_the_tree`,
   because the previous copy of this paragraph said 38 files and 565 definitions for two
   gates after both had changed — stale, and stale in the flattering direction. A floor does

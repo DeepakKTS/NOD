@@ -402,3 +402,82 @@ def test_the_console_script_parses() -> None:
     finally:
         Path(path).unlink(missing_ok=True)
     assert result.returncode == 0, f"console script does not parse:\n{result.stderr}"
+
+
+def test_the_context_axis_is_off_unless_asked_for() -> None:
+    """Opt-in, and the default path must be byte-identical to the verified one.
+
+    The axis multiplies the window the speaker profile computed, so switching
+    it on changes behaviour the demo was recorded against. `?context=on` exists
+    so the filmed take cannot regress; a default that quietly enabled it would
+    defeat the whole containment.
+    """
+    with TestClient(create_app()) as client:
+        plain = client.post("/v1/sessions", json={}).json()
+        asked = client.post("/v1/sessions", json={"context": True}).json()
+    assert plain["context"] is False
+    assert asked["context"] is True
+
+
+def test_the_agent_declares_what_its_own_question_invites() -> None:
+    """The class comes from the *agent's* reply, never from the caller's words.
+
+    This is the half that never existed: `ContextSource` has been wired into
+    `SessionProxy` since ADR-044 and `policy.yaml` has carried the multipliers
+    since Phase 2, but nothing on the server path ever declared a class, so the
+    axis was implemented and inert.
+
+    **The two sources disagree by construction.** The caller's transcript cues
+    `spelling`; the scripted agent's first question asks for a member number
+    and cues `entity_id`. Asserting the agent's class *and* denying the
+    caller's is what makes this discriminating — an earlier version compared
+    against `classify_prompt(last_reply_text)` and passed either way, because
+    both strings happened to classify to `None`. `make mutate` caught it:
+    `classify_prompt(transcript)` survived.
+
+    The direction matters on a real call. The axis widens the window for the
+    answer the agent has just *invited*; reading the caller's last words would
+    widen it for the question they have already finished asking, one turn late,
+    every time.
+    """
+    app = create_app()
+    with TestClient(app) as client:
+        sid = client.post("/v1/sessions", json={"context": True}).json()["session_id"]
+        body = client.post(
+            f"/v1/sessions/{sid}/reply",
+            json={"transcript": "can you spell that for me"},
+        ).json()
+        declared = app.state.sessions[sid].context(1)
+
+    assert "member number" in body["text"], "the scripted agent should have asked"
+    assert declared == "entity_id", (
+        "the class must come from the agent's question, not the caller's words"
+    )
+    assert declared != "spelling", "that is the caller's cue, not the agent's"
+
+
+def test_the_agent_declaring_a_real_class_reaches_the_controller() -> None:
+    """The other direction: when the agent *does* cue a class, it is declared.
+
+    The test above can only fail on a false positive. Without this one, a
+    `declare()` that never stored anything would satisfy it perfectly — which is
+    the inert state the whole module exists to end.
+    """
+    app = create_app()
+    with TestClient(app) as client:
+        sid = client.post("/v1/sessions", json={"context": True}).json()["session_id"]
+        app.state.sessions[sid].context.declare(
+            __import__(
+                "nod_server.context", fromlist=["classify_prompt"]
+            ).classify_prompt("And what is your member number?")
+        )
+        assert app.state.sessions[sid].context(1) == "entity_id"
+
+
+def test_a_session_without_the_axis_hands_the_controller_nothing() -> None:
+    """The off path must not merely be neutral — it must not declare at all."""
+    app = create_app()
+    with TestClient(app) as client:
+        sid = client.post("/v1/sessions", json={}).json()["session_id"]
+        client.post(f"/v1/sessions/{sid}/reply", json={"transcript": "hello"})
+        assert app.state.sessions[sid].context is None

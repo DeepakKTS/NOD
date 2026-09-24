@@ -197,6 +197,11 @@
   .strip span:first-child{color:var(--t2)}
   .strip b{font-weight:600;transition:color .35s}
   .strip b.bump{color:var(--floor)}
+  /* The context axis, shown only when the agent has declared something. An
+     always-visible "none" would read as a feature that never fires. */
+  .chip{font-size:11px;letter-spacing:.04em;color:var(--t3);opacity:0;
+        transition:opacity .3s,color .3s}
+  .chip.on{opacity:1;color:var(--agent)}
   .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
   .tile{padding:15px 17px}
   .tile .n{font-size:27px;font-weight:600;letter-spacing:-.03em}
@@ -284,6 +289,7 @@
           <div><span>min</span><b id="cMin">400 ms</b></div>
           <div><span>max</span><b id="cMax">1 280 ms</b></div>
           <div><span>state</span><b id="cState">cold</b></div>
+          <div id="expectsRow"><span>context</span><b id="expects" class="chip"></b></div>
         </div>
       </div>
       <div class="tiles">
@@ -621,6 +627,13 @@ function connect(id) {
       if (r) r.classList.add("cut");
     } else if (m.kind === "agent.state" && m.state) {
       $("meterState").textContent = m.state;
+      if (m.expects !== undefined) {
+        const e = $("expects");
+        if (e) {
+          e.textContent = m.expects ? "expects: " + m.expects.replace("_", " ") : "";
+          e.classList.toggle("on", Boolean(m.expects));
+        }
+      }
     } else if (m.kind === "session.ended") {
       callOver = true; setOrb("ended");
       step("audio", "idle", "Audio flowing");
@@ -887,13 +900,21 @@ async function startMic() {
 // Boot. The POST's status is checked — that is the whole bug from ADR-058.
 // ---------------------------------------------------------------------------
 layout();
-const preset = new URLSearchParams(location.search).get("session_id");
+const params = new URLSearchParams(location.search);
+const CONTEXT_ON = params.get("context") === "on";
+const preset = params.get("session_id");
 step("session", "busy");
 
 const ready = preset
   ? Promise.resolve(preset)
   : fetch("/v1/sessions", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // **Opt-in, off by default.** `?context=on` turns on the context axis —
+      // the window widens for identifiers, dates and spelling and narrows for
+      // yes/no. Without it the session behaves exactly as the verified demo
+      // path does, so the filmed take cannot regress (Gate 4k).
+      body: JSON.stringify({ context: CONTEXT_ON }),
     }).then(async (r) => {
       if (!r.ok) {
         const detail = await r.text().catch(() => "");
