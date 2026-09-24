@@ -100,51 +100,34 @@
   /* ---- stage: orb + meter ------------------------------------------- */
   .stage{display:grid;grid-template-columns:230px 1fr;gap:30px;align-items:center;
          padding:26px 28px;margin-bottom:16px}
-  .orbwrap{position:relative;display:grid;place-items:center;height:186px}
-  .orb{
-    position:relative;width:150px;height:150px;border-radius:50%;
-    transition:transform .12s ease-out,box-shadow .5s ease;
-    background:
-      radial-gradient(circle at 34% 30%,rgba(255,255,255,.85),transparent 42%),
-      radial-gradient(circle at 68% 74%,rgba(255,179,64,.75),transparent 56%),
-      radial-gradient(circle at 30% 76%,rgba(90,200,250,.55),transparent 58%),
-      linear-gradient(160deg,#2A2118,#11151C);
-    box-shadow:0 0 0 1px rgba(255,255,255,.10) inset,
-               0 10px 40px -8px rgba(255,179,64,.30),
-               0 0 70px -14px rgba(255,179,64,.40);
+  .orbwrap{position:relative;display:grid;place-items:center;height:210px}
+  /* The orb is a canvas of projected particles, not a gradient ball. Its
+     radius, spread and colour are driven by measured RMS and by agent state —
+     never by a timer. An orb that looks alive while the microphone is dead is
+     the defect this screen exists to stop (ADR-057). */
+  #orbCanvas{width:196px;height:196px;display:block}
+  .orbglow{
+    position:absolute;width:150px;height:150px;border-radius:50%;
+    pointer-events:none;filter:blur(30px);opacity:.5;
+    background:radial-gradient(circle,rgba(255,179,64,.55),transparent 70%);
+    transition:background .6s,opacity .6s,transform .18s ease-out;
   }
-  .orb::after{
-    content:"";position:absolute;inset:-22%;border-radius:50%;
-    background:conic-gradient(from 0deg,transparent,rgba(255,179,64,.22),
-               transparent 42%,rgba(90,200,250,.18),transparent 78%);
-    animation:spin 14s linear infinite;filter:blur(13px);z-index:-1;
-  }
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .orb.listening{
-    background:
-      radial-gradient(circle at 34% 30%,rgba(255,255,255,.9),transparent 42%),
-      radial-gradient(circle at 66% 72%,rgba(255,179,64,.92),transparent 56%),
-      linear-gradient(160deg,#3A2A14,#12151B);
-    box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,
-               0 0 90px -10px rgba(255,179,64,.65);
-  }
-  .orb.speaking{
-    background:
-      radial-gradient(circle at 34% 30%,rgba(255,255,255,.92),transparent 42%),
-      radial-gradient(circle at 66% 72%,rgba(90,200,250,.92),transparent 56%),
-      linear-gradient(160deg,#102A3A,#0D141B);
-    box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,
-               0 0 90px -10px rgba(90,200,250,.65);
-  }
-  .orb.ended{filter:grayscale(.75) brightness(.62)}
-  .orblabel{position:absolute;bottom:2px;font-size:11px;letter-spacing:.09em;
+  .orbglow.speaking{background:radial-gradient(circle,rgba(90,200,250,.55),transparent 70%)}
+  .orbglow.ended{opacity:.12}
+  .orblabel{position:absolute;bottom:-2px;font-size:10.5px;letter-spacing:.11em;
             text-transform:uppercase;color:var(--t3)}
 
+  /* The track is the full 0..CEIL range; the capsule inside it is this
+     caller's window. The vendor default sits on the track as a fixed mark, so
+     widening the window is a **visible gap** rather than a number a viewer has
+     to be told the meaning of. That gap is the product. */
+  .track{position:relative;height:44px;border-radius:22px;
+         background:rgba(255,255,255,.028);border:1px solid rgba(255,255,255,.055)}
   .meter{
-    position:relative;height:44px;border-radius:22px;overflow:hidden;
+    position:absolute;left:0;top:0;height:100%;border-radius:22px;overflow:hidden;
     background:rgba(255,255,255,.05);border:1px solid var(--edge);
     box-shadow:0 1px 0 0 rgba(255,255,255,.08) inset,0 6px 20px -12px #000 inset;
-    transition:width 560ms cubic-bezier(.2,.9,.3,1.25);width:42%;
+    transition:width 560ms cubic-bezier(.2,.9,.3,1.25);width:32%;
   }
   .fill{position:absolute;inset:0 auto 0 0;width:0%;border-radius:22px;
         background:linear-gradient(90deg,rgba(255,179,64,.35),var(--floor));
@@ -152,8 +135,21 @@
   .fill.over{background:linear-gradient(90deg,rgba(255,69,58,.4),var(--cut));
              box-shadow:0 0 26px -4px rgba(255,69,58,.8)}
   .tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.5)}
-  .axis{position:relative;height:16px;margin-top:6px;width:42%;
-        transition:width 560ms cubic-bezier(.2,.9,.3,1.25)}
+  .ghost{position:absolute;top:-6px;bottom:-6px;width:1px;
+         background:repeating-linear-gradient(180deg,var(--t3) 0 3px,transparent 3px 6px);
+         transition:left .4s}
+  .ghost b{position:absolute;top:-17px;left:50%;transform:translateX(-50%);
+           font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+           color:var(--t3);white-space:nowrap;font-weight:600}
+  .gained{
+    position:absolute;top:13px;height:18px;border-radius:9px;
+    background:rgba(50,215,75,.14);border:1px solid rgba(50,215,75,.34);
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:650;color:var(--calm);white-space:nowrap;
+    opacity:0;transition:opacity .45s,left .56s,width .56s;pointer-events:none;
+  }
+  .gained.on{opacity:1}
+  .axis{position:relative;height:16px;margin-top:8px}
   .axis span{position:absolute;transform:translateX(-50%);font-size:10.5px;
              color:var(--t3);white-space:nowrap;transition:left 560ms cubic-bezier(.2,.9,.3,1.25)}
   .mrow{display:flex;align-items:baseline;gap:13px;margin-top:16px}
@@ -249,13 +245,18 @@
 
   <section class="glass stage">
     <div class="orbwrap">
-      <div class="orb" id="orb"></div>
+      <div class="orbglow" id="orbGlow"></div>
+      <canvas id="orbCanvas" width="392" height="392"></canvas>
       <div class="orblabel" id="orbLabel">idle</div>
     </div>
     <div>
-      <div class="meter" id="meter">
-        <div class="fill" id="fill"></div>
-        <div class="tick" id="tickMin"></div>
+      <div class="track" id="track">
+        <div class="meter" id="meter">
+          <div class="fill" id="fill"></div>
+          <div class="tick" id="tickMin"></div>
+        </div>
+        <div class="ghost" id="ghost"><b>vendor default</b></div>
+        <div class="gained" id="gained"></div>
       </div>
       <div class="axis" id="axis"><span id="axisMin">min 400 ms</span></div>
       <div class="mrow">
@@ -317,24 +318,95 @@ const $ = (id) => document.getElementById(id);
 //
 // So each step now has its own observable and its own failure text.
 // ---------------------------------------------------------------------------
-// --- the orb: one visual, four states, driven by real signals only ---------
-let orbLevel = 0;
+// --- the orb ----------------------------------------------------------------
+// A projected particle shell, not a gradient ball. ~520 points on a Fibonacci
+// sphere, rotated and perspective-projected onto a 2D canvas; depth drives
+// size and alpha, so it reads as volume without WebGL and without a build step
+// (ADR-038 keeps this one static file).
+//
+// Every parameter that moves is driven by a measured signal: `orbLevel` is
+// smoothed RMS from the same buffer being sent upstream, and the palette is
+// agent state. Nothing breathes on a timer — an orb that looks alive while the
+// microphone is dead is exactly the disconnected instrument this screen was
+// rebuilt to stop (ADR-057).
+const ORB_N = 900;
+const orbPts = [];
+for (let i = 0; i < ORB_N; i++) {
+  // Fibonacci sphere: even coverage without clustering at the poles.
+  const y = 1 - (i / (ORB_N - 1)) * 2;
+  const r = Math.sqrt(Math.max(0, 1 - y * y));
+  const th = Math.PI * (3 - Math.sqrt(5)) * i;
+  orbPts.push({x: Math.cos(th) * r, y, z: Math.sin(th) * r, j: Math.random()});
+}
+let orbLevel = 0, orbSpin = 0, orbState = "idle";
+const ORB_PALETTE = {
+  idle:      [178, 186, 196],
+  listening: [255, 179,  64],
+  speaking:  [ 90, 200, 250],
+  ended:     [ 96, 104, 114],
+};
+
 function setOrb(s) {
-  const o = $("orb");
-  if (!o) return;
-  o.className = "orb" + (s === "idle" ? "" : " " + s);
-  $("orbLabel").textContent =
-    s === "listening" ? "listening" : s === "speaking" ? "speaking"
-    : s === "ended" ? "ended" : "idle";
+  orbState = s;
+  const g = $("orbGlow");
+  if (g) g.className = "orbglow" + (s === "idle" ? "" : " " + s);
+  const l = $("orbLabel");
+  if (l) l.textContent = s === "idle" ? "idle" : s;
 }
 function orbPulse(rms) {
-  // Scale tracks measured RMS, smoothed. It is deliberately not a loop: an orb
-  // that breathes on a timer looks alive while the microphone is dead, which is
-  // the class of defect this whole screen was rebuilt to stop (ADR-057).
   orbLevel += (Math.min(1, rms * 9) - orbLevel) * 0.28;
-  const o = $("orb");
-  if (o) o.style.transform = "scale(" + (1 + orbLevel * 0.13).toFixed(3) + ")";
+  const g = $("orbGlow");
+  if (g) g.style.transform = "scale(" + (1 + orbLevel * 0.30).toFixed(3) + ")";
 }
+
+function drawOrb() {
+  const cv = $("orbCanvas");
+  if (cv) {
+    const ctx2 = cv.getContext("2d");
+    const W = cv.width, H = cv.height, cx = W / 2, cy = H / 2;
+    ctx2.clearRect(0, 0, W, H);
+    // Additive blending so overlapping points bloom instead of flattening —
+    // it is what makes a point cloud read as volume rather than as dots.
+    ctx2.globalCompositeOperation = "lighter";
+    // Idle decays toward zero rather than resting at a floor, so a silent
+    // room renders a still orb.
+    if (orbState !== "listening") orbLevel *= 0.94;
+    const base = W * 0.345;
+    const spread = base * (1 + orbLevel * 0.26);
+    const [pr, pg, pb] = ORB_PALETTE[orbState] || ORB_PALETTE.idle;
+    orbSpin += 0.0022 + orbLevel * 0.006;
+
+    const core = ctx2.createRadialGradient(cx, cy, 0, cx, cy, spread * 0.92);
+    core.addColorStop(0, `rgba(${pr},${pg},${pb},${(0.16 + orbLevel * 0.20).toFixed(3)})`);
+    core.addColorStop(1, `rgba(${pr},${pg},${pb},0)`);
+    ctx2.fillStyle = core;
+    ctx2.beginPath();
+    ctx2.arc(cx, cy, spread * 0.92, 0, 6.2832);
+    ctx2.fill();
+
+    for (const pt of orbPts) {
+      const sn = Math.sin(orbSpin), cs = Math.cos(orbSpin);
+      const x = pt.x * cs - pt.z * sn;
+      const z = pt.x * sn + pt.z * cs;
+      // Louder audio pushes points outward, slightly unevenly per point, so
+      // the shell breathes instead of scaling rigidly.
+      const rad = spread * (1 + orbLevel * 0.20 * (pt.j - 0.5));
+      const depth = (z + 1) / 2;                 // 0 back .. 1 front
+      const persp = 0.62 + depth * 0.38;
+      const px = cx + x * rad * persp;
+      const py = cy + pt.y * rad * persp;
+      const size = (0.85 + depth * 2.9) * (1 + orbLevel * 0.55);
+      ctx2.beginPath();
+      ctx2.arc(px, py, size, 0, 6.2832);
+      const alpha = 0.055 + depth * 0.40;
+      ctx2.fillStyle = `rgba(${pr},${pg},${pb},${alpha.toFixed(3)})`;
+      ctx2.fill();
+    }
+    ctx2.globalCompositeOperation = "source-over";
+  }
+  requestAnimationFrame(drawOrb);
+}
+requestAnimationFrame(drawOrb);
 
 const STEPS = [
   ["session", "Session created"],
@@ -388,19 +460,45 @@ let minMs = 400, maxMs = 1280, lastWordEnd = null, patches = 0, cuts = 0;
 const fmt = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : Math.round(ms) + " ms");
 const group = (ms) => String(Math.round(ms)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " ms";
 
+// The vendor's documented `balanced` default. Drawn as a fixed mark on the
+// track so that widening the window is a visible gap and not a number a
+// viewer has to be told the meaning of. Cited in BENCH_SPEC §3; it is the
+// same baseline every published figure is measured from.
+const VENDOR_DEFAULT_MAX_MS = 1280;
+const TRACK_CEIL_MS = 4000;
+
 function layout() {
-  const CEIL = 4000;
-  const w = Math.max(14, Math.min(100, (maxMs / CEIL) * 100)) + "%";
-  $("meter").style.width = w;
-  $("axis").style.width = w;
+  const pct = (ms) => Math.max(0, Math.min(100, (ms / TRACK_CEIL_MS) * 100));
+  $("meter").style.width = Math.max(10, pct(maxMs)) + "%";
   const at = Math.min(100, (minMs / maxMs) * 100) + "%";
   $("tickMin").style.left = at;
-  $("axisMin").style.left = at;
-  $("axisMin").textContent = "min " + fmt(minMs);
   $("meterVal").textContent = fmt(maxMs);
   $("cMin").textContent = group(minMs);
   $("cMax").textContent = group(maxMs);
+
+  const gLeft = pct(VENDOR_DEFAULT_MAX_MS);
+  $("ghost").style.left = gLeft + "%";
+  // `min` is drawn on the track, not inside the capsule, so it does not move
+  // when the capsule resizes around it.
+  $("axisMin").style.left = pct(minMs) + "%";
+  $("axisMin").textContent = "min " + fmt(minMs);
+
+  // **The band between the default and this caller's window.** Shown only when
+  // the controller has widened past the default — when it narrows, there is no
+  // time gained and claiming any would be a lie in the flattering direction.
+  const gained = $("gained");
+  const delta = maxMs - VENDOR_DEFAULT_MAX_MS;
+  if (delta > 40) {
+    const l = pct(VENDOR_DEFAULT_MAX_MS), r = pct(maxMs);
+    gained.style.left = l + "%";
+    gained.style.width = (r - l) + "%";
+    gained.textContent = "+" + fmt(delta) + " for this caller";
+    gained.classList.add("on");
+  } else {
+    gained.classList.remove("on");
+  }
 }
+
 function bump(el) {
   el.classList.add("bump");
   setTimeout(() => el.classList.remove("bump"), 420);

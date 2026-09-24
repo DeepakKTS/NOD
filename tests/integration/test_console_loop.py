@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
+import subprocess
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Final
@@ -359,3 +362,43 @@ def test_an_empty_transcript_does_not_call_the_model() -> None:
             f"/v1/sessions/{session_id}/reply", json={"transcript": "   "}
         )
     assert response.json()["text"] == ""
+
+
+def test_the_console_script_parses() -> None:
+    """The demo screen's JavaScript must actually parse.
+
+    Every other test over this file asserts a *substring* — that a media query
+    is present, that a colour is used. None of them notices a syntax error, and
+    a syntax error takes the whole screen down: no session, no transcript, no
+    handshake panel, silently. It happened twice inside one hour at Gate 4j
+    (a duplicated `const` from a bad splice, then a stray brace), and both times
+    the suite stayed green while the page was dead.
+
+    `node --check` is the cheapest possible parser and is present on
+    `ubuntu-latest` and on any machine with a JS toolchain. **A missing `node`
+    fails rather than skips**: a check that quietly stops checking in some
+    environments is the failure mode CLAUDE.md §5 opens with, and this one
+    guards a file with no other parser in the project.
+    """
+    from nod_server.app import CONSOLE_HTML
+
+    html = CONSOLE_HTML.read_text()
+    start = html.index("<script>") + len("<script>")
+    script = html[start : html.index("</script>", start)]
+
+    node = shutil.which("node")
+    assert node is not None, (
+        "`node` is required to parse the console script and is not on PATH; "
+        "this test does not skip, because nothing else in the project parses "
+        "that file"
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+        fh.write(script)
+        path = fh.name
+    try:
+        result = subprocess.run(  # noqa: S603
+            [node, "--check", path], capture_output=True, text=True, check=False
+        )
+    finally:
+        Path(path).unlink(missing_ok=True)
+    assert result.returncode == 0, f"console script does not parse:\n{result.stderr}"
