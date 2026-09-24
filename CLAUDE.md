@@ -391,6 +391,61 @@ lines. That file is long-term memory; this file is the standing contract.
     experiment without first writing down what it should produce is what kept that
     distinction real.
 
+  - **A test can be green, load-bearing, exercising the real path — and wrong about
+    which way is up. Call it ratification.** `POST /v1/sessions` never evicted a record
+    and checked the cap against registry *size*, so the third page load of a process's
+    life returned 429 and so did every load after it, for ever.
+    `test_creating_more_sessions_than_the_cap_is_refused_with_429` asserted that 429 as
+    the contract. It passed. It drove the real endpoint. It would have failed if the
+    behaviour changed. It certified a permanent lockout as intended behaviour for eleven
+    gates.
+    **This is a different class from every other entry in §5, and the difference is
+    load-bearing.** Everything above is a check that *cannot fail*: vacuous invariants,
+    unreachable mutations, disconnected instruments, anchors that never matched. Those
+    are caught by making the check fail once. This one fails correctly and points the
+    wrong way, so **making it fail proves nothing** — it fails exactly as designed, at a
+    behaviour that should never have existed.
+    **Mutation testing is structurally blind to it.** A mutation that removes the cap
+    kills the test; the harness records a kill and reports the test as load-bearing. It
+    *is* load-bearing. It is bearing the wrong load. Coverage is blind for the same
+    reason — the line executed, the branch was taken, the assertion was real. No
+    technique that reasons about the *test* can find a fault in what the test wants.
+    **The check has to come from outside the test's frame, and there is only one:
+    use the thing.** Nobody had loaded that page twice in eleven gates. One human
+    opening it a third time would have found it in four seconds, and that is what
+    eventually did. The general form: **for any behaviour a person will encounter, the
+    first authority is a person encountering it, not a test asserting it.** A test can
+    only say "this is what happens"; it can never say "and that is what should".
+    **How much of the suite is exposed?** The narrow, dangerous shape is *a refusal
+    asserted on a path a human traverses*. That set is enumerable and was checked at
+    Gate 4h-prep: after removing the 429, exactly **two** assertions of a user-facing
+    refusal remain, both `/readyz` returning 503 when not ready, and a not-ready service
+    saying so is desirable on its face. The broad set — **122 test names in the
+    refuse/reject/cap/limit/never family**, almost all about internal APIs — is a gate of
+    its own and is not claimed to be clean here. Stated rather than surveyed, because a
+    survey that stopped at the easy half would be worse than saying so.
+  - **The clause rule, applied to instruments instead of claims.** §5 already says: for
+    every clause in a claim, name the field that would show it and read that field. The
+    same question has to be asked of a *diagnostic* before its answer is believed —
+    **name the set of things this tool can observe, and check that the question is
+    inside that set.**
+    Both instruments built to find the blank-screen fault failed it, in opposite
+    directions, in the same hour. A Python client against `/v1/console` received every
+    frame and said the server was fine; it could not have said otherwise, because
+    `json.loads` accepts `bytes` and the fault was a browser choking on a `Blob`. The
+    question "can a *browser* read this?" was outside what a Python client can observe,
+    and the answer was returned with total confidence. Then a headless Chrome
+    reproduction using `--virtual-time-budget` said the page was broken; virtual time
+    fast-forwards, so it had almost certainly exited before any audio arrived, and it
+    would have said the same of a perfectly working page. The question "does this render
+    when data arrives?" was outside what it could observe, because no data had.
+    **One tool cannot see the bug and reports health; the other sees nothing and reports
+    failure.** Both readings are indistinguishable from a real result. The cheap
+    discipline that separates them is to **run the instrument against a known-good case
+    and a known-bad one before trusting it on the unknown** — the probe would have passed
+    a deliberately corrupted frame, and the harness would have reported a working page as
+    broken. Neither was checked, and three rounds went into the wrong half of the system.
+
   - **A probe written to locate a fault can exonerate the half it is testing and be
     useless, because it is not the client that matters.** The demo screen rendered
     nothing while the controller patched. To decide client-versus-server I wrote a Python

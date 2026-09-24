@@ -75,7 +75,11 @@ reproduced exactly; the conclusion was wrong, because two knobs bracket the same
 quantity and we had varied one. The correction also says our own controller is aimed at
 the wrong knob. Both ADRs are in the repository, in order.
 
-The corpus is synthetic speech from one macOS voice. Nod has never been run on a human.
+The corpus is synthetic speech from one macOS voice, and every measured number above
+comes from it. The controller has since run live on a human voice, widening its listening
+window from 1280 to 1839 ms mid-call with a reason attached. That is a demonstration, not
+a measurement: one operator, one room, unscripted speech, no ground truth, and no figure
+from it enters any table.
 ```
 
 **Counts are measured, not estimated.** The three above were written by eye first and

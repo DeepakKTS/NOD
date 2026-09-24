@@ -142,6 +142,11 @@ reason: "turn — waiting up to 1.84 s (speaker+context)"
 attached.** That is the thesis of the project, live, and it is the strongest single shot
 available — better than any SVG, because it is unarguably real time.
 
+> **This session is a demonstration, not a measurement.** One operator, one room,
+> unscripted speech, no ground truth. **The 1839 ms must never be spoken or captioned
+> as a result**, and no number from a screen recording enters any table. The VO below
+> is written to that constraint — do not improvise around it.
+
 **Optional shot, inserted at 0:30 in place of the terminal beat.** Screen recording of
 `http://127.0.0.1:8000/`: the orb tracking the speaker's voice, the Listening window
 stepping `400 → 271` and `1280 → 1839`, the Patches tile climbing, the reason line
@@ -160,6 +165,85 @@ measured zero. And the transcript is whatever the operator says, so it is a demo
 **The terminal-and-SVG shot list below remains the fallback** and still needs no UI, no
 microphone and no deploy. If the screen misbehaves on the day, cut to it and lose
 nothing that carries a claim.
+
+## Final shot list — numbered takes, nothing decided with a camera running
+
+Every element below was driven and read out of a real browser at Gate 4i before this
+list was written. Each take names the exact action; none requires a judgement call.
+
+**Do not film these, in any take.** They are dead or misleading on the current build:
+
+| Do not film | Why |
+|---|---|
+| The **Cuts** tile | `cut.detected` is never published, `nod_cuts_total` is unwired. It cannot leave zero, so filming it implies a measured zero (ADR-058). |
+| `/metrics` in a browser | `nod_cuts_total`, `nod_decide_seconds` and `nod_queue_dropped_total` still read `0.0` unconditionally. |
+| Any **specific number** as a promise | Your session will not reproduce 271/1271/1839. The numbers depend on your voice. Caption the *movement*, never the value. |
+
+### Setup, once
+
+```sh
+make run                       # http://127.0.0.1:8000
+```
+
+Headphones on. Mute every other audio source. **One** tab, hard-reloaded (⇧⌘R).
+Window 1280 wide. DevTools closed.
+
+### Take 1 — cold open, the screen at rest (6 s)
+
+**Action:** load the page, do not click. **Frame:** whole window.
+**On screen:** pill `ready`, orb idle, `state cold`, `Patches 0`, Connection showing
+Session ✓ and Events subscribed ✓ with the three audio rows grey.
+**VO:** "This is a voice agent's turn-timing, before anyone speaks."
+
+### Take 2 — the handshake (6 s)
+
+**Action:** click **Start call**, grant the mic. **Frame:** Connection card, tight.
+**On screen:** all five rows go green in sequence, the fifth counting frames.
+**VO:** "Every step is verified, not assumed."
+*Why it is in the list: this is the panel ADR-058 exists because of.*
+
+### Take 3 — the orb and the transcript (14 s)
+
+**Action:** read Part 1 of the speaking script (the ~35-word paragraph).
+**Frame:** orb and transcript together.
+**On screen:** orb scales with your voice and turns amber; transcript fills line by line.
+**VO:** "It is listening, and transcribing through AssemblyAI."
+
+### Take 4 — the controller moves. **The shot the film is for.** (12 s)
+
+**Action:** keep talking until `state` flips **cold → warm**, then stop.
+**Frame:** Listening window card and the reason line under the meter, both visible.
+**On screen:** `state` → `warm`, `min` and `max` change, **Patches** climbs off 0, the
+reason line appears reading `turn — waiting up to N s (speaker+context)`, and the meter
+capsule springs to its new width.
+**VO:** "It has learned this caller's rhythm and changed the listening window mid-call —
+and it says why. This is a demonstration, not a measurement."
+*The last sentence is mandatory and must be audible in the take.*
+
+### Take 5 — the pause (10 s)
+
+**Action:** say *"I need to move it to"* — **stop for a slow two-count** — *"the following
+Tuesday."* **Frame:** meter and transcript.
+**On screen:** the amber fill runs left to right during your pause; if it reaches the end
+it turns red and reads "Agent takes the floor".
+**VO:** "That bar is how long it will wait before deciding you are done."
+
+### Take 6 — end (4 s)
+
+**Action:** click **End call**. **Frame:** whole window.
+**On screen:** orb greys to `ended`, pill reads `ended`, **no red banner**.
+*If a red banner appears, that is a bug — stop and report it, do not film around it.*
+
+### Take 7 — the evidence (8 s, screen recording of a terminal)
+
+```sh
+tail -1 data/traces/s-*.jsonl | python3 -m json.tool
+```
+
+**On screen:** the `controller_closed` record — `turns_observed`, `patches_sent`,
+`state: warm`. **VO:** "And it wrote down what it did."
+
+---
 
 ## Optional shots — only if `scripts/deploy_aws.sh` has run
 

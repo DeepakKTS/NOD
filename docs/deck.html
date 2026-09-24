@@ -206,28 +206,33 @@
 <!-- 6 -->
 <section>
   <div class="kicker">4 · The controller</div>
-  <h2>Built to exercise the instrument.</h2>
-  <p class="lede" style="margin-bottom:28px">
-    A two-gate control law, a per-caller rhythm profiler on fixed-capacity ring
-    buffers, and a session proxy that rewrites turn-detection config mid-stream —
-    out of band, never in the audio path.
+  <h2>It closes the loop on a live call.</h2>
+  <div class="eq" style="font-size:20px;margin-bottom:20px">
+    min_turn_silence <b>400 &rarr; 271 ms</b> &nbsp;&middot;&nbsp;
+    max_turn_silence <b>1280 &rarr; 1839 ms</b><br>
+    <span style="color:#61798f;font-size:16px">3 patches &middot; profiler warm &middot;
+    reason: &ldquo;turn &mdash; waiting up to 1.84 s (speaker+context)&rdquo;</span>
+  </div>
+  <p class="lede" style="margin-bottom:20px;font-size:20px;max-width:none">
+    On a human voice, mid-call, the controller decided the caller needed longer and
+    <b>widened the listening window to 1.84&nbsp;s</b> &mdash; with the reason attached,
+    because INV-4 forbids a config change without one.
   </p>
   <div class="grid2">
     <div class="card">
-      <h3>What is built and tested</h3>
-      <p>Bounded <span class="mono">decide()</span>, p99 under 5 ms, no I/O and no
-         LLM in the decision path. Constant memory per session. Every config change
-         carries a reason record. Fails soft in a call, loud in dev.</p>
+      <h3 style="color:#f87171">A demonstration, not a measurement</h3>
+      <p>One operator, one room, unscripted speech, no ground truth. <b>No number
+         above appears in any table in this deck</b>, and none should. It shows the
+         mechanism running; it measures nothing.</p>
     </div>
     <div class="card">
-      <h3>What has not been shown</h3>
-      <p>That the closed loop helps a real caller. The controller has never run on
-         human speech, and on the one live sweep the controlled arms were identical
-         to the baseline — the corpus cannot warm the profiler, and the patch census
-         is <b>unmeasured, not zero</b>.</p>
+      <h3>What is still not shown</h3>
+      <p>That the loop <i>helps</i> a caller. That needs a scored corpus of human
+         speech, which does not exist here. On the one live sweep the controlled arms
+         read identical to the baseline &mdash; Track A cannot warm the profiler.</p>
     </div>
   </div>
-  <div class="src">src/nod_core · ADR-011, ADR-050 · CLAUDE.md §2 invariants INV-1 through INV-9</div>
+  <div class="src">src/nod_core · ADR-011, ADR-057, ADR-058 · trace: data/traces/s-*.jsonl — config_decision + config_applied pairs</div>
   <div class="pg">6 / 7</div>
 </section>
 

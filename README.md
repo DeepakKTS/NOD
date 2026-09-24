@@ -291,7 +291,12 @@ benchmark that does publish them can see which two are missing and why.
   number."* The numbers above are cut detection on that audio. They are reported because
   a measured result on stated-inadequate input is worth more than no result, and the
   inadequacy is stated here rather than discovered by a reader.
-- **Nod has never been run on human speech.** Track C — ten scripted calls, one speaker,
+- **The controller has run live on one human voice, and that is a demonstration, not a
+  measurement.** It widened its listening window from 1280 to 1839 ms mid-call across
+  three patches with the profiler warm and a reason attached (ADR-057, ADR-058). One
+  operator, one room, unscripted speech, no ground truth — **no figure from it appears
+  in any table here**, and it shows the mechanism running rather than measuring anything.
+- **Nod has never been *scored* on human speech.** Track C — ten scripted calls, one speaker,
   fluent and deliberately hesitant — is written, scripted to the gap budget and committed
   as data, and **has not been recorded**. So there is no measurement on a real caller, of
   any kind, and nothing here supports a claim about older callers, non-native speakers or
