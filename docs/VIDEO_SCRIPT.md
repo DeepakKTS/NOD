@@ -111,7 +111,7 @@ C ≈ 590 ms          overhead ≈ 175 ms
 
 | | |
 |---|---|
-| **VO** | "Two parameters. Thirteen live rows. C is the service's own commit point — it doesn't widen when the pause gets longer and it doesn't care that the sentence is unfinished. Everything in this video falls out of that one line." |
+| **VO** | "Two parameters. C is the service's own commit point — it doesn't widen when the pause gets longer and it doesn't care that the sentence is unfinished. Everything in this video falls out of that one line." |
 | **Artifact** | ADR-055; both `pilot_ladder.*.live.json`. |
 
 ## 1:16–1:30 — Scope, said out loud
@@ -119,7 +119,7 @@ C ≈ 590 ms          overhead ≈ 175 ms
 | | |
 |---|---|
 | **Screen** | Four lines, plain, no animation. |
-| **On screen** | • synthetic speech, one macOS `say` voice<br>• never run on a human<br>• 743 tests certify lines executed, not behaviour asserted<br>• live PCR attributes to the wrong gap; TTL and FRAG don't |
+| **On screen** | • synthetic speech, one macOS `say` voice<br>• never run on a human<br>• 769 tests certify lines executed, not behaviour asserted<br>• live PCR attributes to the wrong gap; TTL and FRAG don't |
 | **VO** | "What it isn't: this has never met a real caller. The corpus is one synthesised voice whose own manifest says it isn't good enough for a published number. We're reporting it anyway, and saying so." |
 | **Artifact** | `data/corpus/source/manifest.json`; README honest-scope; ADR-053; ADR-055. |
 
@@ -324,13 +324,13 @@ Nothing not on this list may appear. Each is regenerable.
 
 | Number | Where it comes from |
 |---|---|
-| 532 ms, 3532 ms | measured holds, `pilot_ladder.*.live.json` geometry |
+| 1532 ms, 3532 ms | measured holds, `pilot_ladder.{continuation,sweep}.live.json` `hold_measured_ms`. 532 ms is the **retired** `say` frame the guide forbids rendering |
 | 2 turns / 1 turn | `len(boundaries)` per row, drawn by `timeline_svg` |
 | 777 / 1170 / 1765 / 2574 ms | sweep rows, held silence |
 | 3.3× | 2574 ÷ 777 |
 | C ≈ 590 ms, overhead ≈ 175 ms | ADR-055 |
 | 400 / 900 / 1600 / 2400 | the swept `min_turn_silence` values |
-| 743 tests, 98.18 % | `make gate` |
+| 769 tests, 98.18 % | `make gate` |
 | MIN_MS_CEIL = 900 | `src/nod_core/arbiter.py` |
 
 **Forbidden on screen, in VO, or in the description:** any claim that Nod beats the
