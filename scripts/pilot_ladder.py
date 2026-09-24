@@ -438,7 +438,13 @@ def cmd_svg(args: argparse.Namespace) -> int:
             f'"...my appointment TO" - red = turn ended inside the pause - '
             f"{obs_path.name}"
         )
-        svg = timeline_svg(group, envelope_of(samples), total, caption=caption)
+        svg = timeline_svg(
+            group,
+            envelope_of(samples),
+            total,
+            caption=caption,
+            patience=bool(getattr(args, "patience", False)),
+        )
         dest = args.out / f"ladder_{args.label}_{hold}.timeline.live.svg"
         dest.write_text(svg)
         written.append(dest)
@@ -453,6 +459,12 @@ def main() -> int:
     parser.add_argument("--label", required=True, help="say | human | ...")
     parser.add_argument("--out", type=Path, default=Path("bench/runs"))
     parser.add_argument("--holds", default=",".join(str(h) for h in DEFAULT_HOLDS))
+    parser.add_argument(
+        "--patience",
+        action="store_true",
+        help="svg: label each row with its held silence. Sweep only -- the "
+        "continuation clip yields numbers VIDEO_SCRIPT does not permit.",
+    )
     parser.add_argument("--take", type=Path, help="one continuous recording")
     parser.add_argument("--prefix", type=Path, help="prefix half (synthesised holds)")
     parser.add_argument("--continuation", type=Path, help="continuation half")

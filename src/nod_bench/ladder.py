@@ -565,6 +565,7 @@ def timeline_svg(
     total_ms: float,
     *,
     caption: str,
+    patience: bool = False,
 ) -> str:
     """One arm per row, boundaries marked against the audio. Pure. `O(r + n)`.
 
@@ -580,6 +581,17 @@ def timeline_svg(
         envelope: Per-bucket RMS in `[0, 1]`, left to right.
         total_ms: Clip duration, mapping ms to px.
         caption: Provenance line drawn into the image.
+        patience: Draw each row's held silence — `silence_at_fire_ms`, the gap
+            between the caller's last word and the service firing — beside the
+            boundary that produced it.
+
+            **Off by default, and that is a claims control rather than a style
+            choice.** On the sweep clip these are 777/1170/1765/2574 ms, every
+            one of them on VIDEO_SCRIPT's permitted list. On the continuation
+            clip the same computation yields 748 and 1167, neither of which is
+            permitted, and the two holding arms have no in-hold boundary at all
+            so two of four rows would simply be blank. Rendering it everywhere
+            would put unpermitted numbers into the cold-open frame.
 
     Returns:
         A self-contained SVG document.
@@ -622,6 +634,14 @@ def timeline_svg(
                 f'<line x1="{x:.1f}" y1="{top + 2}" x2="{x:.1f}" '
                 f'y2="{top + 50}" stroke="{colour}" stroke-width="2.5"/>'
             )
+        if patience:
+            held = row.silence_at_fire_ms
+            if held is not None and row.in_hold is not None:
+                x = 140 + row.in_hold.fired_at_ms * scale
+                out.append(
+                    f'<text x="{x + 7:.1f}" y="{top + 16}" fill="#fbbf24" '
+                    f'font-size="13">{held:.0f} ms</text>'
+                )
         turns = len(row.boundaries)
         out.append(
             f'<text x="{SVG_WIDTH + 252}" y="{mid + 4}" fill="#7d8b9a" '

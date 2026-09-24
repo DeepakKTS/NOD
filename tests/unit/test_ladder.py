@@ -9,6 +9,8 @@ quantity they guard is one the eye cannot check: an acoustic anchor that is
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -518,3 +520,129 @@ def test_a_threshold_longer_than_the_pause_keeps_one_turn() -> None:
         confidence_ms=590.0,
     )
     assert p.expected_turns == 1
+
+
+def _amber_labels(svg: str) -> list[str]:
+    """Every patience label drawn into an SVG, in draw order.
+
+    Scoped to the amber text nodes on purpose: the caption carries
+    `hold_measured_ms` verbatim, so a substring search over the whole document
+    would find 3532 and call the wrong quantity a pass.
+    """
+    return re.findall(r'<text[^>]*fill="#fbbf24"[^>]*>([^<]+)</text>', svg)
+
+
+def _swept(arm: str, fired_at_ms: float) -> LadderRow:
+    """One sweep row: 3532 ms pause, service fires inside it.
+
+    `prefix_end_ms` and `silence_started_ms` are held 560 ms apart so that
+    caller-relative and VAD-relative readings of the same boundary can never
+    coincide.
+    """
+    return LadderRow(
+        arm=arm,
+        hold_label_ms=3500,
+        hold_measured_ms=3532,
+        prefix_end_ms=2240,
+        boundaries=(
+            ObservedBoundary(
+                fired_at_ms=fired_at_ms,
+                silence_started_ms=2800.0,
+                turn_order=0,
+                word_count=0,
+                text="",
+            ),
+        ),
+        flush_turns=1,
+    )
+
+
+def test_the_patience_label_reads_held_silence_and_not_a_lookalike() -> None:
+    """777 ms is spoken in shot 2 and three nearby quantities are not it.
+
+    `silence_at_fire_ms` is `fired_at_ms - prefix_end_ms`: how long the service
+    waited after the caller's last *word*. Each mis-read below is available
+    from the same row and each would print a plausible number:
+
+      * `fired_at_ms`                       -> 3017, absolute clock
+      * `fired_at_ms - silence_started_ms`  -> 217, VAD-relative not caller-relative
+      * `hold_measured_ms`                  -> 3532, the pause, not the patience
+
+    The fixture separates all four, because a fixture whose quantities coincide
+    cannot see the bug (CLAUDE.md §5). The VAD-relative reading is the one worth
+    naming: it is the natural thing to write, it is off by the 560 ms the VAD
+    takes to notice silence, and every value it produces is still small enough
+    to look right.
+    """
+    svg = timeline_svg(
+        (_swept("min400", 3017.0),),
+        (0.4, 1.0, 0.1),
+        11000.0,
+        caption="x",
+        patience=True,
+    )
+    assert _amber_labels(svg) == ["777 ms"]
+    assert "3017" not in svg, "absolute clock time, not held silence"
+    assert "217 ms" not in svg, "VAD-relative: misses the 560 ms before the VAD noticed"
+    assert _amber_labels(svg) != ["3532 ms"], "that is the pause, not the patience"
+
+
+def test_each_row_carries_its_own_patience_and_not_the_first_row_s() -> None:
+    """Four rows, four different waits — that spread is the whole of shot 2.
+
+    A loop computing the label once outside it would print 777 on every row and
+    the image would contradict the voiceover saying the patience triples. The
+    fixture uses the real sweep boundaries so the assertion is against the
+    published figures rather than against round numbers.
+    """
+    rows = (
+        _swept("min400", 3017.0),
+        _swept("min900", 3410.0),
+        _swept("min1600", 4005.0),
+        _swept("min2400", 4814.0),
+    )
+    svg = timeline_svg(rows, (0.4, 1.0, 0.1), 11000.0, caption="x", patience=True)
+    assert _amber_labels(svg) == ["777 ms", "1170 ms", "1765 ms", "2574 ms"]
+
+
+def test_the_patience_overlay_is_off_unless_it_is_asked_for() -> None:
+    """Default-off is a claims control, not a style default.
+
+    The continuation clip's same computation yields 748 and 1167 ms, neither on
+    VIDEO_SCRIPT's permitted list, and its two holding arms have no in-hold
+    boundary to label at all. A default-on overlay would put unpermitted numbers
+    into the cold-open frame.
+    """
+    svg = timeline_svg(
+        (_swept("min400", 3017.0),), (0.4, 1.0, 0.1), 11000.0, caption="x"
+    )
+    assert _amber_labels(svg) == []
+    assert "777" not in svg
+
+
+def test_a_row_that_never_fired_in_the_pause_gets_no_patience_label() -> None:
+    """A held turn has no held silence, and must not borrow one.
+
+    `min1600` and `min2400` on the continuation clip hold the turn through the
+    pause; their only boundary is the end of stream. Labelling that boundary
+    would present 6518 ms of end-of-clip silence as the service's patience.
+    """
+    held = LadderRow(
+        arm="min2400",
+        hold_label_ms=1500,
+        hold_measured_ms=1532,
+        prefix_end_ms=2240,
+        boundaries=(
+            ObservedBoundary(
+                fired_at_ms=8743.0,
+                silence_started_ms=3772.0,
+                turn_order=0,
+                word_count=17,
+                text="",
+            ),
+        ),
+        flush_turns=1,
+    )
+    svg = timeline_svg((held,), (0.4, 1.0, 0.1), 11000.0, caption="x", patience=True)
+    assert _amber_labels(svg) == []
+    assert "6503" not in svg

@@ -1064,6 +1064,22 @@ def _ladder_mutations() -> tuple[Mutation, ...]:
             "            if self.prefix_end_ms < b.fired_at_ms < hold_end:",
             "            if self.prefix_end_ms < b.fired_at_ms:",
         ),
+        mutation(
+            "patience: label the VAD-relative wait instead of the caller-relative one",
+            "                    f'font-size=\"13\">{held:.0f} ms</text>'",
+            '                    f\'font-size="13">'
+            "{row.in_hold.fired_at_ms - row.in_hold.silence_started_ms:.0f} ms</text>'",
+        ),
+        mutation(
+            "patience: draw the overlay whether or not it was asked for",
+            "        if patience:",
+            "        if True:",
+        ),
+        mutation(
+            "patience: label a boundary that never fell inside the pause",
+            "            if held is not None and row.in_hold is not None:",
+            "            if row.boundaries:",
+        ),
         Mutation(
             "override: accept the swept gates and send the preset anyway",
             "src/nod_bench/replay.py",

@@ -306,6 +306,7 @@
 <rect x="342.2" y="48" width="318.8" height="44" fill="#1d4ed8" opacity="0.18"/>
 <line x1="412.3" y1="46" x2="412.3" y2="94" stroke="#f87171" stroke-width="2.5"/>
 <line x1="1116.0" y1="46" x2="1116.0" y2="94" stroke="#4ade80" stroke-width="2.5"/>
+<text x="419.3" y="60" fill="#fbbf24" font-size="13">777 ms</text>
 <text x="1252" y="74" fill="#7d8b9a" font-size="12" text-anchor="end">2 turns</text>
 <text x="12" y="148" fill="#e6edf3" font-size="13">min900</text>
 <rect x="140.0" y="132.5" width="3.32" height="23.0" fill="#2c3b4a"/>
@@ -612,6 +613,7 @@
 <rect x="342.2" y="122" width="318.8" height="44" fill="#1d4ed8" opacity="0.18"/>
 <line x1="447.8" y1="120" x2="447.8" y2="168" stroke="#f87171" stroke-width="2.5"/>
 <line x1="1117.5" y1="120" x2="1117.5" y2="168" stroke="#4ade80" stroke-width="2.5"/>
+<text x="454.8" y="134" fill="#fbbf24" font-size="13">1170 ms</text>
 <text x="1252" y="148" fill="#7d8b9a" font-size="12" text-anchor="end">2 turns</text>
 <text x="12" y="222" fill="#e6edf3" font-size="13">min1600</text>
 <rect x="140.0" y="206.5" width="3.32" height="23.0" fill="#2c3b4a"/>
@@ -918,6 +920,7 @@
 <rect x="342.2" y="196" width="318.8" height="44" fill="#1d4ed8" opacity="0.18"/>
 <line x1="501.5" y1="194" x2="501.5" y2="242" stroke="#f87171" stroke-width="2.5"/>
 <line x1="1118.8" y1="194" x2="1118.8" y2="242" stroke="#4ade80" stroke-width="2.5"/>
+<text x="508.5" y="208" fill="#fbbf24" font-size="13">1765 ms</text>
 <text x="1252" y="222" fill="#7d8b9a" font-size="12" text-anchor="end">2 turns</text>
 <text x="12" y="296" fill="#e6edf3" font-size="13">min2400</text>
 <rect x="140.0" y="280.5" width="3.32" height="23.0" fill="#2c3b4a"/>
@@ -1224,5 +1227,6 @@
 <rect x="342.2" y="270" width="318.8" height="44" fill="#1d4ed8" opacity="0.18"/>
 <line x1="574.5" y1="268" x2="574.5" y2="316" stroke="#f87171" stroke-width="2.5"/>
 <line x1="1117.7" y1="268" x2="1117.7" y2="316" stroke="#4ade80" stroke-width="2.5"/>
+<text x="581.5" y="282" fill="#fbbf24" font-size="13">2574 ms</text>
 <text x="1252" y="296" fill="#7d8b9a" font-size="12" text-anchor="end">2 turns</text>
 </svg>
