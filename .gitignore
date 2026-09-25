@@ -16,7 +16,7 @@ venv/
 coverage.xml
 htmlcov/
 
-# Nod runtime data (DEPLOYMENT §2: NOD_TRACE_DIR, NOD_CACHE_DIR, NOD_DB_PATH)
+# Nod runtime data (DEPLOYMENT §2: NOD_TRACE_DIR, NOD_DB_PATH)
 data/*
 !data/.gitkeep
 

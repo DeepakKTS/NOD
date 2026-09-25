@@ -10,8 +10,10 @@ restriction. Track B, a real atypical-speech corpus, is not in this repository a
 all. No human recording exists here.
 
 Fork the code freely. The sliced source clips and their manifest *are* committed,
-which is what lets `nod_bench.corpus.build` rebuild the derived Track A clips on
-a machine without macOS — that is the path `make bench` takes. Regenerating the
+which is what lets the `nod_bench.corpus.build` *function* rebuild the derived
+Track A clips on a machine without macOS. There is no CLI for it: `corpus.main`
+raises `NotImplementedError`, and `make bench` replays the committed clips rather
+than rebuilding them. Regenerating the
 seed speech itself needs `say`, so it needs macOS; `nod_bench.seed` does it and
 refuses rather than falling back to a tone when `say` is absent. Neither step has
 a command-line entry point.

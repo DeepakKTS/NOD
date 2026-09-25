@@ -61,7 +61,7 @@ container.
 ```
 client ──TLS──► edge ──► nod (uvicorn, 1 process, N workers=1) ──► AssemblyAI
                           │
-                          ├─ /data volume:  traces/, .nodcache/, nod.db
+                          ├─ /data volume:  traces/, nod.db
                           └─ static console (Next.js export) served at /
 ```
 
@@ -92,7 +92,13 @@ sustained throughput is roughly one new session per 15 s regardless of concurren
 | `NOD_MODE_DEFAULT` | `adapt` | default mode for new sessions; §5 rolls out with `observe` |
 | `NOD_TRACE_RAW` | `0` | `1` disables redaction; requires a documented reason |
 | `NOD_TRACE_DIR` | `/data/traces` | on the persistent volume |
-| `NOD_CACHE_DIR` | `/data/.nodcache` | TTS and bench caches |
+
+> **Breaking change.** `NOD_CACHE_DIR` was removed — it named a bench cache that
+> was designed and never built (ADR-052). `Settings` is `extra="forbid"`, so an
+> existing `.env` or task definition still carrying the key stops the process
+> booting with `ValidationError: nod_cache_dir  Extra inputs are not permitted`.
+> The error names the field, not the variable, which is the connection a reader
+> will not make on their own. Delete the line.
 | `NOD_DB_PATH` | `/data/nod.db` | SQLite, WAL |
 | `NOD_LOG_LEVEL` | `info` | structlog |
 | `LLM_PROVIDER` / `LLM_API_KEY` | — | agent brain |
@@ -186,7 +192,7 @@ call's behaviour. It is the honest answer to "how do I trust this in production"
 | `decide()` p99 above 5 ms | profiler exact-quantile flag | ensure `NOD_EXACT_QUANTILES=0` in prod |
 | Queue drops climbing | `nod_queue_dropped_total{queue}` | telemetry drops are benign; audio drops are not — investigate upstream latency |
 | Reconnect loop | upstream status, key validity | Nod stops after 5 attempts and closes cleanly; check credits |
-| Disk filling | trace rotation, cache size | traces rotate at 64 MiB; prune `.nodcache` with `make bench-clean` |
+| Disk filling | trace rotation | traces rotate at 64 MiB. There is no bench cache to prune — it was designed and never built (ADR-052) |
 | Console janky | blurred layer count | six-layer budget; confirm the waveform is not inside a blurred stack |
 
 ## 8. Data retention

@@ -182,7 +182,6 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     """`True` disables redaction; requires a documented reason (INV-6)."""
 
     nod_trace_dir: Path = Path("/data/traces")
-    nod_cache_dir: Path = Path("/data/.nodcache")
     nod_db_path: Path = Path("/data/nod.db")
     nod_log_level: str = "info"
 

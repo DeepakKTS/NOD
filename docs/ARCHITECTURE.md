@@ -118,7 +118,7 @@ Five caches, each with a stated key, bound and invalidation rule. Nothing else c
 | **TTS audio** | `sha256(provider, voice_id, text, speed)` | 256 MiB on disk, 64 entries in memory | LRU | Prompt phrases repeat constantly; removes the dominant latency spike in the demo |
 | **Policy compile** | `sha256(policy yaml)` | 8 entries | LRU | Avoids re-parsing YAML per session |
 | **Capability probe** | `(model, api_version)` | 16 entries, TTL 1 h | TTL | A probe per session wastes a round trip |
-| **Bench run** | `sha256(audio bytes, config, code version)` | on disk under `.nodcache/` | manual `make bench-clean` | Re-running the full sweep for one changed condition is the difference between a 40-minute and a 3-minute iteration |
+| **Bench run** | — | **not built** | — | Designed, never implemented. `replay()` shipped without it and `code_version` exists nowhere in the tree. It stays unbuilt deliberately: caching a live run would serve five identical results for five repeats and collapse the IQR to zero, which is the precision-by-determinism defect ADR-019 exists to prevent (ADR-052) |
 | **Console static** | Next.js build output | — | build | standard |
 
 Rules:

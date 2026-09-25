@@ -120,7 +120,7 @@ echo "==> build ${STATUS}"
 # streams and a rotating session holds 2, so a demo holding 2 leaves 3.
 # **A live sweep and this URL share the account's 16 s start-rate gate and must
 # never overlap** — one 1008 anywhere voids a sweep (ADR-048, DEPLOYMENT §1).
-ENV_VARS="ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY},NOD_ENV=prod,NOD_MAX_SESSIONS=2,NOD_MODE_DEFAULT=observe,NOD_TRACE_DIR=/data/traces,NOD_CACHE_DIR=/data/.nodcache,NOD_DB_PATH=/data/nod.db"
+ENV_VARS="ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY},NOD_ENV=prod,NOD_MAX_SESSIONS=2,NOD_MODE_DEFAULT=observe,NOD_TRACE_DIR=/data/traces,NOD_DB_PATH=/data/nod.db"
 aws apprunner create-service --region "$REGION" --service-name nod \
     --source-configuration "$(
         cat <<CFG

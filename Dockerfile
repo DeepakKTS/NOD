@@ -35,7 +35,6 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     NOD_TRACE_DIR=/data/traces \
-    NOD_CACHE_DIR=/data/.nodcache \
     NOD_DB_PATH=/data/nod.db
 
 # Non-root. The uid is fixed so a volume's ownership can be set to match it

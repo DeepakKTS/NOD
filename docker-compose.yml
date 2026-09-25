@@ -21,7 +21,6 @@ services:
     environment:
       # /data is the only writable mount in production; mirror that locally.
       NOD_TRACE_DIR: /data/traces
-      NOD_CACHE_DIR: /data/.nodcache
       NOD_DB_PATH: /data/nod.db
       NOD_ENV: dev
       NOD_AUTH: "off"

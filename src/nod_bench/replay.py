@@ -1810,8 +1810,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"no corpus at {corpus_file}.\n"
             f"The Track A corpus **is** committed (120 clips, 38 MB on disk), so\n"
             f"a clean clone has one and this usually means --corpus points\n"
-            f"somewhere else. Rebuilding needs `python -m nod_bench.corpus build`\n"
-            f"and a seed recording, and `say` is macOS-only — which is why the\n"
+            f"somewhere else. There is no working rebuild CLI: `corpus.main`\n"
+            f"raises NotImplementedError. `say` is macOS-only anyway, which is why\n"
             f"audio is committed rather than generated (Phase 1 exit, closed).\n"
         )
         return 2
