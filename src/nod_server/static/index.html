@@ -904,6 +904,12 @@ async function startMic() {
 layout();
 const params = new URLSearchParams(location.search);
 const CONTEXT_ON = params.get("context") === "on";
+// **Mode override, so the deployed default is reversible from the URL bar.**
+// The server default is `adapt` (fly.toml). `?mode=observe` profiles and traces
+// without sending a patch, which is the safe view and the one to reach for if
+// adaptation ever misbehaves in front of an audience. Omitted from the body
+// entirely when absent, so the server default governs.
+const MODE = params.get("mode");
 const preset = params.get("session_id");
 step("session", "busy");
 
@@ -916,7 +922,8 @@ const ready = preset
       // the window widens for identifiers, dates and spelling and narrows for
       // yes/no. Without it the session behaves exactly as the verified demo
       // path does, so the filmed take cannot regress (Gate 4k).
-      body: JSON.stringify({ context: CONTEXT_ON }),
+      body: JSON.stringify(MODE ? { context: CONTEXT_ON, mode: MODE }
+                                : { context: CONTEXT_ON }),
     }).then(async (r) => {
       if (!r.ok) {
         const detail = await r.text().catch(() => "");

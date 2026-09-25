@@ -20,12 +20,24 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [env]
-  # Not secret, and deliberately explicit. `observe` profiles and traces without
-  # sending a single patch — it cannot change a call's behaviour. ADR-063: this
-  # setting was read by /readyz and applied by nothing until Gate 5, so the
-  # deployed instance is the first place it has ever been in force. Verified by
-  # POST /v1/sessions returning "mode":"observe", not by /readyz alone.
-  NOD_MODE_DEFAULT = "observe"
+  # Not secret, and deliberately explicit. ADR-063: this setting was read by
+  # /readyz and applied by nothing until Gate 5, so the deployed instance is the
+  # first place it has ever been in force. Verify with POST /v1/sessions
+  # returning the mode, never with /readyz alone.
+  #
+  # **`adapt`, changed from `observe` at Gate 6.** `observe` profiles and traces
+  # without sending a single patch, which is the right default for a real
+  # deployment and the wrong one for this URL: the banner says "experience the
+  # live demo" and observe cannot demonstrate the one thing Nod does. A visitor
+  # saw transcription, no patch ever fired, and nothing on the page said why.
+  #
+  # Safe to enable, checked rather than assumed: the arbiter is bounded by
+  # NOD_CEILING_MS (2600 ms) and arbiter.MIN_MS_CEIL (900 ms), so the worst case
+  # is a slightly patient agent; INV-8 makes a controller exception fall back to
+  # last-known-good rather than drop the call; and ADR-047's wire-encoding fix
+  # (int for the two integer knobs) is in `_typed` and carries three mutations.
+  # `observe` stays one query parameter away: /?mode=observe.
+  NOD_MODE_DEFAULT = "adapt"
   NOD_ENV = "prod"
   # ADR-042: the account permits 5 concurrent upstream streams and a rotating
   # session holds 2, so a demo holding 2 leaves 3. A live sweep and this URL

@@ -183,7 +183,10 @@ slow, and a freeze state if the controller starts oscillating.
 
 `nod_mode=observe` profiles and traces without sending a single patch. It cannot change
 a call's behaviour, which makes it the safe first step in any real deployment. The
-deployed demo runs in that mode (`fly.toml`).
+public demo runs in `adapt` instead, because observe cannot show the one thing Nod
+does; append `?mode=observe` to watch it profile without touching the call. The
+profiler needs 24 inter-word gaps before it will patch anything (`MIN_GAPS_FOR_WARM`),
+so it takes a little talking before the listening window moves.
 
 The demo screen is a single page, `src/nod_server/static/index.html`, served by FastAPI
 at `/`. There is no separate console app: the Next.js console in
