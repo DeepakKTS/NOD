@@ -36,7 +36,7 @@ transfer function. One knob is inert. One buys a hesitating caller 2.6 seconds. 
 the headline wrong once and the correction is in the repo.
 ```
 
-## Long description — 354 words (minimum 100, *inferred*)
+## Long description — 402 words (minimum 100, *inferred*)
 
 ```
 Every voice agent picks one silence threshold and applies it to everyone who calls.
@@ -112,16 +112,27 @@ Voice Agents · Developer Tools · Benchmarking · Accessibility
 https://github.com/DeepakKTS/NOD
 ```
 
-**Must be public before submitting.** It is private as of this writing.
-`gh repo edit DeepakKTS/NOD --visibility public`. History was scanned across all refs
-and all unreachable objects at Gate 4f: no credential of any shape, `.env` never
-tracked.
+**Public.** `private=false`, confirmed via the API at Gate 5. History was scanned
+across all refs and all unreachable objects — again at Gate 5, over 1798 objects
+including 5 unreachable, with the scanner first proven to fire on a planted decoy on
+all five patterns before its null was trusted. No credential of any shape; `.env`
+never tracked.
 
 ## Application URL
 
-Blocked. See `docs/DEPLOYMENT.md` — `scripts/deploy_aws.sh` builds remotely on
-CodeBuild and runs on App Runner; it needs credentials permitted to create two IAM
-roles and has not been run.
+```
+https://nod-turn-timing.fly.dev
+```
+
+Deployed on Fly.io, `observe` mode: the controller profiles and traces and sends no
+patches. Verified on the deployed instance — WebSocket upgrade completes on
+`/v1/stream` and `/v1/console`, `getUserMedia` available over real TLS, and one 75 s
+call gave `turns_observed: 166, patches_sent: 0, rejected_updates: 0, state: frozen`
+from the machine's own trace.
+
+**Not App Runner.** `scripts/deploy_aws.sh` built and ran there, and App Runner refuses
+every WebSocket upgrade at the edge — DEPLOYMENT's table marks it `INCOMPATIBLE, do not
+retry` with the evidence (ADR-064). The service is deleted.
 
 ## Cover image
 
