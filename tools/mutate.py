@@ -797,6 +797,16 @@ def _health_mutations() -> tuple[Mutation, ...]:
             "    ready = all(check.ready for check in results)",
             "    ready = True",
         ),
+        mutation(
+            "schema: advertise an unbuilt route in the public OpenAPI schema",
+            '@router.get("/voices", include_in_schema=False)',
+            '@router.get("/voices")',
+        ),
+        mutation(
+            "schema: let an unbuilt route raise NotImplementedError, so 500 not 501",
+            '    _unbuilt("GET /v1/presets")',
+            "    raise NotImplementedError",
+        ),
     )
 
 

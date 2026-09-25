@@ -3191,3 +3191,37 @@ for the question they had already finished asking, one turn late, every time.
 Consequence: 6/6 mutations in a new `context` catalogue, 765 tests. The axis is
 demonstrable for the first time — ask the agent's spelling question and the window
 visibly widens with the reason line reading "Reading out an identifier".
+
+## ADR-060 — Eight designed-but-unbuilt routes answered 500 and advertised themselves
+
+`get_session`, `get_session_trace`, `list_voices`, `switch_voice`, `get_presets`,
+`save_preset`, `start_bench_run` and `get_bench_run` were registered on the live `/v1`
+router and each raised `NotImplementedError`. FastAPI renders an uncaught exception as
+**500 Internal Server Error**, and all eight appeared in the OpenAPI schema, so `/docs`
+on the deployed URL would have listed eight endpoints and every one of them would have
+returned a server error to a judge who clicked it.
+
+**Decision: 501 with a body that names the route, and excluded from the schema.** The
+alternative was deleting them, which also removes the 500. It was rejected because
+`docs/ARCHITECTURE.md` §API documents all eight as the designed surface; deleting the code
+would trade a code-advertises-what-it-cannot-do divergence for a doc-describes-code-that-
+does-not-exist one, which is the same defect pointing the other way. 501 is the exact
+status — the route is recognised and not built — and `include_in_schema=False` is what
+stops the advertising, which was the actual fault.
+
+**This is the census guard one domain over.** The docstrings never claimed these were
+built; the fact was right where it lived and wrong where it travelled, and what it
+travelled into was a published schema. `test_no_unbuilt_route_reaches_the_public_schema`
+checks both halves: nothing marked `@unbuilt` reaches `app.openapi()`, and **no registered
+endpoint raises `NotImplementedError` at all** — the second catches a future stub that
+forgets the marker, which the first cannot.
+
+**The first version of that test passed against all eight defects.** It walked
+`app.routes` one level and found a single route, because this FastAPI keeps
+`include_router` results as nested `_IncludedRouter` objects rather than flattening them.
+A guard that reports a clean bill after inspecting one ninth of the surface is the
+disconnected instrument again. The walk now follows `original_router` and asserts it found
+more than five routes before concluding anything.
+Consequence: 2 mutations in the `health` catalogue, both seen red on purpose — one
+re-advertising `/v1/voices`, one restoring a bare `NotImplementedError` — and each fires a
+different assertion.

@@ -27,9 +27,9 @@ from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, NoReturn
 
-from fastapi import APIRouter, FastAPI, Request, Response, WebSocket
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -522,16 +522,64 @@ async def create_session(
     }
 
 
-@router.get("/sessions/{session_id}")
+def _unbuilt(name: str) -> NoReturn:
+    """Refuse a designed-but-unbuilt route with 501, never 500.
+
+    **These eight routes shipped registered and raising `NotImplementedError`.**
+    FastAPI turns an uncaught exception into `500 Internal Server Error`, and the
+    OpenAPI schema advertised all eight at `/docs` as though they worked. A
+    stranger on the deployed URL would have read eight endpoints off the schema
+    and got a server error from every one — the API claiming a surface the
+    process does not have (ADR-060).
+
+    501 is the exact code: the route is part of the design in ARCHITECTURE.md
+    §API and is recognised, it is simply not built. The body says so rather than
+    leaving the caller to guess from a status line.
+
+    Args:
+        name: The route, for the message.
+
+    Raises:
+        HTTPException: always, 501.
+    """
+    raise HTTPException(
+        status_code=int(HTTPStatus.NOT_IMPLEMENTED),
+        detail={
+            "error": "not_implemented",
+            "route": name,
+            "detail": (
+                f"{name} is designed in docs/ARCHITECTURE.md and not built in "
+                "this build. It is excluded from the OpenAPI schema so nothing "
+                "advertises it."
+            ),
+        },
+    )
+
+
+def unbuilt[F: Callable[..., object]](fn: F) -> F:
+    """Mark a route as designed-but-unbuilt, for the schema guard to find.
+
+    `test_no_unbuilt_route_reaches_the_public_schema` reads this marker. The
+    marker is the cheap half; the test also scans every registered endpoint for
+    a bare `NotImplementedError`, so a future stub that forgets to mark itself
+    is caught anyway.
+    """
+    fn.__nod_unbuilt__ = True  # type: ignore[attr-defined]
+    return fn
+
+
+@router.get("/sessions/{session_id}", include_in_schema=False)
+@unbuilt
 async def get_session(session_id: str) -> dict[str, JsonValue]:
     """Return session metadata and its config timeline."""
-    raise NotImplementedError
+    _unbuilt("GET /v1/sessions/{session_id}")
 
 
-@router.get("/sessions/{session_id}/trace")
+@router.get("/sessions/{session_id}/trace", include_in_schema=False)
+@unbuilt
 async def get_session_trace(session_id: str) -> Response:
     """Download the session trace as JSONL, redacted unless authorised (INV-6)."""
-    raise NotImplementedError
+    _unbuilt("GET /v1/sessions/{session_id}/trace")
 
 
 @router.post("/sessions/{session_id}/reply")
@@ -590,40 +638,46 @@ async def agent_reply(
     return {"text": text, "expects": declared or ""}
 
 
-@router.get("/voices")
+@router.get("/voices", include_in_schema=False)
+@unbuilt
 async def list_voices() -> Sequence[Voice]:
     """List available TTS voices with provider, latency class and cost class."""
-    raise NotImplementedError
+    _unbuilt("GET /v1/voices")
 
 
-@router.post("/sessions/{session_id}/voice")
+@router.post("/sessions/{session_id}/voice", include_in_schema=False)
+@unbuilt
 async def switch_voice(session_id: str, body: dict[str, JsonValue]) -> Response:
     """Switch voice mid-session without dropping the call (EC-28)."""
-    raise NotImplementedError
+    _unbuilt("POST /v1/sessions/{session_id}/voice")
 
 
-@router.get("/presets")
+@router.get("/presets", include_in_schema=False)
+@unbuilt
 async def get_presets() -> Sequence[dict[str, JsonValue]]:
     """Read the saved presets."""
-    raise NotImplementedError
+    _unbuilt("GET /v1/presets")
 
 
-@router.post("/presets")
+@router.post("/presets", include_in_schema=False)
+@unbuilt
 async def save_preset(body: dict[str, JsonValue]) -> dict[str, JsonValue]:
     """Save a preset, validated against the same closed schema as a policy."""
-    raise NotImplementedError
+    _unbuilt("POST /v1/presets")
 
 
-@router.post("/bench/runs")
+@router.post("/bench/runs", include_in_schema=False)
+@unbuilt
 async def start_bench_run(body: dict[str, JsonValue]) -> dict[str, JsonValue]:
     """Start a bench run. Returns the run id."""
-    raise NotImplementedError
+    _unbuilt("POST /v1/bench/runs")
 
 
-@router.get("/bench/runs/{run_id}")
+@router.get("/bench/runs/{run_id}", include_in_schema=False)
+@unbuilt
 async def get_bench_run(run_id: str) -> dict[str, JsonValue]:
     """Return bench run status and results."""
-    raise NotImplementedError
+    _unbuilt("GET /v1/bench/runs/{run_id}")
 
 
 @health_router.get("/healthz")
