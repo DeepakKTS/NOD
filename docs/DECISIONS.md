@@ -3248,3 +3248,38 @@ Consequence: the context axis is claimed as **built and tested, not filmed**, wh
 what the README and SUBMISSION.md already say. Anyone wanting the LLM path sets
 `LLM_PROVIDER` and `LLM_API_KEY`; the adapter is behind a Protocol and the fallback is
 the scripted intake, not a crash.
+
+## ADR-062 — A count that travels needs a fixed address, not maintenance
+
+`769 tests` is rendered into slide 9 of the demo film. Two tests were added at Gate 5 and
+the tree went to 771, so the README and the film disagreed. The reflex is to chase: update
+the README, regenerate the slide, rebuild the segment, re-concat, re-verify sync and the
+Cuts mask. That restores agreement until the next test lands, and the next one is always
+one commit away.
+
+**Decision: pin the figure to the commit the film was cut from.** `769 tests at 79cd368`
+is true permanently, cannot drift, and tells a reader what it is a count of — which the
+bare number never did. The film and the repository now agree by construction rather than
+by maintenance.
+
+This is ADR-060's shape one level up. There the fact was right in the docstrings and wrong
+in the published schema; here it is right in the gate output and wrong in a rendered
+frame. Both are a value correct at its origin and stale at its destination, and the fix is
+the same in kind: stop the value travelling, or give the destination an address that
+cannot go out of date.
+
+**One refinement against the literal instruction, because it would have disabled a
+guard.** Pinning *every* figure in the README to 79cd368 means writing `193 mutations`
+there, and `test_the_readme_mutation_census_matches_the_tree` asserts the README's
+mutation count equals the live catalogue — it would go red, and the only ways to keep it
+green are to weaken it or delete it. So the split is: the **test count** is pinned, because
+it is the number that travelled into a frame and the census test deliberately does not
+check it; the **census** — 195 mutations, 245 of 612 definitions, 22 of 40 files — stays
+live and guarded, because it is a claim about the repository a reader is currently looking
+at, and the guard exists for exactly this drift.
+
+The film-facing assets are pinned whole: `docs/deck.html` carries
+`769 tests, 98.18 % coverage, 193/193 mutations killed at 79cd368`, and
+`VIDEO_SCRIPT.md`'s on-screen line is left **byte-identical to the rendered slide** with
+the provenance moved into the permitted-numbers table. Editing the on-screen line would
+have forced the re-render this ADR exists to avoid.

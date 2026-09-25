@@ -330,7 +330,7 @@ Nothing not on this list may appear. Each is regenerable.
 | 3.3× | 2574 ÷ 777 |
 | C ≈ 590 ms, overhead ≈ 175 ms | ADR-055 |
 | 400 / 900 / 1600 / 2400 | the swept `min_turn_silence` values |
-| 769 tests, 98.18 % | `make gate` |
+| 769 tests, 98.18 % | `make gate` **at 79cd368**, the commit the film was cut from. Pinned, not chased: the slide is rendered and the count moves whenever a test is added (ADR-062) |
 | MIN_MS_CEIL = 900 | `src/nod_core/arbiter.py` |
 
 **Forbidden on screen, in VO, or in the description:** any claim that Nod beats the
