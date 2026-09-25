@@ -1,55 +1,114 @@
-# Nod
+[![Nod](docs/banner.png)](https://nod-turn-timing.fly.dev)
 
-**Voice agents that wait for you to finish.**
+[![CI](https://github.com/DeepakKTS/NOD/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepakKTS/NOD/actions/workflows/ci.yml)
 
-Every deployed voice agent picks one silence threshold and applies it to every human who
-calls. That threshold is a compromise tuned for an average speaker, and the people at the
-tails pay for it: older callers, non-native speakers, people who stutter, anyone reading
-an ID number off a card, anyone thinking mid-sentence.
+Every deployed voice agent picks one silence threshold and applies it to every human
+who calls. That threshold is a compromise tuned for an average speaker, and the people
+at the tails pay for it: older callers, non-native speakers, people who stutter, anyone
+reading an ID number off a card. Nod attaches to a live AssemblyAI Universal-Streaming
+session, learns how the person on the line actually talks, and rewrites the
+turn-detection configuration mid-call. Building it produced a result that matters more
+than the controller does: the gate this project was designed around cannot buy a
+hesitating caller any extra time at all, and a different one buys 2.6 seconds.
 
-Nod attaches to a live AssemblyAI Universal-Streaming session, learns how the person on
-the line actually talks, and rewrites the turn-detection configuration mid-call.
+## The result
 
-```
-caller speech ──► AssemblyAI stream ──► agent replies
-                       │      ▲
-                    listens  retunes
-                       ▼      │
-                  rhythm controller
-```
+![Turn held open, by min_turn_silence](docs/patience.svg)
 
-## Two facts the design rests on
+One sentence, stopped part-way through on the word *"to"*. Four live sessions against
+the streaming API, differing in one setting. At AssemblyAI's own default the service
+ends the turn 777 ms after the caller stops. At `min_turn_silence = 2400` it waits
+2574 ms, which is 3.3 times as long. All four predictions were committed before the
+sockets opened and every one landed inside the 120 ms tolerance.
 
-1. **Configuration can change mid-session.** `UpdateConfiguration` applies without
-   reconnecting. Measured at P1 on `universal-streaming-english`: `min_turn_silence` and
-   `max_turn_silence` take effect mid-stream, each landing where the same value set at
-   connect time landed. `end_of_turn_confidence_threshold` is accepted and ignored.
-2. **Which silence knob matters depends on the utterance.** After a *complete* sentence
-   the model's own gate fires and `min_turn_silence` decides when. After an *incomplete*
-   one it keeps waiting, and `max_turn_silence` is the only thing that ends the turn. A
-   caller pausing mid-sentence has produced an incomplete utterance, so
-   `max_turn_silence` is the knob that decides whether they get cut off.
+That clip was built to measure firing *time*. Its pause is 3532 ms, longer than any
+patience measured, so all four arms still emitted two turns. A second clip, same prefix
+and continuation with the pause cut to 1532 ms, tests whether the sentence survives:
 
-Most tuning advice gets the second one wrong, and so did we: an earlier reading had the
-controller moving a confidence threshold that this model does not honour. The probe in
-`nod_bench/probe.py` is what caught it, and the numbers are in `docs/DECISIONS.md`
-ADR-001 and ADR-011.
+| `min_turn_silence` | predicted | observed |
+|---|---|---|
+| 400 (the vendor default) | 2 turns | **2**, cut at 2988 ms, inside the pause |
+| 900 | 2 turns | **2**, cut at 3407 ms, inside the pause |
+| 1600 | 1 turn | **1** |
+| 2400 | 1 turn | **1** |
 
-## How it decides
+Four out of four. At `min = 2400` the caller stopped mid-sentence on a preposition for a
+second and a half, and the service took the rest of the sentence as the same turn
+(ADR-056). That is the behaviour this project exists to produce. The upper limit is
+still 2574 ms; nothing here extends it, and 1600 and 2400 are indistinguishable on this
+clip because both hold.
 
-Two axes, combined per turn.
+Both tables come from `bench/runs/pilot_ladder.sweep.live.json` and
+`bench/runs/pilot_ladder.continuation.live.json`, with the predictions in the
+`.predictions.json` file beside each. `scripts/pilot_ladder.py` exits non-zero on `run`
+until those predictions exist, so the ordering is enforced by the tool rather than by
+discipline. The chart above regenerates from those artifacts with `make figures`.
 
-- **Speaker axis**, learned online from data the stream already sends: inter-word pause
-  quantiles, speech rate, disfluency density, end-of-turn confidence jitter (logged only,
-  weight 0), and observed
-  cut events (the caller resumed within 1.2 s, so the turn had not really ended).
-- **Context axis**, declared by the agent's dialogue state: when the expected answer is an
-  ID, a date of birth, an address or a spelling, the listening window widens for that one
-  turn and snaps back afterwards.
+## Four measured facts
 
-Guards keep it honest: hysteresis, a latency ceiling so a fluent caller is never made to
-wait, asymmetric decay so one stumble does not make the agent permanently slow, and a
-freeze state if the controller starts oscillating.
+| Fact | What backs it |
+|---|---|
+| `UpdateConfiguration` applies mid-session without reconnecting. `min_turn_silence` and `max_turn_silence` take effect mid-stream, each landing where the same value set at connect time landed. `end_of_turn_confidence_threshold` is accepted and ignored. | `src/nod_bench/probe.py`, ADR-001 |
+| A mid-sentence pause is decided by whichever gate brackets the service's own commit point, which is about 590 ms wide. `max_turn_silence` is inert above it, and below it the only thing it does is cut the caller off sooner. No setting of it grants anyone more time. | ADR-055, 16 live sessions |
+| `min_turn_silence` moves that boundary continuously, from 777 ms of held silence at a 400 ms gate to 2574 ms at a 2400 ms gate. | `bench/runs/pilot_ladder.sweep.live.json` |
+| Set above the length of the pause, it keeps the utterance whole: 4 of 4 predicted turn counts observed. | `bench/runs/pilot_ladder.continuation.live.json`, ADR-056 |
+
+`max_turn_silence` does bind reliably at end of stream, where the audio stops. That was
+measured 16 times out of 16, at each arm's gate plus roughly 150 ms.
+
+## The transfer function
+
+One model with two parameters fits all thirteen in-hold rows across both experiments:
+
+    fire_at = prefix_end + clamp(C, min_turn_silence, max_turn_silence) + overhead
+
+`C` is about 590 ms and is the service's own end-of-turn commit point. `overhead` is
+about 175 ms. `C` does not widen with the pause and does not care that the sentence is
+unfinished, which is why firing time is flat across holds: spreads of 14, 39 and 42 ms
+on `aggressive`, `balanced` and `conservative` for holds of 1000, 2000 and 3500 ms.
+
+The model was written after seeing the first twelve sessions, so by itself it is a curve
+fitted to its own data. What makes it evidence is that it was then pre-registered
+against the sweep and could have failed there.
+`test_the_clamp_model_still_fits_every_committed_in_hold_row` re-derives all thirteen
+rows on every run, so the claim goes red rather than quietly stale.
+
+## The correction
+
+This is the most useful thing in the repository, so it is not buried at the bottom.
+
+The previous headline, ADR-054, concluded from twelve live sessions that the regime Nod
+exists for is not reachable. `max_turn_silence` "does not engage at a mid-utterance
+pause however long the pause or however unfinished the sentence", and Nod "may be a
+correct controller for a gate that does not engage".
+
+The observation behind it was right and reproduces to the millisecond: firing time does
+not move with the hold. The conclusion was wrong. `max_turn_silence` and
+`min_turn_silence` bracket the same quantity from opposite sides, and only one of them
+had been varied. Sweeping the other took four sessions and six minutes, and the turn
+stayed open for 2574 ms (ADR-055).
+
+Three things made it easy to miss.
+
+- The pilot's own PASS criterion was met on `aggressive`, whose boundary sat at its
+  400 ms gate. Attention was on `balanced`, so the criterion that was met was never
+  checked.
+- The finding was unflattering, and an unflattering finding gets a gentler reading than
+  a flattering one. Six of the seven errors before it ran the other way.
+- It was written up as a headline in the same sitting it was measured.
+
+The rule that came out of it: before concluding that a mechanism is absent, enumerate
+the knobs that could express it and say which ones were varied. A null result on one
+input is a null about that input.
+
+**What the correction costs us.** Two defects in our own controller, found by
+measurement and deliberately not fixed inside the freeze, because changing a
+control-law constant on one clip of synthetic speech is tuning by ear. ADR-011 makes
+`max_turn_silence` the controller's primary lever, which this service makes the wrong
+knob. And `arbiter.MIN_MS_CEIL` is 900 ms, which caps the working lever at about a third
+of its demonstrated range: the controller can buy a hesitating caller roughly 1.1 s
+where the service will give roughly 2.6 s. Both are recorded in ADR-055 as the first
+thing to fix after the freeze.
 
 ## Run it
 
@@ -57,13 +116,13 @@ freeze state if the controller starts oscillating.
 make install                 # pinned toolchain, extras, git hooks
 cp .env.example .env         # then put your AssemblyAI key in ASSEMBLYAI_API_KEY
 make check                   # lint, types, tests, coverage gate
-make bench                   # full benchmark offline, no API key needed
+make bench                   # offline replay against FakeAssemblyAI, no API key needed
 make run                     # the demo screen at http://127.0.0.1:8000
 ```
 
 **`make check` is not hermetic.** Two tests in `tests/integration/test_live_path.py`
 pace audio in soft-real-time, so a loaded machine misses the deadline and EC-37's
-drift guard voids the run — the failure reads `FeederDriftError: ... run is void`,
+drift guard voids the run. The failure reads `FeederDriftError: ... run is void`,
 not `assertion failed`, and says nothing about the code. Close the browser and
 re-run before investigating.
 
@@ -76,7 +135,7 @@ no guard. Clone without `--depth`, or set `fetch-depth: 0`.
 
 **A live call needs a key.** `ASSEMBLYAI_API_KEY` in `.env` is the only required
 setting; get one at [assemblyai.com](https://www.assemblyai.com/). Without it
-`make bench` still runs — it replays recorded sessions offline — but `make run`
+`make bench` still runs, because it replays recorded sessions offline, but `make run`
 will serve the page and `/readyz` will report the credential missing.
 
 **Upgrading an existing checkout?** Delete the `NOD_CACHE_DIR` line from your
@@ -84,11 +143,36 @@ will serve the page and `/readyz` will report the credential missing.
 and `Settings` is `extra="forbid"`, so a stale key stops the server booting with
 `ValidationError: nod_cache_dir  Extra inputs are not permitted`.
 
-`make demo` brings the same server up under `docker compose` on port 8000 and
-needs Docker. `make bench` runs against a local replay of recorded sessions, so a
-clean clone reproduces every number in this README without spending a credit.
+**What a clean clone can and cannot regenerate.** `make bench` runs the offline replay
+against `FakeAssemblyAI` and spends no credit, but it produces the *simulated* table
+(`bench/runs/results.simulated.md`), not the live one published below. The live table
+came from `make bench-live` against the real API, and reproducing it needs a key and
+about an hour. `make figures` regenerates the patience chart and the architecture
+diagram from committed artifacts, and `make deck`, `make cover` and `make banner`
+re-render the slide deck, the cover and the banner. `make demo` brings the same server
+up under `docker compose` on port 8000 and needs Docker.
 
-## Modes
+## Architecture
+
+![Nod observes the transcript stream and writes configuration back out of band](docs/architecture.svg)
+
+The controller never sits between the caller's audio and AssemblyAI (INV-1). It watches
+a fan-out of transcript events and writes configuration back out of band, so audio
+forwarding never awaits controller work. `decide()` is pure, synchronous and bounded at
+5 ms p99 (INV-2); it holds fixed-capacity ring buffers only, so a four-hour call and a
+forty-second call use the same resident memory (INV-3); and no `UpdateConfiguration` is
+sent without a `ConfigDecision` carrying the trigger, the inputs, the old value, the new
+value and the rule id (INV-4).
+
+Two axes combine per turn. The **speaker axis** is learned online from what the stream
+already sends: inter-word pause quantiles, speech rate, disfluency density, end-of-turn
+confidence jitter (logged only, weight 0), and observed cut events, meaning the caller
+resumed within 1.2 s so the turn had not really ended. The **context axis** is declared
+by the agent's dialogue state: when the expected answer is an ID, a date of birth, an
+address or a spelling, the listening window widens for that one turn and snaps back
+afterwards. Guards keep it honest: hysteresis, a latency ceiling so a fluent caller is
+never made to wait, asymmetric decay so one stumble does not make the agent permanently
+slow, and a freeze state if the controller starts oscillating.
 
 | Mode | Integration | What it does |
 |---|---|---|
@@ -96,159 +180,14 @@ clean clone reproduces every number in this README without spending a credit.
 | SDK | import the controller | adds the context axis, host keeps the socket |
 | Reference agent | bundled | the demo and the end-to-end tests |
 
-The demo screen is a single page, `src/nod_server/static/index.html`, served by
-FastAPI at `/`. There is no separate console app: the Next.js console in
-`docs/ARCHITECTURE.md` was designed and never built.
+`nod_mode=observe` profiles and traces without sending a single patch. It cannot change
+a call's behaviour, which makes it the safe first step in any real deployment. The
+deployed demo runs in that mode (`fly.toml`).
 
-`nod_mode=observe` profiles and traces without sending a single patch. It cannot change a
-call's behaviour, which makes it the safe first step in any real deployment.
-
-## Results
-
-<!-- Generated by `python -m nod_bench.report --publish`, which refuses a
-     simulated table. Do not edit by hand (INV-9). -->
-<!-- BENCH_TABLE_START -->
-| arm | PCR | IQR | TTL p90 (ms) | IQR | FRAG |
-|---|---|---|---|---|---|
-| `aggressive` | 0.833 | [0.833, 0.833] | 559 | [549, 574] | 1.833 |
-| `balanced` | 0.500 | [0.500, 0.500] | 1444 | [1443, 1453] | 1.500 |
-| `conservative` | 0.250 | [0.250, 0.250] | 3762 | [3760, 3763] | 1.250 |
-| `nod` | 0.500 | [0.500, 0.500] | 1462 | [1460, 1465] | 1.500 |
-| `nod-nocontext` | 0.500 | [0.500, 0.500] | 1471 | [1454, 1471] | 1.500 |
-| `nod-nospeaker` | 0.500 | [0.500, 0.500] | 1471 | [1471, 1475] | 1.500 |
-
-bars: interquartile range over N live repeats (BENCH_SPEC 4) - NOT a bootstrap over clips.
-Percentiles are nearest-rank, inclusive. n=12 clips x 5 repeats from one synthetic voice; the interval is a lower bound on uncertainty (ADR-018, ADR-019).
-
-**Live run** against the streaming API, `trackA-stratified-12`, 12 clips x 5 repeats x 6 arms.
-**Subsample: 12 of 120 clips.** The account permits roughly one new session every 15 s once a closed session's slot is counted, which puts the specified sweep at about 16 hours (ADR-048). **n is a tenth of the design**, so the clip axis — which clips happened to be drawn — dominates the uncertainty here.
-Corpus is synthetic speech from one macOS `say` voice, whose own manifest states it is not adequate for a published number; see the README's honest-scope section.
-TCT and RES are **not reported**: both need a caller who reacts to being cut off, and recorded audio does not (ADR-046).
-Endpoint overhead 217 ms; percentiles nearest-rank, inclusive.
-
-> **PCR is unreliable on a live run, and by more than it looks.** Deciding whether a boundary was premature means deciding which ground-truth gap it fell in, and live that lookup uses `emitted_silence_start_ms` — the service's last-word timing, because the service does not report where it started counting silence (ADR-036). Gate 4e measured that field against the audio and it is not a clock offset that could be subtracted out: on one clip it puts the prefix's end **560 ms late** and the continuation's **190-250 ms early**, in the same session. Track A's gaps are 100-2200 ms, so an error that size moves boundaries between neighbouring gaps and **every PCR figure above may be attributed to the wrong gap** (ADR-055). TTL and FRAG do not use the field and are unaffected. Not fixed; the figures are left standing and labelled rather than withdrawn, because the size of the error is known and its direction is not.
-
-> **These intervals understate the uncertainty.** They are the interquartile range over live repeats, which measures run-to-run variation only. At n=12 the dominant term is *which clips were drawn*, and this estimator does not carry it — which is why several are zero-width, reading as precision that is not there. ADR-049 replaced it with a cluster bootstrap over clips for exactly this reason. **Re-rendering this table under it is not possible from the committed artifacts** — a bootstrap resamples clips and only per-arm aggregates were persisted, so it needs the sweep re-run (ADR-052). Later runs write `observations.live.json` and are re-analysable.
-<!-- BENCH_TABLE_END -->
-
-The chart to read is premature cutoff rate against p90 turn latency. The three static
-configurations trace a fixed tradeoff curve. The claim is not that Nod is faster or more
-accurate. The claim is that a single static configuration sits on that curve and a
-per-caller controller does not have to.
-
-**What the table is, exactly.** A live run against AssemblyAI's streaming API over a
-**stratified 12-clip subsample** of Track A, five repeats per clip and arm. Not the
-specified 120-clip sweep: the account permits one new session roughly every 15 seconds
-once a closed session's slot is counted, which puts 3,600 sessions at about 16 hours
-(ADR-048). Every interval below is therefore much wider than the design intended, and the
-clip bootstrap rests on twelve clips rather than 120.
-
-**The regime Nod exists for is reachable, and the controller is pointed at the
-wrong knob.** That is the headline. It is a finding about the service *and*
-about our own control law, it corrects the previous headline, and it is stated
-first because everything else here is downstream of it.
-
-Sixteen live sessions on a pilot built to force the question: four holds of
-0.5–3.5 s after *"I need to reschedule my appointment **to**"*, a prefix English
-cannot end on. One model with two parameters fits every row —
-
-    fire_at = prefix_end + clamp(C, min_turn_silence, max_turn_silence) + overhead
-
-— with **C ≈ 590 ms**, the service's own end-of-turn commit point, and overhead
-≈ 175 ms. `C` does not widen with the pause and does not care that the sentence
-is unfinished. Firing time is flat across the holds: spreads of **14 / 39 /
-42 ms** on `aggressive` / `balanced` / `conservative` for holds of 1000, 2000
-and 3500 ms.
-
-**`max_turn_silence` is the wrong lever.** It is the gate ADR-011 makes the
-controller's primary one. Above the commit point it never binds — `balanced`'s
-1280 ms and `conservative`'s 3600 ms gates are simply never reached at a pause
-inside a live stream. Below it, on `aggressive`'s 400 ms gate, it *does* bind,
-and binding means cutting the caller off **sooner**. There is no setting of it
-that buys a hesitant speaker more time. (It binds reliably at **end of stream**,
-where the audio stops: measured 16/16, at each arm's gate + ~150 ms.)
-
-**`min_turn_silence` is the right one, and it works across the whole range.**
-Four arms, that gate the only thing varying, predictions committed before the
-sockets opened:
-
-| `min_turn_silence` | predicted | observed | turn held open for |
-|---|---|---|---|
-| 400 ms | 2990 | **3017** | 777 ms |
-| 900 ms | 3300 | **3410** | 1170 ms |
-| 1600 ms | 4000 | **4005** | 1765 ms |
-| 2400 ms | 4800 | **4814** | **2574 ms** |
-
-At 2400 the service held the turn open for **2.57 seconds** after the caller
-stopped mid-sentence on a preposition — **3.3x** the 777 ms it allows at the
-`balanced` default. The lever is continuous across that range and it is the
-thing a controller can actually move.
-
-**On this clip it did not keep the utterance whole**, and that was worth
-stating: the pause is 3532 ms, so all four swept arms emitted **two** turns.
-The clip was built to measure firing *time* and cannot reach the single-turn
-case at all.
-
-**A clip that can, does.** Same prefix and continuation, pause **1532 ms**, turn
-counts predicted before the sockets opened and committed a commit earlier:
-
-| `min_turn_silence` | threshold | predicted | observed |
-|---|---|---|---|
-| 400 (the vendor default) | 590 ms | 2 turns | **2** — cut at 2988 ms, inside the pause |
-| 900 | 900 ms | 2 turns | **2** — cut at 3407 ms, inside the pause |
-| 1600 | 1600 ms | 1 turn | **1** |
-| 2400 | 2400 ms | 1 turn | **1** |
-
-4/4. At `min = 2400` the caller stopped mid-sentence on a preposition for a
-second and a half, and the service took the rest of the sentence as the **same
-turn** (ADR-056). That is the behaviour this project exists to produce. The
-upper limit is still 2574 ms — nothing here extends it, and 1600 and 2400 are
-indistinguishable on this clip because both hold.
-
-**What it costs us.** Two defects in our own controller, found by measurement
-and **not fixed inside the freeze**, because changing a control-law constant on
-one clip of synthetic speech is tuning by ear. ADR-011 designates the wrong knob
-as primary. And `MIN_MS_CEIL` is 900 ms, which caps the working lever at about a
-third of its demonstrated range: the controller can buy ~1.1 s where the service
-will give ~2.6 s. Both are recorded as the first thing to fix after the freeze
-(ADR-055).
-
-**What the previous headline got right, and what it got wrong.** It reported
-that firing time does not move with the hold — that reproduces exactly, and more
-firmly, because the statistic is now computed on one clock. It concluded that
-the gate the controller needs "does not engage" and that Nod "may be a correct
-controller for a gate that does not engage". That was wrong, and wrong in the
-pessimistic direction for once: it tested one knob, found it inert, and did not
-test the other (ADR-054, superseded by ADR-055).
-
-**A defect in the live table this found.** `silence_started_ms` — the service's
-last-word timing — is not a usable silence anchor. On the same clip it puts the
-prefix's end 560 ms *late* and the continuation's 190–250 ms *early*, so it is
-not a clock offset. `pcr` uses that field to decide which gap governs a
-boundary, so **every PCR figure in the live table below carries an attribution
-error the size of the gaps it is attributing into.** Named, not fixed.
-
-**Nor does the sweep establish that the controller acted.** The nod arms read the
-same as `balanced` — expected, since Track A is one utterance per clip so the
-profiler cannot reach its 24-gap warm threshold, and Track A declares no answer
-classes so the context axis has no input. But "ran and correctly did nothing" and
-"never ran" produced byte-identical evidence: the trace sink was the only
-recorder and it writes nothing when there is nothing to write. **The patch count
-is unmeasured, not zero** (ADR-050).
-
-**One cell in the table is unexplained.** `aggressive`'s PCR is 0.833, ten cuts
-against nine predicted. Arithmetic on FRAG rules out a miscounted end-of-clip
-boundary and an off-by-one at the gate, so it is a real tenth mid-clip boundary
-on one of three candidate clips — but which, and why, cannot be recovered,
-because per-clip boundary times were not persisted (ADR-051, ADR-052). It is
-marked rather than left to read as a match.
-
-**Two of BENCH_SPEC §5's seven metrics are absent and will stay absent.** TCT and RES both
-require a caller who reacts to being cut off, and recorded audio does not react — TCT would
-be the clip's duration, identical on every arm, and RES structurally 0.0, which is the
-flattering value and a fact about the corpus rather than the controller (ADR-046). They
-are reported as unmeasurable rather than quietly dropped, so a reader comparing against a
-benchmark that does publish them can see which two are missing and why.
+The demo screen is a single page, `src/nod_server/static/index.html`, served by FastAPI
+at `/`. There is no separate console app: the Next.js console in
+`docs/ARCHITECTURE.md` was designed and never built. The diagram above regenerates with
+`make figures`.
 
 ## Prior art and honest scope
 
@@ -341,6 +280,76 @@ benchmark that does publish them can see which two are missing and why.
   build — it needs consent and licensing this timeline cannot do properly. There is no
   download script and no manifest for it; it is simply not here.
 
+## Results
+
+<!-- Generated by `python -m nod_bench.report --publish`, which refuses a
+     simulated table. Do not edit by hand (INV-9). -->
+<!-- BENCH_TABLE_START -->
+| arm | PCR | IQR | TTL p90 (ms) | IQR | FRAG |
+|---|---|---|---|---|---|
+| `aggressive` | 0.833 | [0.833, 0.833] | 559 | [549, 574] | 1.833 |
+| `balanced` | 0.500 | [0.500, 0.500] | 1444 | [1443, 1453] | 1.500 |
+| `conservative` | 0.250 | [0.250, 0.250] | 3762 | [3760, 3763] | 1.250 |
+| `nod` | 0.500 | [0.500, 0.500] | 1462 | [1460, 1465] | 1.500 |
+| `nod-nocontext` | 0.500 | [0.500, 0.500] | 1471 | [1454, 1471] | 1.500 |
+| `nod-nospeaker` | 0.500 | [0.500, 0.500] | 1471 | [1471, 1475] | 1.500 |
+
+bars: interquartile range over N live repeats (BENCH_SPEC 4) - NOT a bootstrap over clips.
+Percentiles are nearest-rank, inclusive. n=12 clips x 5 repeats from one synthetic voice; the interval is a lower bound on uncertainty (ADR-018, ADR-019).
+
+**Live run** against the streaming API, `trackA-stratified-12`, 12 clips x 5 repeats x 6 arms.
+**Subsample: 12 of 120 clips.** The account permits roughly one new session every 15 s once a closed session's slot is counted, which puts the specified sweep at about 16 hours (ADR-048). **n is a tenth of the design**, so the clip axis — which clips happened to be drawn — dominates the uncertainty here.
+Corpus is synthetic speech from one macOS `say` voice, whose own manifest states it is not adequate for a published number; see the README's honest-scope section.
+TCT and RES are **not reported**: both need a caller who reacts to being cut off, and recorded audio does not (ADR-046).
+Endpoint overhead 217 ms; percentiles nearest-rank, inclusive.
+
+> **PCR is unreliable on a live run, and by more than it looks.** Deciding whether a boundary was premature means deciding which ground-truth gap it fell in, and live that lookup uses `emitted_silence_start_ms` — the service's last-word timing, because the service does not report where it started counting silence (ADR-036). Gate 4e measured that field against the audio and it is not a clock offset that could be subtracted out: on one clip it puts the prefix's end **560 ms late** and the continuation's **190-250 ms early**, in the same session. Track A's gaps are 100-2200 ms, so an error that size moves boundaries between neighbouring gaps and **every PCR figure above may be attributed to the wrong gap** (ADR-055). TTL and FRAG do not use the field and are unaffected. Not fixed; the figures are left standing and labelled rather than withdrawn, because the size of the error is known and its direction is not.
+
+> **These intervals understate the uncertainty.** They are the interquartile range over live repeats, which measures run-to-run variation only. At n=12 the dominant term is *which clips were drawn*, and this estimator does not carry it — which is why several are zero-width, reading as precision that is not there. ADR-049 replaced it with a cluster bootstrap over clips for exactly this reason. **Re-rendering this table under it is not possible from the committed artifacts** — a bootstrap resamples clips and only per-arm aggregates were persisted, so it needs the sweep re-run (ADR-052). Later runs write `observations.live.json` and are re-analysable.
+<!-- BENCH_TABLE_END -->
+
+The chart to read is premature cutoff rate against p90 turn latency. The three static
+configurations trace a fixed tradeoff curve. The claim is not that Nod is faster or more
+accurate. The claim is that a single static configuration sits on that curve and a
+per-caller controller does not have to.
+
+**What the table is, exactly.** A live run against AssemblyAI's streaming API over a
+**stratified 12-clip subsample** of Track A, five repeats per clip and arm. Not the
+specified 120-clip sweep: the account permits one new session roughly every 15 seconds
+once a closed session's slot is counted, which puts 3,600 sessions at about 16 hours
+(ADR-048). Every interval is therefore much wider than the design intended, and rests on
+twelve clips rather than 120.
+
+**A defect in this table, named and not fixed.** `silence_started_ms`, the service's
+last-word timing, is not a usable silence anchor. On one clip it puts the prefix's end
+560 ms *late* and the continuation's 190 to 250 ms *early*, so it is not a clock offset
+that could be subtracted out. `pcr` uses that field to decide which gap governs a
+boundary, so **every PCR figure above carries an attribution error the size of the gaps
+it is attributing into** (ADR-055). TTL and FRAG do not use the field and are unaffected.
+
+**The sweep does not establish that the controller acted.** The nod arms read the same
+as `balanced`, which is expected: Track A is one utterance per clip, so the profiler
+cannot reach its 24-gap warm threshold, and Track A declares no answer classes, so the
+context axis has no input. But "ran and correctly did nothing" and "never ran" produced
+byte-identical evidence, because the trace sink was the only recorder and it writes
+nothing when there is nothing to write. **The patch count is unmeasured, not zero**
+(ADR-050).
+
+**One cell is unexplained.** `aggressive`'s PCR is 0.833, ten cuts against nine
+predicted. Arithmetic on FRAG rules out a miscounted end-of-clip boundary and an
+off-by-one at the gate, so it is a real tenth mid-clip boundary on one of three
+candidate clips. Which one, and why, cannot be recovered, because per-clip boundary
+times were not persisted (ADR-051, ADR-052). It is marked rather than left to read as a
+match.
+
+**Two of BENCH_SPEC §5's seven metrics are absent and will stay absent.** TCT and RES
+both require a caller who reacts to being cut off, and recorded audio does not react.
+TCT would be the clip's duration, identical on every arm, and RES structurally 0.0,
+which is the flattering value and a fact about the corpus rather than the controller
+(ADR-046). They are reported as unmeasurable rather than quietly dropped, so a reader
+comparing against a benchmark that does publish them can see which two are missing and
+why.
+
 ## Documentation
 
 | File | What it holds |
@@ -361,5 +370,5 @@ benchmark that does publish them can see which two are missing and why.
 | `docs/deck.html` | deck source; `make deck` renders `docs/nod-deck.pdf` |
 | `CONTRIBUTING.md` | how to run the gate, and where the coverage goes |
 
-**Code is MIT. The audio under `data/` is not** — it is macOS `say` output and not ours
-to relicense. See [`LICENSE`](LICENSE).
+**Code is MIT. The audio under `data/` is not**, because it is macOS `say` output and
+not ours to relicense. See [`LICENSE`](LICENSE).
