@@ -1,0 +1,60 @@
+# Fly.io — the platform that carries the protocol this application is built on.
+#
+# App Runner served every plain-HTTP route correctly and refused every WebSocket
+# upgrade at the edge, which is the whole product (ADR-064). Fly terminates TLS
+# on *.fly.dev and passes upgrades through, with no domain to configure and no
+# VPC, target group or CloudFront distribution to write.
+#
+# **No secret is in this file.** It is committed and the repository is public.
+# ASSEMBLYAI_API_KEY is a Fly secret:
+#
+#     fly secrets set ASSEMBLYAI_API_KEY=...
+#
+# Secrets are injected as environment variables at boot and never appear here,
+# in the image, or in `fly config show` (INV-5).
+
+app = "nod-turn-timing"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Not secret, and deliberately explicit. `observe` profiles and traces without
+  # sending a single patch — it cannot change a call's behaviour. ADR-063: this
+  # setting was read by /readyz and applied by nothing until Gate 5, so the
+  # deployed instance is the first place it has ever been in force. Verified by
+  # POST /v1/sessions returning "mode":"observe", not by /readyz alone.
+  NOD_MODE_DEFAULT = "observe"
+  NOD_ENV = "prod"
+  # ADR-042: the account permits 5 concurrent upstream streams and a rotating
+  # session holds 2, so a demo holding 2 leaves 3. A live sweep and this URL
+  # share the account's 16 s start-rate gate and must never overlap.
+  NOD_MAX_SESSIONS = "2"
+  # No Fly volume is mounted, so /data is the image's own directory: writable by
+  # uid 10001 and ephemeral. Traces do not survive a restart, which is correct
+  # for a demo and wrong for anything else.
+  NOD_TRACE_DIR = "/data/traces"
+  NOD_DB_PATH = "/data/nod.db"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # A WebSocket demo must not cold-start mid-call, and a stopped machine drops
+  # every open socket.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    # /healthz never touches upstream (DEPLOYMENT §4), so an AssemblyAI outage
+    # cannot make Fly restart the machine.
+    path = "/healthz"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

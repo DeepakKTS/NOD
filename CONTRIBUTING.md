@@ -13,6 +13,10 @@ make gate             # lint, types, tests + coverage gate, bench smoke
 make bench            # full benchmark offline, no API key needed
 ```
 
+**`make gate` is not hermetic.** Two tests pace audio in soft-real-time; on a busy
+machine EC-37's drift guard voids the run with `FeederDriftError: ... run is void`,
+which is the guard working and not a code failure. Quieten the machine and re-run.
+
 **Run `make gate` alone.** Never in a pipeline, never in an `&&` chain. A
 pipeline's exit status is its last command's, so `make gate | tail` reports
 `tail`'s success and a red gate reaches the commit. That happened three times

@@ -181,8 +181,14 @@ class Settings(BaseSettings):  # type: ignore[explicit-any]  # pydantic's own An
     nod_trace_raw: bool = False
     """`True` disables redaction; requires a documented reason (INV-6)."""
 
-    nod_trace_dir: Path = Path("/data/traces")
-    nod_db_path: Path = Path("/data/nod.db")
+    # Relative, so a clean clone that copies `.env.example` starts ready. The
+    # absolute container paths are set explicitly by the Dockerfile ENV,
+    # docker-compose, fly.toml and deploy_aws.sh, so no deployment relies on
+    # these. Gate 5: with `/data/traces` as the default, `make run` on a
+    # laptop reported `/readyz` 503 — `/data` is read-only on macOS — and the
+    # first thing a stranger saw was a not-ready server.
+    nod_trace_dir: Path = Path("data/traces")
+    nod_db_path: Path = Path("data/nod.db")
     nod_log_level: str = "info"
 
     llm_provider: OptionalText = None

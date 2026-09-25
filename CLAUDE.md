@@ -604,6 +604,39 @@ lines. That file is long-term memory; this file is the standing contract.
     in documents; the same reflex belongs on any count, including ones that feel too small
     to bother measuring. The doc now carries the one-liner that measures them.
 
+  - **A passing run certifies every change in it, and three of mine were unearned.**
+    `scripts/deploy_aws.sh` had never run. Four failures, four edits, and the fourth run
+    printed `build SUCCEEDED`, a URL, `/healthz 200`, `/readyz 200`. One of those edits
+    was wrong: I had read `(cd "$TMP" && zip -q src.zip buildspec.yml)` as *creating* an
+    archive containing only the buildspec, and replaced it with `cp`-ing the working tree
+    in. Line 74 already ran `git archive --format=zip HEAD`; the `zip` call **appends** to
+    that archive. My version shipped uncommitted files, defeating the property the comment
+    three lines above states outright — *"it ships exactly what is committed, so the
+    deployed image cannot contain an uncommitted edit or, worse, `.env`."*
+    **This is the opposite shape to every other entry in §5.** Those are checks that
+    cannot fail. This is a check that passed and certified more than it tested: the green
+    run was evidence about the YAML fix, the IAM action and the service name, and no
+    evidence at all about the fourth edit, which was inert on the happy path and harmful
+    on the one where a file is uncommitted. Success attributes itself to everything
+    present, exactly as a predicted-and-observed match does — and the failure it would
+    have caused does not occur on the run that vindicates it.
+    Mutation testing cannot reach this: there is no test. Nor can re-running. The only
+    check that works is **reading the code each change touched, against the comment or
+    invariant stating its property** — which took one minute and was available before the
+    first run. The tell is an edit made to fix a symptom whose mechanism was never
+    confirmed: the YAML error proved itself in the log, the IAM denial named its own
+    missing action, the service name quoted its own constraint. The zip edit fixed nothing
+    that had been observed failing. **An edit with no failure of its own to point at is
+    the one to re-read.**
+    Where else this project shipped on a passing run rather than on reasoning: the arm
+    configurations in Gate 5's sweep, which were read back from the manifest only after
+    ADR-047 found three defects behind twenty green tests; `run_nod_clip`, whose output
+    matched its prediction for a whole gate while having no test at all; and the abort
+    breadth fix at Gate 4b, which passed review and was never made to fail until a
+    mutation was added as an afterthought. All three were correct in the end. None was
+    known to be correct at the time, and the run that carried them said nothing either
+    way.
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.
