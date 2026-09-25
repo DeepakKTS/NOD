@@ -25,8 +25,10 @@ from typing import Final
 
 import httpx
 import pytest
+from pydantic import SecretStr
 
 from nod_core.config import Settings
+from nod_core.types import NodMode
 from nod_server.app import READINESS_PROBES, SESSION_REGISTRY_CAP, create_app, readiness
 
 SERVER_BOOT_TIMEOUT_S = 30.0
@@ -498,3 +500,39 @@ async def test_an_unbuilt_route_answers_501_and_says_which(tmp_path: Path) -> No
     assert detail["error"] == "not_implemented"
     assert detail["route"] == "GET /v1/voices"
     assert "ARCHITECTURE.md" in detail["detail"]
+
+
+@pytest.mark.asyncio
+async def test_a_session_is_created_in_the_configured_mode_not_a_literal() -> None:
+    """`NOD_MODE_DEFAULT=observe` must reach the session, not just `/readyz`.
+
+    The default was the literal `NodMode.ADAPT`, so a deployment configured for
+    `observe` reported "mode observe" on its readiness endpoint and created
+    every session in `adapt`. README calls observe "the safe first step in any
+    real deployment ... it cannot change a call's behaviour", and it silently
+    could (ADR-063).
+
+    The fixture sets `observe` precisely because it is **not** the code's
+    literal default: asserting against `adapt` would pass whether the setting
+    were read or ignored, which is the vacuous-assertion shape CLAUDE.md §5
+    exists to stop.
+    """
+    app = create_app(
+        Settings(
+            assemblyai_api_key=SecretStr("k" * 32),
+            nod_mode_default=NodMode.OBSERVE,
+        )
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+        created = await client.post("/v1/sessions", json={})
+        ready = await client.get("/readyz")
+    assert created.json()["mode"] == "observe", (
+        "the session ignored NOD_MODE_DEFAULT; a deployment set to observe "
+        "would patch live calls"
+    )
+    assert "mode observe" in ready.text, "readiness and the session must agree"
+    # an explicit request still wins over the configured default
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
+        forced = await client.post("/v1/sessions", json={"mode": "adapt"})
+    assert forced.json()["mode"] == "adapt"

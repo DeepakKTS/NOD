@@ -798,6 +798,11 @@ def _health_mutations() -> tuple[Mutation, ...]:
             "    ready = True",
         ),
         mutation(
+            "mode: ignore NOD_MODE_DEFAULT and create every session in adapt",
+            '    mode = NodMode(str(body.get("mode", default_mode.value)))',
+            '    mode = NodMode(str(body.get("mode", NodMode.ADAPT.value)))',
+        ),
+        mutation(
             "schema: advertise an unbuilt route in the public OpenAPI schema",
             '@router.get("/voices", include_in_schema=False)',
             '@router.get("/voices")',

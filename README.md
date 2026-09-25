@@ -61,6 +61,19 @@ make bench                   # full benchmark offline, no API key needed
 make run                     # the demo screen at http://127.0.0.1:8000
 ```
 
+**`make check` is not hermetic.** Two tests in `tests/integration/test_live_path.py`
+pace audio in soft-real-time, so a loaded machine misses the deadline and EC-37's
+drift guard voids the run — the failure reads `FeederDriftError: ... run is void`,
+not `assertion failed`, and says nothing about the code. Close the browser and
+re-run before investigating.
+
+**`make check` needs a full clone.** `--depth 1` is the default in
+`actions/checkout`, Docker builds and most CI images, and a shallow clone cannot
+resolve the commit SHAs that `test_every_commit_sha_in_a_public_file_resolves`
+checks the docs against. It fails loudly naming the clone rather than skipping,
+because a guard that quietly passes on a repository it cannot read is worse than
+no guard. Clone without `--depth`, or set `fetch-depth: 0`.
+
 **A live call needs a key.** `ASSEMBLYAI_API_KEY` in `.env` is the only required
 setting; get one at [assemblyai.com](https://www.assemblyai.com/). Without it
 `make bench` still runs — it replays recorded sessions offline — but `make run`
@@ -280,11 +293,11 @@ benchmark that does publish them can see which two are missing and why.
   **769 passing tests at `79cd368`**, the commit the demo film was cut from — a
   figure with a fixed address rather than a moving one (ADR-062). At HEAD the
   suite is larger; the census below is checked against the tree on every run.
-  98.18 % line coverage and **195 mutations** killed. Read
+  98.18 % line coverage and **196 mutations** killed. Read
   precisely: mutation coverage is **file-granular**, so a kill proves *some* test in
   that file noticed the change, never which — it certifies files, not tests.
   Coverage certifies **lines executed**, not behaviour asserted. And **22 of 40 test
-  files are the target of no mutation at all**, holding **245 of 612 test definitions,
+  files are the target of no mutation at all**, holding **245 of 613 test definitions,
   so 40 % of the suite has never been given anything to catch** (ADR-053). That census
   is checked against the tree by `test_the_readme_mutation_census_matches_the_tree`,
   because the previous copy of this paragraph said 38 files and 565 definitions for two

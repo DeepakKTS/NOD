@@ -500,7 +500,16 @@ async def create_session(
         registry_now.pop(next(iter(registry_now)))
     want_context = bool(body.get("context", False))
     preset = str(body.get("preset", "balanced"))
-    mode = NodMode(str(body.get("mode", NodMode.ADAPT.value)))
+    # **`NOD_MODE_DEFAULT` was read by `/readyz` and applied by nothing.** The
+    # default here was the literal `NodMode.ADAPT`, so a deployment configured
+    # for `observe` reported "mode observe" on its readiness endpoint and
+    # created every session in `adapt` — patching live calls on the setting the
+    # README calls "the safe first step in any real deployment". A setting that
+    # describes behaviour nothing implements is CLAUDE.md §5's recurring defect;
+    # this one had an instrument confirming the configuration that was not in
+    # force, which is worse than silence (ADR-063).
+    default_mode: NodMode = request.app.state.settings.nod_mode_default
+    mode = NodMode(str(body.get("mode", default_mode.value)))
     ceiling = int(body.get("ceiling_ms", DEFAULT_CEILING_MS))  # type: ignore[arg-type]
     record = SessionRecord(
         session_id=new_session_id(),
