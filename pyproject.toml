@@ -90,9 +90,22 @@ dev = [
 Homepage = "https://github.com/DeepakKTS/NOD"
 
 [tool.hatch.build.targets.wheel]
-# The console is a static asset inside the package (ADR-038), so it has to be
-# included explicitly or the wheel ships an API that 500s on `/`.
-artifacts = ["src/nod_server/static/*.html"]
+# The console and the favicon are static assets inside the package (ADR-038).
+#
+# **This key is measured to do nothing, and the comment it replaces was false.**
+# The old one said the console "has to be included explicitly or the wheel ships
+# an API that 500s on `/`". Gate 6 built the wheel three ways: with
+# `static/*.html`, with `static/*`, and with the key deleted outright. All three
+# ship index.html, favicon.svg and favicon-32.png, because `packages` below
+# already carries everything under the package directory. `artifacts` exists to
+# re-include files a VCS ignore rule would otherwise drop, and nothing here is
+# ignored.
+#
+# Kept, widened, as a cheap guard for the day a generated static asset *is*
+# gitignored. It is documented as inert rather than deleted so nobody re-derives
+# the same false belief from its absence. Check by listing the built wheel; do
+# not reason from this line.
+artifacts = ["src/nod_server/static/*"]
 packages = [
     "src/nod_core",
     "src/nod_bench",
