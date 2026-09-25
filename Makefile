@@ -30,7 +30,7 @@ PATHS := src tests tools scripts
 
 .PHONY: help install fmt lint types test bench-smoke check gate seed-tests run \
         demo probe probe-fake bench bench-live bench-clean metrics report audit clean \
-        mutate mutate-selftest
+        mutate mutate-selftest figures banner favicon
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / \
@@ -187,6 +187,35 @@ deck: ## Render docs/deck.html to docs/nod-deck.pdf (needs Google Chrome)
 	  --headless --disable-gpu --no-pdf-header-footer \
 	  --print-to-pdf=docs/nod-deck.pdf docs/deck.html
 	@echo "wrote docs/nod-deck.pdf"
+
+figures: ## Regenerate docs/patience.svg and docs/architecture.svg from artifacts
+	@# The four bars are read out of bench/runs/pilot_ladder.sweep.live.json at
+	@# render time, never typed into the template (INV-9). A chart that stopped
+	@# agreeing with the sweep would show up as a changed artifact in git diff.
+	$(RUN) python scripts/figures.py all
+
+banner: figures ## Render docs/banner.html to docs/banner.png (2400x840 README banner)
+	@# Chrome headless, exactly as `deck` and `cover` do it: one renderer for
+	@# every rendered artifact in this repository (see deck.html's header note).
+	@# `--force-device-scale-factor=1` is explicit because the window size *is*
+	@# the output size here — a retina default would silently emit 4800x1680.
+	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+	  --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+	  --window-size=2400,840 --screenshot=docs/banner.png docs/banner.html
+	@echo "wrote docs/banner.png"
+
+favicon: ## Regenerate the tab icon and its 32x32 raster fallback
+	@# `--default-background-color=00000000` is the whole reason this is a make
+	@# target and not a one-liner: without it Chrome composites the screenshot
+	@# onto opaque white and the icon ships with white corners outside its
+	@# rounded rect, which is invisible on a white page and obvious on a dark one.
+	$(RUN) python scripts/figures.py favicon
+	cd src/nod_server/static && \
+	  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+	  --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+	  --default-background-color=00000000 --window-size=32,32 \
+	  --screenshot=favicon-32.png favicon.svg
+	@echo "wrote src/nod_server/static/favicon.svg and favicon-32.png"
 
 cover: ## Render docs/cover.html to docs/nod-cover.png (16:9 submission cover)
 	"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \

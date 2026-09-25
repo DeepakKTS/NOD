@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="432" viewBox="0 0 1180 432" role="img" aria-label="Nod observes the transcript stream and writes config back out of band">
+<defs>
+<marker id="head-FFB340" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#FFB340"/></marker>
+<marker id="head-5AC8FA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5AC8FA"/></marker>
+</defs>
+<rect width="1180" height="432" rx="18" fill="#060709"/>
+<rect x="0.5" y="0.5" width="1179" height="431" rx="18" fill="none" stroke="rgba(255,255,255,.09)"/>
+<text x="40" y="46" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="15" letter-spacing="2.4" fill="rgba(255,255,255,.34)">THE AUDIO PATH IS NEVER IN THE LOOP &#183; INV-1</text>
+<rect x="40" y="86" width="210" height="78" rx="12" fill="#0A0C10" stroke="#FFB340" stroke-opacity="0.45"/><text x="145" y="120" text-anchor="middle" font-family="ui-sans-serif,-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="20" fill="rgba(255,255,255,.96)">caller audio</text><text x="145" y="144" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="14" fill="rgba(255,255,255,.34)">16 kHz PCM</text>
+<rect x="310" y="86" width="210" height="78" rx="12" fill="#0A0C10" stroke="#FFB340" stroke-opacity="0.45"/><text x="415" y="120" text-anchor="middle" font-family="ui-sans-serif,-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="20" fill="rgba(255,255,255,.96)">Nod proxy</text><text x="415" y="144" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="14" fill="rgba(255,255,255,.34)">forwards verbatim</text>
+<rect x="580" y="86" width="300" height="78" rx="12" fill="#0A0C10" stroke="#FFB340" stroke-opacity="0.45"/><text x="730" y="120" text-anchor="middle" font-family="ui-sans-serif,-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="20" fill="rgba(255,255,255,.96)">AssemblyAI</text><text x="730" y="144" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="14" fill="rgba(255,255,255,.34)">Universal-Streaming</text>
+<rect x="940" y="86" width="200" height="78" rx="12" fill="#0A0C10" stroke="#FFB340" stroke-opacity="0.45"/><text x="1040" y="120" text-anchor="middle" font-family="ui-sans-serif,-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="20" fill="rgba(255,255,255,.96)">your agent</text><text x="1040" y="144" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="14" fill="rgba(255,255,255,.34)">replies</text>
+<line x1="250" y1="125" x2="306" y2="125" stroke="#FFB340" stroke-width="2" marker-end="url(#head-FFB340)"/>
+<line x1="520" y1="125" x2="576" y2="125" stroke="#FFB340" stroke-width="2" marker-end="url(#head-FFB340)"/>
+<line x1="880" y1="125" x2="936" y2="125" stroke="#FFB340" stroke-width="2" marker-end="url(#head-FFB340)"/>
+<rect x="440" y="274" width="420" height="86" rx="12" fill="#0A0C10" stroke="#5AC8FA" stroke-opacity="0.45"/><text x="650" y="308" text-anchor="middle" font-family="ui-sans-serif,-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="20" fill="rgba(255,255,255,.96)">rhythm controller</text><text x="650" y="332" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="14" fill="rgba(255,255,255,.34)">decide() pure, sync, p99 &lt; 5 ms</text>
+<path d="M730,164 L730,238 L650,238 L650,270" fill="none" stroke="#5AC8FA" stroke-width="2" marker-end="url(#head-5AC8FA)"/>
+<path d="M560,274 L560,238 L415,238 L415,164" fill="none" stroke="#5AC8FA" stroke-width="2" marker-end="url(#head-5AC8FA)"/>
+<text x="754" y="214" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="15" fill="rgba(255,255,255,.60)">transcript events, fan-out</text>
+<text x="176" y="214" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="15" fill="rgba(255,255,255,.60)">UpdateConfiguration + ConfigDecision</text>
+<text x="40" y="406" font-family="ui-monospace,SFMono-Regular,Menlo,'DejaVu Sans Mono',monospace" font-size="15" fill="rgba(255,255,255,.34)">audio forwarding never awaits the controller; every patch carries its reason (INV-4)</text>
+</svg>
