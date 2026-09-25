@@ -54,14 +54,26 @@ freeze state if the controller starts oscillating.
 ## Run it
 
 ```bash
-make install
-make check          # lint, types, tests, coverage gate
-make demo           # reference intake agent + console at localhost:3000
-make bench          # full benchmark offline, no API key needed
+make install                 # pinned toolchain, extras, git hooks
+cp .env.example .env         # then put your AssemblyAI key in ASSEMBLYAI_API_KEY
+make check                   # lint, types, tests, coverage gate
+make bench                   # full benchmark offline, no API key needed
+make run                     # the demo screen at http://127.0.0.1:8000
 ```
 
-`make bench` runs against a local replay of recorded sessions, so a clean clone
-reproduces every number in this README without spending a credit.
+**A live call needs a key.** `ASSEMBLYAI_API_KEY` in `.env` is the only required
+setting; get one at [assemblyai.com](https://www.assemblyai.com/). Without it
+`make bench` still runs — it replays recorded sessions offline — but `make run`
+will serve the page and `/readyz` will report the credential missing.
+
+**Upgrading an existing checkout?** Delete the `NOD_CACHE_DIR` line from your
+`.env`. The setting was removed (it named a cache that was never built, ADR-052)
+and `Settings` is `extra="forbid"`, so a stale key stops the server booting with
+`ValidationError: nod_cache_dir  Extra inputs are not permitted`.
+
+`make demo` brings the same server up under `docker compose` on port 8000 and
+needs Docker. `make bench` runs against a local replay of recorded sessions, so a
+clean clone reproduces every number in this README without spending a credit.
 
 ## Modes
 
@@ -70,6 +82,10 @@ reproduces every number in this README without spending a credit.
 | Proxy | change one URL | forwards audio verbatim, injects config patches |
 | SDK | import the controller | adds the context axis, host keeps the socket |
 | Reference agent | bundled | the demo and the end-to-end tests |
+
+The demo screen is a single page, `src/nod_server/static/index.html`, served by
+FastAPI at `/`. There is no separate console app: the Next.js console in
+`docs/ARCHITECTURE.md` was designed and never built.
 
 `nod_mode=observe` profiles and traces without sending a single patch. It cannot change a
 call's behaviour, which makes it the safe first step in any real deployment.
@@ -261,11 +277,14 @@ benchmark that does publish them can see which two are missing and why.
 - Nod adapts to pauses. It does not interpret them. There is no inference of emotion,
   stress, honesty, or any clinical condition from speech timing, and there never will be.
 - **What the test numbers certify, which is less than they look.** The suite reports
-  769 passing tests, 98.18 % line coverage and **193 mutations** killed. Read
+  **769 passing tests at `79cd368`**, the commit the demo film was cut from — a
+  figure with a fixed address rather than a moving one (ADR-062). At HEAD the
+  suite is larger; the census below is checked against the tree on every run.
+  98.18 % line coverage and **195 mutations** killed. Read
   precisely: mutation coverage is **file-granular**, so a kill proves *some* test in
   that file noticed the change, never which — it certifies files, not tests.
   Coverage certifies **lines executed**, not behaviour asserted. And **22 of 40 test
-  files are the target of no mutation at all**, holding **245 of 610 test definitions,
+  files are the target of no mutation at all**, holding **245 of 612 test definitions,
   so 40 % of the suite has never been given anything to catch** (ADR-053). That census
   is checked against the tree by `test_the_readme_mutation_census_matches_the_tree`,
   because the previous copy of this paragraph said 38 files and 565 definitions for two

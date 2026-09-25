@@ -89,7 +89,8 @@ src/nod_bench/       corpus, perturbation, replay, metrics, report
 src/nod_server/      FastAPI app, WebSocket endpoints, auth, telemetry
 src/nod_adapters/    assemblyai/, llm/, tts/    (all behind Protocols)
 tests/               unit/, integration/, property/, fixtures/
-console/             Next.js app
+src/nod_server/static/  the demo screen: one page, served by FastAPI at `/`
+                     (the Next.js console was designed and never built)
 docs/                specs (read these before implementing)
 ```
 
