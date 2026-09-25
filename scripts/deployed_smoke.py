@@ -156,6 +156,23 @@ async def main() -> int:
     print(f"streamed {args.clip.name} in {elapsed:.1f}s, {len(frames)} console frames")
     print(f"  kinds: {kinds}")
     print(f"  turns: {len(turns)}   config frames: {len(patches)}")
+    # **The patches are the point once the instance runs `adapt`.** A count alone
+    # cannot distinguish a controller that moved the window from one that emitted
+    # six no-ops, and INV-4 requires every change to carry its reason, so print
+    # the reason and the values rather than the tally.
+    for frame in patches:
+        payload = frame.get("payload", frame)
+        print(
+            f"  patch: min={payload.get('min_turn_silence')} "
+            f"max={payload.get('max_turn_silence')} "
+            f"state={payload.get('state')} rule={payload.get('rule_id')} "
+            f"trigger={payload.get('trigger')}"
+        )
+    if not patches:
+        print(
+            "  no patches. Expected when the input is short: the profiler needs "
+            "24 inter-word gaps to warm, and in `observe` it never patches at all."
+        )
     for frame in turns[:4]:
         payload = frame.get("payload", frame)
         text = str(payload.get("transcript") or payload.get("text") or "")

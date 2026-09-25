@@ -188,6 +188,14 @@ does; append `?mode=observe` to watch it profile without touching the call. The
 profiler needs 24 inter-word gaps before it will patch anything (`MIN_GAPS_FOR_WARM`),
 so it takes a little talking before the listening window moves.
 
+**Which way it moves depends on you, and that is the whole claim.** Speak fluently and
+the window narrows, because a fluent caller does not need the wait. Pause mid-sentence
+and it widens. Nod is not uniformly faster or uniformly more patient; a static
+configuration picks one point on that tradeoff and a per-caller controller does not have
+to. Verified live on the deployed instance at Gate 6: an 83-second call warmed the
+profiler and emitted six `config.changed` frames, each carrying `rule_id`, `trigger` and
+the new gates as INV-4 requires.
+
 The demo screen is a single page, `src/nod_server/static/index.html`, served by FastAPI
 at `/`. There is no separate console app: the Next.js console in
 `docs/ARCHITECTURE.md` was designed and never built. The diagram above regenerates with
