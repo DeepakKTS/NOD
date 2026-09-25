@@ -15,9 +15,37 @@
 > | base image digest pin | **outstanding**, tag only |
 > | read-only root filesystem | **cannot** be set by a Dockerfile; a runtime flag the platform must pass |
 > | `/healthz`, `/readyz`, `/metrics` | **green locally** against a real writable volume, all four readiness conditions genuinely satisfied |
-> | deployed URL | **does not exist** |
+> | deployed URL | **built and ran on App Runner, then abandoned** — see the row below |
+> | AWS App Runner | **INCOMPATIBLE, do not retry.** Not "untried": the platform refuses every WebSocket upgrade at the edge and Nod is WebSocket end to end (ADR-064) |
 > | phone-on-mobile-data smoke | **not done** |
 >
+> **25 Sep, Gate 5 — App Runner built, ran, and cannot serve this application.**
+>
+> `scripts/deploy_aws.sh` ran for the first time and needed four fixes to complete (a
+> buildspec YAML break, a missing `ecr:UploadLayerPart`, a 3-character App Runner service
+> name, and an ARN lookup still using the old name). It then produced a running service at
+> `https://ntr7m54smn.us-east-1.awsapprunner.com` with `/healthz` 200, `/readyz` 200 and
+> all four readiness conditions green.
+>
+> **It cannot complete a call, and no configuration change will fix it.** The evidence,
+> in the order it settles the question:
+>
+> | probe | result |
+> |---|---|
+> | `wss://…/v1/console?session_id=<valid>` | **403** |
+> | `wss://…/v1/stream?session_id=<valid>` | **403** |
+> | `wss://…/definitely-not-a-route` | **403** — a path the app does not define |
+> | `https://…/definitely-not-a-route` | **404**, from the application |
+> | App Runner application log | **zero WebSocket attempts recorded**, single instance |
+>
+> A 403 on a route that does not exist, with nothing in the application log, places the
+> refusal at the platform's ingress rather than in Nod. Plain HTTP reaches the app and
+> answers 404 from the same path. `/healthz`, `/readyz`, `/metrics`, the demo page and the
+> 501s all work, because all of them are plain HTTP; everything the product does is not.
+>
+> The ECR repository, the CodeBuild project and the App Runner service are **left in
+> place** deliberately until a replacement is proven. `make deploy-teardown` removes them.
+
 > **23 Sep, Gate 4e — two of the three blockers cleared, one remains.**
 >
 > The keychain unlocked and all six commits are **pushed**. There is still no container
@@ -91,7 +119,7 @@ sustained throughput is roughly one new session per 15 s regardless of concurren
 | `NOD_PRESET` | `balanced` | default preset |
 | `NOD_MODE_DEFAULT` | `adapt` | default mode for new sessions; §5 rolls out with `observe` |
 | `NOD_TRACE_RAW` | `0` | `1` disables redaction; requires a documented reason |
-| `NOD_TRACE_DIR` | `/data/traces` | on the persistent volume |
+| `NOD_TRACE_DIR` | `data/traces` | relative by default so a clean clone is ready; every container path below sets `/data/traces` explicitly |
 
 > **Breaking change.** `NOD_CACHE_DIR` was removed — it named a bench cache that
 > was designed and never built (ADR-052). `Settings` is `extra="forbid"`, so an
@@ -99,7 +127,7 @@ sustained throughput is roughly one new session per 15 s regardless of concurren
 > booting with `ValidationError: nod_cache_dir  Extra inputs are not permitted`.
 > The error names the field, not the variable, which is the connection a reader
 > will not make on their own. Delete the line.
-| `NOD_DB_PATH` | `/data/nod.db` | SQLite, WAL |
+| `NOD_DB_PATH` | `data/nod.db` | SQLite, WAL. Container sets `/data/nod.db` |
 | `NOD_LOG_LEVEL` | `info` | structlog |
 | `LLM_PROVIDER` / `LLM_API_KEY` | — | agent brain |
 | `TTS_PROVIDERS` | `browser` | comma-separated fallback chain, in order |

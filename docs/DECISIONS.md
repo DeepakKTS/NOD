@@ -3283,3 +3283,63 @@ The film-facing assets are pinned whole: `docs/deck.html` carries
 `VIDEO_SCRIPT.md`'s on-screen line is left **byte-identical to the rendered slide** with
 the provenance moved into the permitted-numbers table. Editing the on-screen line would
 have forced the re-render this ADR exists to avoid.
+
+## ADR-063 — `NOD_MODE_DEFAULT` was read by the readiness endpoint and applied by nothing
+
+`create_session` defaulted to the literal `NodMode.ADAPT`. `settings.nod_mode_default`
+was parsed, validated, and reported by `/readyz` as `mode observe` — and never consulted
+when a session was made. A deployment configured for `observe` created every session in
+`adapt`.
+
+That is not a cosmetic drift. README calls observe **"the safe first step in any real
+deployment ... it cannot change a call's behaviour"**, and it silently could: the
+controller would patch live calls on an instance whose operator had explicitly asked it
+not to. The App Runner deployment was configured exactly this way and ran that way for
+the whole of its life.
+
+**The instrument made it worse rather than catching it.** `/readyz` printed `mode
+observe` from the same setting the session path ignored, so the one check an operator
+would run *confirmed* a configuration that was not in force. CLAUDE.md §5's recurring
+defect is a setting describing behaviour nothing implements; this is that defect with a
+witness testifying for it.
+
+Found by comparing two outputs of the deployed instance — `/readyz` said `observe`,
+`POST /v1/sessions` returned `"mode":"adapt"` — not by reading the code. Neither output
+is wrong on its own; only the pair is.
+
+Consequence: `test_a_session_is_created_in_the_configured_mode_not_a_literal`, whose
+fixture sets `observe` **because it is not the code's literal default** — asserting
+`adapt` would pass whether the setting were read or ignored. One mutation, killed.
+
+## ADR-064 — A platform was chosen without checking it carries the protocol the product is built on
+
+Nod is a WebSocket application. `/v1/stream` carries caller audio and `/v1/console`
+carries the event stream; every other route is incidental. `scripts/deploy_aws.sh` was
+written, reviewed and debugged through four failures to deploy it on **AWS App Runner,
+which does not pass WebSocket upgrades**.
+
+The check that would have settled it before a line was written:
+
+    wscat -c wss://<any-app-runner-url>/anything     →  HTTP 403
+
+One request, no account, no script. Instead the question was never asked, and the answer
+arrived after a build pipeline, two IAM roles, an S3 bucket, an ECR repository and a
+running service — all of which work, because all of them are plain HTTP.
+
+**Everything that was verified was real and none of it was the thing that mattered.**
+`/healthz` 200, `/readyz` 200 with four green conditions, `/v1/voices` returning the
+ADR-060 501 body on public infrastructure, the OpenAPI list correct. A deployment can
+satisfy every check written for it and still not run the application, when the checks
+were written from the deployment's surface rather than from the product's requirements.
+This is ADR-062's shape in a different register: a value correct at its origin and
+irrelevant at its destination.
+
+The transferable rule: **before choosing a platform, list the protocols the application
+requires and confirm each against that platform — not against the parts of the
+application that happen to be conventional.** HTTP was never in doubt. WebSocket was the
+only open question and it was the one not asked.
+
+Moving to Fly.io: WebSocket and TLS on `*.fly.dev` with no domain to configure, and it
+deploys the existing `Dockerfile` rather than needing a VPC, target group and CloudFront
+distribution written from scratch. App Runner is marked **INCOMPATIBLE** rather than
+untried in DEPLOYMENT's table, so a future reader does not spend the same evening.

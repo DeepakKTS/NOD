@@ -43,18 +43,21 @@ if ! aws iam get-role --role-name nod-codebuild >/dev/null 2>&1; then
     aws iam create-role --role-name nod-codebuild --assume-role-policy-document \
         '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"codebuild.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
         >/dev/null
+fi
+# Always written, never only on creation: the first run shipped a policy missing
+# ecr:UploadLayerPart, and a re-run could not repair it because the role already
+# existed. Idempotent put means a fixed policy reaches an existing role.
     aws iam put-role-policy --role-name nod-codebuild --policy-name nod-build \
         --policy-document "$(
             cat <<POLICY
 {"Version":"2012-10-17","Statement":[
  {"Effect":"Allow","Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"],"Resource":"*"},
  {"Effect":"Allow","Action":["ecr:GetAuthorizationToken"],"Resource":"*"},
- {"Effect":"Allow","Action":["ecr:BatchCheckLayerAvailability","ecr:CompleteLayerUpload","ecr:InitiateLayerUpload","ecr:PutImage","ecr:BatchGetImage","ecr:GetDownloadUrlForLayer"],"Resource":"arn:aws:ecr:${REGION}:${ACCOUNT}:repository/${REPO}"},
+ {"Effect":"Allow","Action":["ecr:BatchCheckLayerAvailability","ecr:CompleteLayerUpload","ecr:InitiateLayerUpload","ecr:UploadLayerPart","ecr:PutImage","ecr:BatchGetImage","ecr:GetDownloadUrlForLayer"],"Resource":"arn:aws:ecr:${REGION}:${ACCOUNT}:repository/${REPO}"},
  {"Effect":"Allow","Action":["s3:GetObject","s3:GetObjectVersion"],"Resource":"arn:aws:s3:::${BUCKET}/*"}
 ]}
 POLICY
         )"
-fi
 if ! aws iam get-role --role-name nod-apprunner-ecr >/dev/null 2>&1; then
     aws iam create-role --role-name nod-apprunner-ecr --assume-role-policy-document \
         '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"build.apprunner.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
@@ -83,7 +86,7 @@ phases:
   build:
     commands:
       - docker build -t "$ECR:latest" .
-      - docker images "$ECR:latest" --format 'image size: {{.Size}}'
+      - docker images "$ECR:latest" --format 'image size {{.Size}}'
   post_build:
     commands:
       - docker push "$ECR:latest"
@@ -121,7 +124,9 @@ echo "==> build ${STATUS}"
 # **A live sweep and this URL share the account's 16 s start-rate gate and must
 # never overlap** — one 1008 anywhere voids a sweep (ADR-048, DEPLOYMENT §1).
 ENV_VARS="ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY},NOD_ENV=prod,NOD_MAX_SESSIONS=2,NOD_MODE_DEFAULT=observe,NOD_TRACE_DIR=/data/traces,NOD_DB_PATH=/data/nod.db"
-aws apprunner create-service --region "$REGION" --service-name nod \
+# App Runner requires a service name of at least 4 characters; "nod" is 3.
+SERVICE="nod-demo"
+aws apprunner create-service --region "$REGION" --service-name "$SERVICE" \
     --source-configuration "$(
         cat <<CFG
 {"ImageRepository":{"ImageIdentifier":"${IMAGE}","ImageRepositoryType":"ECR",
@@ -138,7 +143,7 @@ CFG
 echo "==> waiting for the service"
 while :; do
     ARN="$(aws apprunner list-services --region "$REGION" \
-        --query "ServiceSummaryList[?ServiceName=='nod'].ServiceArn" --output text)"
+        --query "ServiceSummaryList[?ServiceName=='${SERVICE}'].ServiceArn" --output text)"
     STATE="$(aws apprunner describe-service --service-arn "$ARN" --region "$REGION" \
         --query 'Service.Status' --output text)"
     [ "$STATE" = "OPERATION_IN_PROGRESS" ] || break
