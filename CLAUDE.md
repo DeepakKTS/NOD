@@ -637,6 +637,44 @@ lines. That file is long-term memory; this file is the standing contract.
     known to be correct at the time, and the run that carried them said nothing either
     way.
 
+  - **The project knew four metrics were dead and still told an operator to watch
+    them.** Checking whether the controller had run on the deployed instance, I read
+    `nod_decide_seconds_count` off `/metrics`, got **0.0**, and was one sentence from
+    reporting that the controller never ran. `DECIDE_SECONDS` is declared in
+    `telemetry.py` and **observed nowhere in `src/`**. The zero measured the metric's
+    wiring, not the controller. The trace's `controller_closed` record — which ADR-050
+    made emit unconditionally for exactly this reason — said `turns_observed: 166`.
+    **Four of ten metrics have this shape**: `nod_cuts_total`, `nod_decide_seconds`,
+    `nod_queue_dropped_total`, `nod_tts_cache_hits_total`. All four are declared, exported
+    on `/metrics`, and can only ever read zero.
+    The part worth keeping is not that they are unwired — **`docs/DEPLOYMENT.md` already
+    says so**, in a table, for three of the four. The knowledge existed and did not reach
+    the three places that act on it:
+    - `telemetry.py`'s own module docstring, four lines above the dead declaration, still
+      reads *"`nod_decide_seconds` is the canary for INV-2; alert above 5 ms p99."* An
+      alert configured from that sentence never fires, and INV-2 is the bound that makes
+      the controller safe to run in a call.
+    - `ARCHITECTURE.md` §9 lists all four as things `/metrics` exposes, and repeats the
+      alert instruction, with no mark.
+    - `DEPLOYMENT.md` itself, **twenty lines below its own NOT-wired table**, instructs the
+      operator to *"Watch for 24 h: `nod_decide_seconds` p99, `nod_queue_dropped_total`"*.
+      One document, both statements, and the wrong one is the actionable one.
+    This is ADR-062's travelling value in a third register — right at its origin, wrong at
+    its destination — and the census-guard shape without a guard. A fact recorded in one
+    file does not stop the instruction in another from being followed; only the file
+    someone acts on matters. **Where a capability is documented as absent, the absence
+    belongs everywhere the capability is named**, and most of all in the source that
+    declares it, because that is what a reader greps to check.
+    The direction is the usual one: every one of these reads **zero**, which is the value a
+    healthy system also reports. `nod_cuts_total` at 0 looks like no premature cutoffs;
+    `nod_queue_dropped_total` at 0 looks like no drops; `nod_decide_seconds` p99 unset
+    looks like a controller comfortably inside budget. Four instruments that cannot fail
+    an alert, reporting the reassuring value, on a deployed URL.
+    Found one gate after writing the entry above about disconnected instruments, by
+    walking into it. Not fixed here — wiring four metrics on submission night is the
+    change least likely to be reviewed and most likely to touch the hot loop INV-2 exists
+    to protect.
+
   All five shapes are the same defect wearing different clothes — a check that cannot
   fail. A test that cannot go red. An invariant vacuous under the constants actually in
   force. A tool that reported false greens because it never confirmed its own edit landed.

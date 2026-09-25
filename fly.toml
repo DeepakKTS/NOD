@@ -44,7 +44,20 @@ primary_region = "iad"
   # every open socket.
   auto_stop_machines = false
   auto_start_machines = true
+  # **One machine, and this is a correctness constraint, not a cost one.** The
+  # session registry is `app.state.sessions`, an in-process dict (ARCHITECTURE
+  # §6 puts SQLite behind completed sessions only, and CLAUDE.md §7 forbids a
+  # second state store before the roadmap says so). `POST /v1/sessions` writes
+  # to whichever machine answers it; `WS /v1/console` and `WS /v1/stream` are
+  # separate connections and may land on another. The second machine then has
+  # no such id and refuses the upgrade — the browser shows "The session no
+  # longer exists. Reload the page."
+  #
+  # `fly deploy` created two machines by default for high availability and this
+  # was caught before the first call rather than after. Raising it above 1 needs
+  # the registry moved out of process first.
   min_machines_running = 1
+  max_machines_running = 1
 
   [[http_service.checks]]
     grace_period = "10s"

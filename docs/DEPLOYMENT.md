@@ -196,8 +196,22 @@ container out of rotation, because `observe` mode and replay mode still work.
 ## 5. Rollout
 
 1. Deploy with `NOD_MODE_DEFAULT=observe`. Nod profiles and traces but sends no patches.
-2. Watch for 24 h (or one demo session): `nod_decide_seconds` p99, `nod_queue_dropped_total`,
-   `nod_upstream_reconnects_total`, `controller_error` count.
+2. Watch for 24 h (or one demo session): `nod_upstream_reconnects_total`,
+   `nod_turns_total`, `nod_config_patches_total`, `nod_controller_errors_total`, and the
+   `controller_closed` record each session's trace ends with.
+
+   **Do not watch `nod_decide_seconds` or `nod_queue_dropped_total` — they cannot fire.**
+   Both are declared in `src/nod_server/telemetry.py` and observed nowhere in `src/`, so
+   they are exported on `/metrics` and can only ever read zero, including on the live URL
+   right now. An earlier version of this step named both, and an alert built from it would
+   never have fired. The reassuring direction is the trap: `nod_queue_dropped_total` at 0
+   reads as "no drops", and `nod_decide_seconds` p99 unset reads as "comfortably inside
+   budget" — which is also what a healthy system looks like. `nod_cuts_total` and
+   `nod_tts_cache_hits_total` are dead the same way; four of ten. INV-2's 5 ms bound is
+   covered by `tests/property/test_budget.py` over 100 000 iterations and by nothing in
+   production, and `telemetry.py`'s module docstring still calls `nod_decide_seconds`
+   "the canary for INV-2" — wrong until the histogram is observed somewhere.
+
 3. Flip to `adapt` for a fraction of sessions via `nod_mode` on the connection URL.
 4. Compare cut rate between the two cohorts using committed traces.
 
