@@ -3225,3 +3225,26 @@ more than five routes before concluding anything.
 Consequence: 2 mutations in the `health` catalogue, both seen red on purpose — one
 re-advertising `/v1/voices`, one restoring a bare `NotImplementedError` — and each fires a
 different assertion.
+
+## ADR-061 — The stub brain stays; no LLM is configured for the submission
+
+`LLM_PROVIDER` is empty on a submitted project and that will look like an omission, so it
+is recorded as a decision.
+
+**Three reasons, in order of weight.** The demo video was recorded against the stub, so
+configuring a provider now makes the film and the deployed URL disagree about what the
+agent says — and the film is the artifact a judge watches first. `INTAKE_SCRIPT` in
+`nod_server/context.py` exists *because* `reply()` returns a constant; a model makes the
+agent's questions non-deterministic and the context axis stops being reproducible from the
+repository, which is the property that made it demonstrable at all (ADR-059). And Gate 5
+is the first execution of `scripts/deploy_aws.sh` — adding an untested external dependency
+to a deployment that has never run is the wrong risk at the wrong hour.
+
+CLAUDE.md §7 forbids an LLM in the turn-timing decision path. A configured provider would
+not have been in that path, but a reader could not establish that without reading the
+code; an absent key settles it from the outside.
+
+Consequence: the context axis is claimed as **built and tested, not filmed**, which is
+what the README and SUBMISSION.md already say. Anyone wanting the LLM path sets
+`LLM_PROVIDER` and `LLM_API_KEY`; the adapter is behind a Protocol and the fallback is
+the scripted intake, not a crash.
