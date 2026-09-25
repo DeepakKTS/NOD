@@ -424,6 +424,31 @@ lines. That file is long-term memory; this file is the standing contract.
     refuse/reject/cap/limit/never family**, almost all about internal APIs — is a gate of
     its own and is not claimed to be clean here. Stated rather than surveyed, because a
     survey that stopped at the easy half would be worse than saying so.
+  - **"Traces to an artifact" and "says what the artifact says" are different tests.**
+    A launch-video script cited `end_of_turn_confidence_threshold` arms landing "6 ms
+    apart". The figure was real: 353 and 347 ms appear verbatim in ADR-001, the claim
+    mapped to a ship-list item, and it cleared a line-by-line audit against
+    `docs/SUBMISSION.md`. It was still wrong.
+    6 ms is the gap between the **r0 repeats of the two connect arms** — one pair of
+    single sessions — quoted as though it were a spread across the documented extremes.
+    Reading `payload.boundary_ms` out of all twelve `verdict` records gives 363.7 ms at
+    threshold 0.0 against 356.2 at 1.0, a spread of 17.3 ms across the four arm means
+    and 51 ms across every session. The glob also has to be filtered by
+    `payload.model`, because it holds `universal-3-5-pro` runs near 3500 ms that would
+    swamp any aggregate.
+    **The artifact that was traced to was the ADR's summary sentence, not the field it
+    summarises.** An ADR is a *claim about* data; citing one satisfies provenance and
+    says nothing about arithmetic. The rule that follows is narrow: **when a number
+    appears in a document, the citation is the field, not the prose** — and a figure
+    quoted from an ADR gets re-derived from the trace before it is published again.
+    Third instance in a week, after ADR-054 (correct observation, wrong mechanism) and
+    Gate 4f (correct number, wrong sentence). Same shape every time: a true term
+    carrying a false one, surviving because the true term is the one that gets checked.
+    Worth noting what did *not* catch it — a claims audit that mapped every line to a
+    ship-list item, which is the control this project added two gates ago specifically
+    to stop bad claims reaching an asset. It passed the line. Provenance checks answer
+    "may we say this", never "is this the number".
+
   - **The clause rule, applied to instruments instead of claims.** §5 already says: for
     every clause in a claim, name the field that would show it and read that field. The
     same question has to be asked of a *diagnostic* before its answer is believed —
