@@ -43,8 +43,27 @@
 > answers 404 from the same path. `/healthz`, `/readyz`, `/metrics`, the demo page and the
 > 501s all work, because all of them are plain HTTP; everything the product does is not.
 >
-> The ECR repository, the CodeBuild project and the App Runner service are **left in
-> place** deliberately until a replacement is proven. `make deploy-teardown` removes them.
+> The ECR repository, the CodeBuild project and the App Runner service were **left in
+> place** deliberately until a replacement was proven.
+>
+> **Corrected at Gate 6.** The replacement is proven: Nod runs on Fly (ADR-064). Two
+> things in the sentence above were wrong by then and are stated here rather than fixed
+> silently. The App Runner service is **already gone** (`aws apprunner list-services`
+> returns nothing). And **`make deploy-teardown` was never built** — it is cited here and
+> in `scripts/deploy_aws.sh`, and exists in neither, which is the CLAUDE.md §5 defect
+> about commands that appear only in files nothing executes. It is marked rather than
+> written, because an untested destructive cloud script is worse than an honest note.
+> What is actually left in the account is the ECR repository `nod` and the CodeBuild
+> project `nod-build`, both idle. They are removed by:
+>
+>     aws ecr delete-repository --repository-name nod --force --region us-east-1
+>     aws codebuild delete-project --name nod-build --region us-east-1
+>     aws s3 rb "s3://nod-build-$(aws sts get-caller-identity --query Account --output text)" --force
+>     aws iam delete-role-policy --role-name nod-codebuild --policy-name nod-build
+>     aws iam delete-role --role-name nod-codebuild
+>     aws iam delete-role --role-name nod-apprunner-ecr
+>
+> Neither of those two was run by the session that wrote this.
 
 > **23 Sep, Gate 4e — two of the three blockers cleared, one remains.**
 >

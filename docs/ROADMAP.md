@@ -133,11 +133,16 @@ to start unless `predict` has written its file first.
 attributes live boundaries to gaps with it. Every live PCR figure is suspect. Named, not
 fixed.
 
-**Deploy is blocked on one thing only, and it is no longer the repo.** The six commits are
-pushed. AWS is authenticated and the ECR repository exists; creating the build role and
-source bucket is refused by this session's permission layer, so `scripts/deploy_aws.sh`
-is written and unrun. **The GitHub repo is private**, which the submission requires it not
-to be.
+**Deploy was blocked; it no longer is, and both halves of that sentence have since
+changed.** As written at Gate 4e: the six commits were pushed, AWS was authenticated and
+the ECR repository existed, creating the build role and source bucket was refused by that
+session's permission layer, and the GitHub repo was private.
+
+**Resolved at Gate 6, and corrected here rather than left to read as current status.**
+The repository is **public**. The AWS path was abandoned entirely: App Runner refuses
+WebSocket upgrades at its ingress, which is the whole product (ADR-064). Nod is deployed
+on Fly and verified live at <https://nod-turn-timing.fly.dev> — both sockets upgrade,
+one full call returns turns in `observe` mode.
 
 **The human ladder recording has not been supplied**, so the `say`-to-human
 generalisation is still open. It is now a smaller question — where `C` sits on a human

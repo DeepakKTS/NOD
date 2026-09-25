@@ -416,6 +416,11 @@ def banner_html() -> str:
     padding: 26px 46px; border-radius: 999px;
   }}
   .btn .arr {{ font-size: 30px; opacity: .8; }}
+  .powered {{
+    margin: 30px 0 0; font-size: 27px; color: {INK_FAINT};
+    letter-spacing: -0.2px;
+  }}
+  .powered b {{ color: {INK}; font-weight: 600; }}
   .right {{ flex: none; }}
   .right img {{ width: 1204px; display: block; }}
 </style>
@@ -428,6 +433,7 @@ def banner_html() -> str:
       <code>min_turn_silence&nbsp;2400</code> it gave them <b>2574&nbsp;ms</b>,
       and took the rest of the sentence as the same turn.</p>
     <span class="btn">Experience the live demo <span class="arr">&#8594;</span></span>
+    <p class="powered">Powered by <b>AssemblyAI</b> Universal-Streaming</p>
   </div>
   <div class="right"><img src="patience.svg" alt="Turn held open, by min_turn_silence"></div>
 </body>

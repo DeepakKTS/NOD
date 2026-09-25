@@ -1,5 +1,6 @@
 [![Nod](docs/banner.png)](https://nod-turn-timing.fly.dev)
 
+[![Powered by AssemblyAI](https://img.shields.io/badge/Powered%20by-AssemblyAI-FFB340)](https://www.assemblyai.com/)
 [![CI](https://github.com/DeepakKTS/NOD/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepakKTS/NOD/actions/workflows/ci.yml)
 
 Every deployed voice agent picks one silence threshold and applies it to every human

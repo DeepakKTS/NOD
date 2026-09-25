@@ -7,13 +7,24 @@
 # supplies TLS, a hostname and a health check without an ALB to configure.
 #
 # GitHub is deliberately not in the path. A CodeBuild GitHub source needs an
-# OAuth connection created in the console, and the repository is private; a
+# OAuth connection created in the console, and the repository was private when
+# this was written (it is public as of Gate 6); a
 # source zip needs neither and makes the deploy reproducible from whatever the
 # working tree actually contains rather than from what was last pushed.
 #
 # **Run it with credentials that may create IAM roles.** Everything else here
 # is ordinary resource creation; the two roles are the part that needs an
-# administrator. `make deploy-teardown` removes everything it makes.
+# administrator.
+#
+# **`make deploy-teardown` does not exist and never did.** It was cited here and in
+# DEPLOYMENT.md §3 as though it were real. DEPLOYMENT.md now carries the actual aws
+# commands that remove what this script creates. Marked rather than written: an
+# untested destructive cloud script is worse than an honest note.
+#
+# **This whole path is abandoned (ADR-064).** App Runner serves every plain-HTTP route
+# and refuses every WebSocket upgrade at its ingress, which is the entire product. Nod
+# is deployed on Fly; see `fly.toml`. The script is kept as the record of what was
+# tried and why it was dropped, not as a route anyone should take.
 #
 # Usage:
 #     ASSEMBLYAI_API_KEY=... sh scripts/deploy_aws.sh
